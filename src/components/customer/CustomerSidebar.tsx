@@ -22,13 +22,15 @@ export default function CustomerSidebar({ user, currentView, onViewChange, onLog
     { id: 'track' as const, label: 'Cek paket' }
   ]
 
+  const userName = user.name || user.email.split('@')[0]
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-card border-r">
       <div className="p-6 border-b flex flex-col items-center">
         <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Photo</p>
         </div>
-        <p className="text-sm text-center text-foreground font-medium">Nama User</p>
+        <p className="text-sm text-center text-foreground font-medium">{userName}</p>
       </div>
 
       <nav className="flex-1 p-4">
