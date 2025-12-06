@@ -15,6 +15,32 @@ function Card({ className, ...props }: ComponentProps<"div">) {
   )
 }
 
+function CardTable1({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-table-1"
+      className={cn(
+        "bg-card text-card-foreground rounded-xl border shadow-sm overflow-hidden",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardTable2({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-table-2"
+      className={cn(
+        "bg-card text-card-foreground rounded-xl border shadow-sm overflow-hidden",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function CardHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
@@ -89,4 +115,6 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  CardTable1,
+  CardTable2,
 }
