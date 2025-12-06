@@ -4,22 +4,22 @@ import { List } from '@phosphor-icons/react'
 import { User } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 
-type AdminView = 'home' | 'input-data' | 'courier' | 'courier-activation' | 'monitoring' | 'history'
+type CustomerView = 'home' | 'orders' | 'track'
 
-interface AdminSidebarProps {
+interface CustomerSidebarProps {
   user: User
-  currentView: AdminView
-  onViewChange: (view: AdminView) => void
+  currentView: CustomerView
+  onViewChange: (view: CustomerView) => void
   onLogout: () => void
 }
 
-export default function AdminSidebar({ user, currentView, onViewChange, onLogout }: AdminSidebarProps) {
+export default function CustomerSidebar({ user, currentView, onViewChange, onLogout }: CustomerSidebarProps) {
   const isMobile = useIsMobile()
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
-    { id: 'input-data' as const, label: 'Gabung/Buat Pesanan Saya' },
-    { id: 'monitoring' as const, label: 'Cek paket' }
+    { id: 'orders' as const, label: 'Gabung/Buat Pesanan Saya' },
+    { id: 'track' as const, label: 'Cek paket' }
   ]
 
   const SidebarContent = () => (

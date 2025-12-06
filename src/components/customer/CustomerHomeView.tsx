@@ -2,11 +2,11 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { User } from '@/lib/types'
 
-interface HomeViewProps {
+interface CustomerHomeViewProps {
   user: User
 }
 
-export default function HomeView({ user }: HomeViewProps) {
+export default function CustomerHomeView({ user }: CustomerHomeViewProps) {
   const userName = user.name || user.email.split('@')[0]
 
   return (

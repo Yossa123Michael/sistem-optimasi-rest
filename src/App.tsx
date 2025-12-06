@@ -9,6 +9,7 @@ import RoleSelectionScreen from './components/auth/RoleSelectionScreen'
 import CompanySelectionScreen from './components/company/CompanySelectionScreen'
 import AdminDashboard from './components/admin/AdminDashboard'
 import CourierDashboard from './components/courier/CourierDashboard'
+import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
 import { Toaster } from './components/ui/sonner'
 
@@ -21,6 +22,7 @@ type AppScreen =
   | 'company-selection'
   | 'admin-dashboard'
   | 'courier-dashboard'
+  | 'customer-dashboard'
   | 'track-package'
 
 function App() {
@@ -32,6 +34,8 @@ function App() {
     if (currentUser) {
       if (!currentUser.role) {
         setCurrentScreen('role-selection')
+      } else if (currentUser.role === 'customer') {
+        setCurrentScreen('customer-dashboard')
       } else if (!currentUser.companyId) {
         setCurrentScreen('company-selection')
       } else {
@@ -112,6 +116,13 @@ function App() {
       case 'courier-dashboard':
         return (
           <CourierDashboard
+            user={currentUser!}
+            onLogout={handleLogout}
+          />
+        )
+      case 'customer-dashboard':
+        return (
+          <CustomerDashboard
             user={currentUser!}
             onLogout={handleLogout}
           />

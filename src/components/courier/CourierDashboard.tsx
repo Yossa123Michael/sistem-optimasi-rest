@@ -39,7 +39,7 @@ export default function CourierDashboard({ user, onLogout }: CourierDashboardPro
         onViewChange={setCurrentView}
         onLogout={onLogout}
       />
-      <main className="flex-1 lg:ml-64">
+      <main className="flex-1 lg:ml-48">
         {renderView()}
       </main>
     </div>

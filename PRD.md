@@ -5,7 +5,7 @@ A comprehensive logistics management platform for optimizing delivery routes wit
 **Experience Qualities**:
 1. **Efficient**: Streamlined workflows that minimize clicks and optimize courier routes automatically using intelligent algorithms
 2. **Transparent**: Real-time package tracking with live map updates so customers and admins always know package status
-3. **Intuitive**: Clear role-based interfaces that guide users through complex logistics operations with minimal training
+3. **Intuitive**: Clear role-based interfaces with simplified navigation that guide users through complex logistics operations with minimal training
 
 **Complexity Level**: Complex Application (advanced functionality, likely with multiple views)
 This is a sophisticated logistics platform featuring multi-tenant company management, route optimization algorithms, real-time tracking, role-based access control, and comprehensive admin dashboards requiring multiple interconnected views and advanced state management.
@@ -13,11 +13,25 @@ This is a sophisticated logistics platform featuring multi-tenant company manage
 ## Essential Features
 
 ### Authentication & Onboarding
-- **Functionality**: Complete auth flow with login, registration, password reset, and role selection
+- **Functionality**: Complete auth flow with login, registration, password reset, and role selection (Customer/Admin/Courier)
 - **Purpose**: Secure access control and proper user routing based on roles
 - **Trigger**: App launch or logout
-- **Progression**: Splash screen → Login → Role selection (Customer/Admin/Courier) → Company setup/join → Dashboard
+- **Progression**: Splash screen → Login → Role selection → Dashboard (Customer gets direct access, Admin/Courier need company setup/join)
 - **Success criteria**: Users can register, login securely, and access role-appropriate features
+
+### Customer Interface (NEW)
+- **Functionality**: Simple dashboard with greeting, order placement, and package tracking
+- **Purpose**: Enable customers to place orders and track their packages easily
+- **Trigger**: Customer logs in after role selection
+- **Progression**: View home greeting → Place order or check package status
+- **Success criteria**: Customers can access their personalized dashboard and interact with order/tracking features
+
+### Simplified Navigation (NEW)
+- **Functionality**: Streamlined sidebar with photo placeholder, menu items, and sign out
+- **Purpose**: Provide clean, focused navigation experience
+- **Trigger**: After successful login
+- **Progression**: View options → Select action → Navigate to feature
+- **Success criteria**: All roles have consistent, easy-to-use navigation with clear visual hierarchy
 
 ### Company Management
 - **Functionality**: Create companies, generate join codes, manage employees (admins/couriers)
@@ -69,70 +83,64 @@ This is a sophisticated logistics platform featuring multi-tenant company manage
 - **Optimization Failures**: Handle cases where no valid route exists due to capacity constraints
 - **Duplicate Tracking Numbers**: Ensure unique ID generation for all packages
 - **Network Issues**: Show loading states during async operations
+- **Role-Based Access**: Customers skip company selection, directly access simplified dashboard
 
 ## Design Direction
-The design should evoke **professional reliability** with a modern logistics tech aesthetic—confident, data-driven, and efficient. The interface should feel like a control center: organized, responsive, and trustworthy.
+The design should evoke **professional simplicity** with a modern, clean aesthetic—organized, approachable, and user-friendly. The interface emphasizes clarity with centered content cards and minimal navigation.
 
 ## Color Selection
-A bold logistics-focused palette emphasizing efficiency and clarity with strong contrast for data visibility.
+A clean, neutral palette with subtle color accents for a professional appearance.
 
-- **Primary Color**: `oklch(0.45 0.15 250)` - Deep blue conveying trust and professionalism in logistics
-- **Secondary Colors**: `oklch(0.92 0.02 250)` - Light blue-gray for secondary actions and backgrounds
-- **Accent Color**: `oklch(0.65 0.20 140)` - Vibrant teal for CTAs, active routes, and success states
-- **Destructive**: `oklch(0.60 0.22 25)` - Warm red for errors and failed deliveries
+- **Primary Color**: `oklch(0.45 0.15 250)` - Deep blue for branding and primary actions
+- **Secondary Colors**: `oklch(0.92 0.02 250)` - Light blue-gray for selected states and backgrounds
+- **Accent Color**: `oklch(0.65 0.20 140)` - Vibrant teal for CTAs and highlights
+- **Background**: `oklch(0.98 0 0)` - Near-white for clean, spacious feeling
 - **Foreground/Background Pairings**: 
   - Background (White `oklch(0.98 0 0)`): Foreground `oklch(0.20 0.02 250)` - Ratio 12.5:1 ✓
-  - Primary (`oklch(0.45 0.15 250)`): White text `oklch(0.98 0 0)` - Ratio 8.2:1 ✓
-  - Accent (`oklch(0.65 0.20 140)`): White text `oklch(0.98 0 0)` - Ratio 5.1:1 ✓
-  - Cards (`oklch(0.98 0.01 250)`): Foreground `oklch(0.20 0.02 250)` - Ratio 12.3:1 ✓
+  - Card backgrounds with subtle borders for visual separation
+  - Muted text for labels and secondary information
 
 ## Font Selection
-Typography should project **technical precision and modern efficiency** suitable for data-heavy logistics interfaces.
+Typography should project **modern clarity and approachability** suitable for diverse user roles.
 
-- **Primary Font**: IBM Plex Sans - Technical clarity with excellent readability at all sizes
-- **Monospace Font**: JetBrains Mono - For tracking numbers, coordinates, and data tables
+- **Primary Font**: IBM Plex Sans - Professional clarity with excellent readability
+- **Monospace Font**: JetBrains Mono - For tracking numbers and technical data
 - **Typographic Hierarchy**:
-  - H1 (Page Titles): IBM Plex Sans Semibold/32px/tight tracking
-  - H2 (Section Headers): IBM Plex Sans Medium/24px/normal tracking  
-  - H3 (Card Titles): IBM Plex Sans Medium/18px/normal tracking
-  - Body (Primary Text): IBM Plex Sans Regular/15px/relaxed leading (1.6)
-  - Data (Metrics/Codes): JetBrains Mono Medium/14px/normal tracking
-  - Small (Metadata): IBM Plex Sans Regular/13px/normal tracking
+  - H1 (Greeting/Page Titles): IBM Plex Sans Medium/24px/normal tracking
+  - H2 (Section Headers): IBM Plex Sans Medium/20px/normal tracking  
+  - Body (Primary Text): IBM Plex Sans Regular/16px/relaxed leading (1.6)
+  - Labels: IBM Plex Sans Regular/14px/normal tracking
+  - Small (Metadata): IBM Plex Sans Regular/13px/text-muted-foreground
 
 ## Animations
-Animations should enhance **spatial awareness and state changes** without delaying operations. Use purposeful motion: smooth page transitions (300ms), instant feedback on interactions (100ms), and gentle route line drawing on maps (500ms ease-out). Route recalculations should show a subtle pulse on the optimize button.
+Animations should be **subtle and functional**, enhancing usability without distraction. Button hover states (100ms), smooth transitions between views (300ms), gentle highlight on active menu items.
 
 ## Component Selection
 - **Components**: 
-  - Forms: Input, Label, Button for all data entry with inline validation
-  - Navigation: Sidebar for admin/courier dashboards with collapsible mobile drawer
-  - Data Display: Card for metrics, Table for package lists/history, Badge for status indicators
-  - Interactions: Dialog for company creation/join, Alert for validation errors, Toast (sonner) for success confirmations
-  - Maps: Leaflet.js integration in Card containers with custom markers
-  - Status: Progress for route optimization, Skeleton for loading states
+  - Navigation: Simplified sidebar (192px/12rem width) with photo placeholder, text-only menu items
+  - Content: Card containers for main content areas with generous padding
+  - Buttons: Large outline buttons (h-24) for primary actions on home screen
+  - Text: Centered role indicator ("Sebagai Customer/Admin/Courier")
+  - Mobile: Sheet drawer for sidebar on small screens
   
 - **Customizations**: 
-  - Custom map markers with role-specific colors (admin=blue, courier=teal, package=orange)
-  - Status timeline component for package tracking with vertical connector lines
-  - Metric cards with large numbers and trend indicators
-  - Route visualization with polylines and distance/time overlays
+  - Photo placeholder: Circular div with "Photo" text instead of avatar
+  - Menu items: Text-only buttons without icons for cleaner look
+  - Sign out: Positioned at bottom of sidebar
+  - Greeting format: "Halo, [Username]" with action buttons below
   
 - **States**:
-  - Buttons: Solid primary for main actions, outline for secondary, ghost for navigation, loading spinner for async
-  - Inputs: Focused blue ring, error red border with shake animation, success green checkmark icon
-  - Cards: Subtle hover lift on interactive elements, active state with border accent
-  
-- **Icon Selection**: 
-  - @phosphor-icons/react: Package for deliveries, MapPin for locations, Truck for couriers, ChartLine for analytics, User for profiles, SignOut for logout, Plus for add actions, Check for completion
+  - Menu items: Ghost variant with secondary background when active
+  - Buttons: Outline style with border-2 for prominence
+  - Hover: Subtle background changes only
   
 - **Spacing**: 
-  - Page padding: p-6 on desktop, p-4 on mobile
-  - Card gaps: gap-4 for form fields, gap-6 for section separation
-  - Dashboard grid: grid with gap-6 for metric cards
+  - Sidebar: 192px (w-48) fixed width
+  - Main content: ml-48 on desktop to accommodate sidebar
+  - Card padding: p-8 for generous white space
+  - Button gaps: gap-4 between action buttons
   
 - **Mobile**:
-  - Sidebar converts to bottom sheet navigation on <768px
-  - Maps adjust height to 50vh on mobile for split view with data
-  - Tables convert to stacked card layout on mobile
-  - Two-column forms become single column on mobile
-  - Metric cards stack vertically with full width
+  - Sidebar converts to slide-out sheet on mobile
+  - Content adjusts to full width with top navigation bar
+  - Action buttons remain side-by-side on larger mobile screens

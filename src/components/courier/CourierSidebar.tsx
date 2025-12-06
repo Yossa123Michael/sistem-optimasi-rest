@@ -1,9 +1,7 @@
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { House, Package, MapTrifold, ArrowsClockwise, SignOut, List } from '@phosphor-icons/react'
-import { User, Company } from '@/lib/types'
+import { List } from '@phosphor-icons/react'
+import { User } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 type CourierView = 'home' | 'package-list' | 'recommendation' | 'update'
@@ -17,62 +15,43 @@ interface CourierSidebarProps {
 
 export default function CourierSidebar({ user, currentView, onViewChange, onLogout }: CourierSidebarProps) {
   const isMobile = useIsMobile()
-  const [companies] = useKV<Company[]>('companies', [])
-  
-  const company = companies?.find(c => c.id === user.companyId)
 
   const menuItems = [
-    { id: 'home' as const, label: 'Home', icon: House },
-    { id: 'package-list' as const, label: 'List Paket', icon: Package },
-    { id: 'recommendation' as const, label: 'Rekomendasi', icon: MapTrifold },
-    { id: 'update' as const, label: 'Update', icon: ArrowsClockwise }
+    { id: 'home' as const, label: 'Home' },
+    { id: 'package-list' as const, label: 'Gabung/Buat Pesanan Saya' },
+    { id: 'recommendation' as const, label: 'Cek paket' }
   ]
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-card border-r">
-      <div className="p-6 border-b">
-        <div className="flex items-center gap-3 mb-4">
-          <Avatar className="w-12 h-12">
-            <AvatarFallback className="bg-accent text-accent-foreground text-lg font-semibold">
-              {(user.name || user.email)[0].toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold truncate">{user.name || user.email}</p>
-            <p className="text-xs text-muted-foreground truncate">Kurir</p>
-          </div>
+      <div className="p-6 border-b flex flex-col items-center">
+        <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Photo</p>
         </div>
-        {company && (
-          <div className="bg-secondary rounded-lg p-3">
-            <p className="text-xs text-muted-foreground mb-1">Perusahaan</p>
-            <p className="font-medium text-sm">{company.name}</p>
-          </div>
-        )}
+        <p className="text-sm text-center text-foreground font-medium">Nama User</p>
       </div>
 
       <nav className="flex-1 p-4">
-        <div className="space-y-1">
+        <div className="space-y-2">
           {menuItems.map((item) => (
             <Button
               key={item.id}
-              variant={currentView === item.id ? 'default' : 'ghost'}
-              className={currentView === item.id ? 'w-full justify-start bg-accent' : 'w-full justify-start'}
+              variant="ghost"
+              className={currentView === item.id ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
               onClick={() => onViewChange(item.id)}
             >
-              <item.icon size={20} className="mr-3" weight={currentView === item.id ? 'fill' : 'regular'} />
               {item.label}
             </Button>
           ))}
         </div>
       </nav>
 
-      <div className="p-4 border-t">
+      <div className="p-4">
         <Button
           variant="ghost"
-          className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-center text-foreground"
           onClick={onLogout}
         >
-          <SignOut size={20} className="mr-3" />
           Sign Out
         </Button>
       </div>
@@ -90,7 +69,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
                 <List size={24} />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
+            <SheetContent side="left" className="p-0 w-48">
               <SidebarContent />
             </SheetContent>
           </Sheet>
@@ -100,7 +79,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 z-40">
+    <aside className="fixed left-0 top-0 h-screen w-48 z-40">
       <SidebarContent />
     </aside>
   )
