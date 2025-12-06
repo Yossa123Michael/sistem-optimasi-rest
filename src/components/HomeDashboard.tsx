@@ -161,8 +161,8 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
             <SidebarContent />
           </aside>
 
-          <main className="flex-1 overflow-y-auto bg-background">
-            <div className="p-12 max-w-3xl space-y-6">
+          <main className="flex-1 overflow-y-auto bg-background flex items-center justify-center">
+            <div className="w-full max-w-2xl px-8 space-y-6">
               <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
                 <CardContent className="p-10">
                   <h2 className="text-xl text-center text-muted-foreground">
