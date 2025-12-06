@@ -21,6 +21,15 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const userCompany = (companies || []).find((company) => company.id === user.companyId)
   const companyDisplayName = userCompany ? userCompany.name : 'Buat/Gabung perusahaan'
 
+  const handleCompanyNavigate = () => {
+    if (userCompany) {
+      onNavigate('companies')
+    } else {
+      onNavigate('companies')
+    }
+    if (isMobile) setSidebarOpen(false)
+  }
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-card">
       <div className="flex flex-col items-center gap-3 p-6 pt-8 relative">
@@ -47,10 +56,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
 
         <button
           className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-          onClick={() => {
-            onNavigate('companies')
-            if (isMobile) setSidebarOpen(false)
-          }}
+          onClick={handleCompanyNavigate}
         >
           {companyDisplayName}
         </button>
