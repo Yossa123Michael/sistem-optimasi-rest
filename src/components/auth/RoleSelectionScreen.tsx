@@ -1,14 +1,15 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { User as UserIcon, Truck, ShoppingCart } from '@phosphor-icons/react'
+import { User as UserIcon, Truck, ShoppingCart, SignOut } from '@phosphor-icons/react'
 import { User, UserRole } from '@/lib/types'
 
 interface RoleSelectionScreenProps {
   user: User
   onRoleSelected: (role: UserRole) => void
+  onSignOut: () => void
 }
 
-export default function RoleSelectionScreen({ user, onRoleSelected }: RoleSelectionScreenProps) {
+export default function RoleSelectionScreen({ user, onRoleSelected, onSignOut }: RoleSelectionScreenProps) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary/50 p-4">
       <Card className="w-full max-w-4xl shadow-xl">
@@ -72,6 +73,17 @@ export default function RoleSelectionScreen({ user, onRoleSelected }: RoleSelect
                 </div>
               </div>
             </button>
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <Button
+              onClick={onSignOut}
+              variant="outline"
+              className="gap-2"
+            >
+              <SignOut size={20} weight="duotone" />
+              Sign Out
+            </Button>
           </div>
         </CardContent>
       </Card>

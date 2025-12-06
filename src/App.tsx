@@ -95,6 +95,7 @@ function App() {
             onRoleSelected={(role) => {
               setCurrentUser((prev) => prev ? { ...prev, role } : null)
             }}
+            onSignOut={handleLogout}
           />
         )
       case 'company-selection':
