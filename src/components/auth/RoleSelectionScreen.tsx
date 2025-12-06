@@ -31,7 +31,7 @@ export default function RoleSelectionScreen({ user, onRoleSelected }: RoleSelect
                   <UserIcon size={48} weight="duotone" className="text-primary-foreground" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-semibold mb-2">Admin</h3>
+                  <h3 className="text-2xl font-semibold mb-2">Buat Perusahaan</h3>
                   <p className="text-sm text-muted-foreground">
                     Kelola perusahaan, kurir, dan paket
                   </p>
@@ -48,7 +48,7 @@ export default function RoleSelectionScreen({ user, onRoleSelected }: RoleSelect
                   <Truck size={48} weight="duotone" className="text-accent-foreground" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-semibold mb-2">Kurir</h3>
+                  <h3 className="text-2xl font-semibold mb-2">Gabung Perusahaan</h3>
                   <p className="text-sm text-muted-foreground">
                     Lihat dan kelola pengiriman paket
                   </p>
