@@ -4,7 +4,7 @@ import { User, Company } from '@/lib/types'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet'
-import { List } from '@phosphor-icons/react'
+import { List, X } from '@phosphor-icons/react'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 interface HomeDashboardProps {
@@ -30,9 +30,9 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         {isMobile && (
           <button
             onClick={() => setSidebarOpen(false)}
-            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
           >
-            ✕
+            <X size={20} />
           </button>
         )}
         <div className="w-24 h-24 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
