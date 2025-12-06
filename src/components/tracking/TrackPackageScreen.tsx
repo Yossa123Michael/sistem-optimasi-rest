@@ -157,12 +157,10 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
             <button
               onClick={onBack}
               className="text-primary hover:underline font-medium text-sm"
-            >
-              Kembali ke Login
-            </button>
+            >Kembali ke Home</button>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
