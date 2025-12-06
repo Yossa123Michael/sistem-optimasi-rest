@@ -19,19 +19,26 @@ This is a sophisticated logistics platform featuring multi-tenant company manage
 - **Progression**: Splash screen → Login → Role selection → Dashboard (Customer gets direct access, Admin/Courier need company setup/join)
 - **Success criteria**: Users can register, login securely, and access role-appropriate features
 
+### Simplified Navigation (NEW)
+- **Functionality**: Streamlined sidebar with photo placeholder, menu items (Home, List Perusahaan/Buat Gabung Perusahaan, Cek Paket), and sign out
+- **Purpose**: Provide clean, focused navigation experience after login
+- **Trigger**: After successful login and role selection
+- **Progression**: Login → Role selection → Home dashboard with sidebar → Navigate to features
+- **Success criteria**: All users have consistent, easy-to-use navigation with clear visual hierarchy
+
+### Home Dashboard (NEW)
+- **Functionality**: Main landing screen after login with greeting and three action cards (Create Company, Join Company, Customer Mode)
+- **Purpose**: Central hub for user actions with clear options based on context
+- **Trigger**: After successful login
+- **Progression**: View greeting → Select action (Create/Join company or Customer mode) → Navigate to selected feature
+- **Success criteria**: Users can easily access all main features from centralized dashboard
+
 ### Customer Interface (NEW)
 - **Functionality**: Simple dashboard with greeting, order placement, and package tracking
 - **Purpose**: Enable customers to place orders and track their packages easily
-- **Trigger**: Customer logs in after role selection
+- **Trigger**: Customer selects "Sebagai Customer" from home dashboard or logs in with customer role
 - **Progression**: View home greeting → Place order or check package status
 - **Success criteria**: Customers can access their personalized dashboard and interact with order/tracking features
-
-### Simplified Navigation (NEW)
-- **Functionality**: Streamlined sidebar with photo placeholder, menu items, and sign out
-- **Purpose**: Provide clean, focused navigation experience
-- **Trigger**: After successful login
-- **Progression**: View options → Select action → Navigate to feature
-- **Success criteria**: All roles have consistent, easy-to-use navigation with clear visual hierarchy
 
 ### Company Management
 - **Functionality**: Create companies, generate join codes, manage employees (admins/couriers)
@@ -117,30 +124,34 @@ Animations should be **subtle and functional**, enhancing usability without dist
 
 ## Component Selection
 - **Components**: 
-  - Navigation: Simplified sidebar (192px/12rem width) with photo placeholder, text-only menu items
-  - Content: Card containers for main content areas with generous padding
-  - Buttons: Large outline buttons (h-24) for primary actions on home screen
-  - Text: Centered role indicator ("Sebagai Customer/Admin/Courier")
-  - Mobile: Sheet drawer for sidebar on small screens
+  - Navigation: Simplified sidebar (192px/12rem width) with circular photo placeholder, text-only menu items
+  - Content: Large Card containers for main content areas with generous padding (p-8 on desktop, p-6 on mobile)
+  - Buttons: Large outline buttons with border-2 for prominence (h-28/112px on desktop, h-24/96px on mobile)
+  - Layout: Centered content with max-width constraints (max-w-3xl on desktop, max-w-2xl on mobile)
+  - Mobile: Sheet drawer for sidebar on small screens with hamburger menu trigger
   
 - **Customizations**: 
-  - Photo placeholder: Circular div with "Photo" text instead of avatar
-  - Menu items: Text-only buttons without icons for cleaner look
-  - Sign out: Positioned at bottom of sidebar
-  - Greeting format: "Halo, [Username]" with action buttons below
+  - Photo placeholder: Large circular div (w-24 h-24) with "Photo" text and border-2
+  - Menu items: Ghost variant buttons, text-only without icons, full-width with left alignment
+  - Sign out: Positioned at bottom of sidebar with border-top separator
+  - Greeting format: "Halo, [Username]" centered in first card
+  - Action cards: Two-column grid for company actions, full-width for customer mode
   
 - **States**:
-  - Menu items: Ghost variant with secondary background when active
-  - Buttons: Outline style with border-2 for prominence
-  - Hover: Subtle background changes only
+  - Menu items: Ghost variant with hover background changes
+  - Buttons: Outline style with border-2, hover effects with subtle background
+  - Active menu: No special active state (all items act as navigation triggers)
   
 - **Spacing**: 
-  - Sidebar: 192px (w-48) fixed width
-  - Main content: ml-48 on desktop to accommodate sidebar
-  - Card padding: p-8 for generous white space
-  - Button gaps: gap-4 between action buttons
+  - Sidebar: w-48 (192px) fixed width on desktop
+  - Main content: ml-0 with sidebar as separate column in flex layout
+  - Card padding: p-10 for greeting, p-8 for action cards
+  - Button gaps: gap-4 between action buttons in grid
+  - Card gaps: space-y-6 between main content cards
   
 - **Mobile**:
-  - Sidebar converts to slide-out sheet on mobile
-  - Content adjusts to full width with top navigation bar
-  - Action buttons remain side-by-side on larger mobile screens
+  - Sidebar converts to slide-out Sheet with List icon trigger
+  - Fixed top bar (h-16) with menu button and user name
+  - Content adjusts to full width with top padding (pt-16)
+  - Action buttons adapt to single column on small screens, two columns on larger mobile
+  - Button heights reduce slightly on mobile (h-24 instead of h-28)
