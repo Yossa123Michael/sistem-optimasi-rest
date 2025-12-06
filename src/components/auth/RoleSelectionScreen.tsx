@@ -33,7 +33,7 @@ export default function RoleSelectionScreen({ user, onRoleSelected }: RoleSelect
                 <div>
                   <h3 className="text-2xl font-semibold mb-2">Buat Perusahaan</h3>
                   <p className="text-sm text-muted-foreground">
-                    Kelola perusahaan, kurir, dan paket
+                    Buat perusahaan dan kelola Bisnis Anda
                   </p>
                 </div>
               </div>
@@ -50,7 +50,7 @@ export default function RoleSelectionScreen({ user, onRoleSelected }: RoleSelect
                 <div>
                   <h3 className="text-2xl font-semibold mb-2">Gabung Perusahaan</h3>
                   <p className="text-sm text-muted-foreground">
-                    Lihat dan kelola pengiriman paket
+                    Gabung Perusahaan Sebagai Kurir/Admin
                   </p>
                 </div>
               </div>
