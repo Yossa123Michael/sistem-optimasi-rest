@@ -25,21 +25,29 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const hasCompanies = userCompanies.length > 0
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-background">
-      <div className="flex flex-col items-center gap-3 p-8 pt-12">
-        <div className="w-20 h-20 rounded-full border border-muted-foreground/20 flex items-center justify-center bg-background text-muted-foreground/50">
+    <div className="flex flex-col h-full bg-card">
+      <div className="flex flex-col items-center gap-3 p-6 pt-8 relative">
+        {isMobile && (
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+          >
+            ✕
+          </button>
+        )}
+        <div className="w-24 h-24 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
           <span className="text-sm">Photo</span>
         </div>
         <div className="text-center">
-          <p className="text-base text-muted-foreground">
+          <p className="text-base text-primary font-medium">
             {user.name || user.email.split('@')[0]}
           </p>
         </div>
       </div>
 
-      <nav className="flex-1 px-8 space-y-1">
+      <nav className="flex-1 px-6 py-4 space-y-2">
         <button
-          className="w-full text-left text-base text-muted-foreground py-2 hover:text-foreground transition-colors"
+          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
           onClick={() => {
             onNavigate('home')
             if (isMobile) setSidebarOpen(false)
@@ -49,7 +57,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </button>
 
         <button
-          className="w-full text-left text-base text-muted-foreground py-2 hover:text-foreground transition-colors"
+          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
           onClick={() => {
             onNavigate('companies')
             if (isMobile) setSidebarOpen(false)
@@ -59,7 +67,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </button>
 
         <button
-          className="w-full text-left text-base text-muted-foreground py-2 hover:text-foreground transition-colors"
+          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
           onClick={() => {
             onNavigate('home')
             if (isMobile) setSidebarOpen(false)
@@ -69,7 +77,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </button>
 
         <button
-          className="w-full text-left text-base text-muted-foreground py-2 hover:text-foreground transition-colors"
+          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
           onClick={() => {
             onNavigate('track-package')
             if (isMobile) setSidebarOpen(false)
@@ -79,9 +87,9 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </button>
       </nav>
 
-      <div className="px-8 pb-8">
+      <div className="px-6 pb-8">
         <button
-          className="w-full text-left text-base text-muted-foreground py-2 hover:text-foreground transition-colors"
+          className="w-full text-left text-base text-destructive py-3 hover:text-destructive/80 transition-colors"
           onClick={() => {
             onLogout()
             if (isMobile) setSidebarOpen(false)
@@ -157,11 +165,11 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </>
       ) : (
         <>
-          <aside className="w-64 flex-shrink-0 border-r border-muted-foreground/10">
+          <aside className="w-64 flex-shrink-0 border-r border-border bg-card">
             <SidebarContent />
           </aside>
 
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto bg-background">
             <div className="p-12 max-w-3xl space-y-6">
               <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
                 <CardContent className="p-10">
