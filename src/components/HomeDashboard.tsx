@@ -18,11 +18,8 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const userCompanies = (companies || []).filter(
-    (company) => company.ownerId === user.id || company.id === user.companyId
-  )
-
-  const hasCompanies = userCompanies.length > 0
+  const userCompany = (companies || []).find((company) => company.id === user.companyId)
+  const companyDisplayName = userCompany ? userCompany.name : 'Buat/Gabung perusahaan'
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-card">
@@ -55,7 +52,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
             if (isMobile) setSidebarOpen(false)
           }}
         >
-          {hasCompanies ? 'List perusahaan' : 'Buat/Gabung perusahaan'}
+          {companyDisplayName}
         </button>
 
         <button

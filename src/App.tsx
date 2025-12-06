@@ -66,21 +66,15 @@ function App() {
   }
 
   const handleCompanyCreated = (companyId: string) => {
-    setCurrentUser((prev) => prev ? { ...prev, companyId } : null)
-    if (currentUser?.role === 'admin') {
-      setCurrentScreen('admin-dashboard')
-    } else if (currentUser?.role === 'courier') {
-      setCurrentScreen('courier-dashboard')
-    } else {
-      setCurrentScreen('home-dashboard')
-    }
+    setCurrentUser((prev) => prev ? { ...prev, companyId, role: 'admin' } : null)
+    setCurrentScreen('admin-dashboard')
   }
 
-  const handleCompanyJoined = (companyId: string) => {
-    setCurrentUser((prev) => prev ? { ...prev, companyId } : null)
-    if (currentUser?.role === 'admin') {
+  const handleCompanyJoined = (companyId: string, role: UserRole) => {
+    setCurrentUser((prev) => prev ? { ...prev, companyId, role } : null)
+    if (role === 'admin') {
       setCurrentScreen('admin-dashboard')
-    } else if (currentUser?.role === 'courier') {
+    } else if (role === 'courier') {
       setCurrentScreen('courier-dashboard')
     } else {
       setCurrentScreen('home-dashboard')

@@ -6,17 +6,20 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User, Company } from '@/lib/types'
+import { User, Company, UserRole } from '@/lib/types'
+import RoleSelectionScreen from './RoleSelectionScreen'
 
 interface JoinCompanyScreenProps {
   user: User
   onBack: () => void
-  onCompanyJoined: (companyId: string) => void
+  onCompanyJoined: (companyId: string, role: UserRole) => void
 }
 
 export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: JoinCompanyScreenProps) {
   const [companyCode, setCompanyCode] = useState('')
   const [companies] = useKV<Company[]>('companies', [])
+  const [showRoleSelection, setShowRoleSelection] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
 
   const handleJoinCompany = () => {
     if (!companyCode.trim()) {
@@ -31,8 +34,30 @@ export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: Joi
       return
     }
 
-    toast.success(`Bergabung dengan ${company.name}`)
-    onCompanyJoined(company.id)
+    setSelectedCompany(company)
+    setShowRoleSelection(true)
+  }
+
+  const handleRoleSelected = (role: UserRole) => {
+    if (selectedCompany) {
+      toast.success(`Bergabung dengan ${selectedCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
+      onCompanyJoined(selectedCompany.id, role)
+    }
+  }
+
+  const handleBackFromRoleSelection = () => {
+    setShowRoleSelection(false)
+    setSelectedCompany(null)
+  }
+
+  if (showRoleSelection && selectedCompany) {
+    return (
+      <RoleSelectionScreen
+        companyName={selectedCompany.name}
+        onBack={handleBackFromRoleSelection}
+        onRoleSelected={handleRoleSelected}
+      />
+    )
   }
 
   return (
