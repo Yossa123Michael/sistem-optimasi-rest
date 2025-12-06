@@ -40,11 +40,7 @@ function App() {
 
   useEffect(() => {
     if (currentUser) {
-      if (!currentUser.role) {
-        setCurrentScreen('role-selection')
-      } else {
-        setCurrentScreen('home-dashboard')
-      }
+      setCurrentScreen('home-dashboard')
     }
   }, [currentUser])
 
