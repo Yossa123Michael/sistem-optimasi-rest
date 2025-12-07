@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { User, Company } from '@/lib/types'
+import { User, Company, UserRole } from '@/lib/types'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet'
@@ -83,11 +83,14 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         return
       }
       
-      console.log('Company found, navigating to dashboard')
+      console.log('Company found, navigating to dashboard', { role })
       
       if (isMobile) setSidebarOpen(false)
       
-      const updatedUser = { ...activeUser, companyId, role: role as any }
+      const updatedUser = { ...activeUser, companyId, role: role as UserRole }
+      
+      setCurrentUser(updatedUser)
+      
       await window.spark.kv.set('current-user', updatedUser)
       
       setUsers((prevUsers) => 
@@ -96,19 +99,22 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         )
       )
       
-      setCurrentUser(updatedUser)
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       if (role === 'admin') {
+        console.log('Navigating to admin dashboard')
         onNavigate('admin-dashboard')
       } else if (role === 'courier') {
+        console.log('Navigating to courier dashboard')
         onNavigate('courier-dashboard')
       }
       
       setTimeout(() => {
         isNavigatingRef.current = false
-      }, 1000)
+      }, 500)
     } catch (error) {
       console.error('Error in handleCompanyClick:', error)
+      toast.error('Terjadi kesalahan saat membuka perusahaan')
       isNavigatingRef.current = false
     }
   }
