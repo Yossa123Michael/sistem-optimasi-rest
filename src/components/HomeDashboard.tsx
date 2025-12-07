@@ -204,22 +204,21 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       }
     }
     
-    console.log('Company validated, updating user state and navigating immediately')
+    console.log('Company validated, navigating immediately')
     
     if (isMobile) setSidebarOpen(false)
     
-    await Promise.all([
-      window.spark.kv.set('current-user', { ...activeUser, companyId, role: role as any }),
-      window.spark.kv.get<User[]>('users').then(prevUsers => {
-        const updatedUsers = (prevUsers || []).map(u => {
-          if (u.id === activeUser.id) {
-            return { ...u, companyId, role: role as any }
-          }
-          return u
-        })
-        return window.spark.kv.set('users', updatedUsers)
+    const updatedUser = { ...activeUser, companyId, role: role as any }
+    
+    setCurrentUser(updatedUser)
+    setUsers((prevUsers) => 
+      (prevUsers || []).map(u => {
+        if (u.id === activeUser.id) {
+          return updatedUser
+        }
+        return u
       })
-    ])
+    )
     
     console.log('Navigating to dashboard immediately, role:', role)
     
