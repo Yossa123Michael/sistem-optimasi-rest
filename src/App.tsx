@@ -153,7 +153,7 @@ function App() {
     })
     setTimeout(() => {
       setCurrentScreen('admin-dashboard')
-    }, 50)
+    }, 300)
   }
 
   const handleCompanyJoined = (companyId: string, role: UserRole) => {

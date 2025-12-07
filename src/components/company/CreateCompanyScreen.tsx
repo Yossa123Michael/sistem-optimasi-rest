@@ -41,7 +41,10 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       joinedAt: new Date().toISOString()
     }
 
-    setCompanies((currentCompanies) => [...(currentCompanies || []), newCompany])
+    setCompanies((currentCompanies) => {
+      const existingCompanies = currentCompanies || []
+      return [...existingCompanies, newCompany]
+    })
     
     setCurrentUser((prev) => {
       if (!prev) return null
