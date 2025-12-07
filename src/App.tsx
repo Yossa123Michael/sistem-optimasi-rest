@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { User, UserRole } from './lib/types'
+import { User, UserRole, Company } from './lib/types'
 import SplashScreen from './components/auth/SplashScreen'
 import LoginScreen from './components/auth/LoginScreen'
 import RegisterScreen from './components/auth/RegisterScreen'
@@ -37,6 +37,7 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash')
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users] = useKV<User[]>('users', [])
+  const [companies] = useKV<Company[]>('companies', [])
 
   useEffect(() => {
     if (currentUser && users) {
@@ -48,6 +49,19 @@ function App() {
   }, [users, currentUser?.id])
 
   useEffect(() => {
+    if (currentUser && currentUser.companyId) {
+      const companyStillExists = (companies || []).some(c => c.id === currentUser.companyId)
+      
+      if (!companyStillExists) {
+        setCurrentUser((prev) => {
+          if (!prev) return null
+          return { ...prev, companyId: undefined, role: undefined }
+        })
+        setCurrentScreen('home-dashboard')
+        return
+      }
+    }
+
     if (currentUser) {
       if (currentUser.companyId && currentUser.role) {
         if (currentUser.role === 'admin') {
@@ -61,7 +75,7 @@ function App() {
         setCurrentScreen('home-dashboard')
       }
     }
-  }, [currentUser])
+  }, [currentUser, companies])
 
   const handleLogout = () => {
     setCurrentUser(null)

@@ -14,8 +14,9 @@ interface CompanyListScreenProps {
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
   const [companies] = useKV<Company[]>('companies', [])
 
+  const userCompanyIds = (user.companies || []).map(m => m.companyId)
   const userCompanies = (companies || []).filter(
-    (company) => company.ownerId === user.id || user.companyId === company.id
+    (company) => userCompanyIds.includes(company.id)
   )
 
   const handleCopyCode = (code: string) => {

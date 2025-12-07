@@ -28,9 +28,10 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
 
   const currentCompany = (companies || []).find(c => c.id === user.companyId)
   const isOwner = currentCompany?.ownerId === user.id
+  const companyExists = !!currentCompany
 
   const handleDeleteCompany = () => {
-    if (!user.companyId || !isOwner) return
+    if (!user.companyId || !isOwner || !companyExists) return
 
     setCompanies((prev) => (prev || []).filter(c => c.id !== user.companyId))
 
@@ -68,6 +69,22 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
         <p className="text-sm text-center text-foreground font-medium">{userName}</p>
       </div>
 
+      {!companyExists && (
+        <div className="p-4 bg-destructive/10 border-b border-destructive/20">
+          <p className="text-xs text-destructive text-center mb-2">
+            Perusahaan ini sudah dihapus
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full text-xs border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={onBackToHome}
+          >
+            Kembali ke Home
+          </Button>
+        </div>
+      )}
+
       <nav className="flex-1 p-4">
         <div className="space-y-2">
           {menuItems.map((item) => (
@@ -76,11 +93,12 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
               variant="ghost"
               className={currentView === item.id ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
               onClick={() => onViewChange(item.id)}
+              disabled={!companyExists}
             >
               {item.label}
             </Button>
           ))}
-          {isOwner && (
+          {isOwner && companyExists && (
             <Button
               variant="ghost"
               className="w-full justify-center text-destructive hover:text-destructive/80"

@@ -14,6 +14,24 @@ export default function HomeView({ user }: HomeViewProps) {
   const [companies] = useKV<Company[]>('companies', [])
 
   const userCompany = companies?.find(c => c.id === user.companyId)
+  
+  if (!userCompany) {
+    return (
+      <div className="p-4 md:p-8 pt-20 lg:pt-8">
+        <div className="max-w-6xl mx-auto">
+          <Card className="border-destructive/50">
+            <CardContent className="p-8 text-center">
+              <h2 className="text-xl font-medium mb-2 text-destructive">Perusahaan Tidak Ditemukan</h2>
+              <p className="text-muted-foreground">
+                Perusahaan ini sudah dihapus atau tidak tersedia lagi.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   const companyPackages = packages?.filter(p => p.companyId === user.companyId) || []
   const companyCouriers = couriers?.filter(c => c.companyId === user.companyId) || []
   

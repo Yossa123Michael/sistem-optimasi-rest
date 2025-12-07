@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { List } from '@phosphor-icons/react'
-import { User } from '@/lib/types'
+import { User, Company } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useKV } from '@github/spark/hooks'
 
 type CourierView = 'home' | 'package-list' | 'recommendation' | 'update'
 
@@ -16,8 +17,11 @@ interface CourierSidebarProps {
 
 export default function CourierSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: CourierSidebarProps) {
   const isMobile = useIsMobile()
+  const [companies] = useKV<Company[]>('companies', [])
   
   const userName = user.name || user.email.split('@')[0]
+  const currentCompany = (companies || []).find(c => c.id === user.companyId)
+  const companyExists = !!currentCompany
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
@@ -35,6 +39,22 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         <p className="text-sm text-center text-foreground font-medium">{userName}</p>
       </div>
 
+      {!companyExists && (
+        <div className="p-4 bg-destructive/10 border-b border-destructive/20">
+          <p className="text-xs text-destructive text-center mb-2">
+            Perusahaan ini sudah dihapus
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full text-xs border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={onBackToHome}
+          >
+            Kembali ke Home
+          </Button>
+        </div>
+      )}
+
       <nav className="flex-1 p-4">
         <div className="space-y-2">
           {menuItems.map((item) => (
@@ -43,6 +63,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
               variant="ghost"
               className={currentView === item.id ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
               onClick={() => onViewChange(item.id)}
+              disabled={!companyExists}
             >
               {item.label}
             </Button>

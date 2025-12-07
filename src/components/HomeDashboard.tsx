@@ -28,7 +28,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
       const company = (companies || []).find((c) => c.id === membership.companyId)
       return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
     })
-    .filter((c) => c !== null)
+    .filter((c): c is NonNullable<typeof c> => c !== null)
     .sort((a, b) => new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime())
 
   const [showCompanyOptions, setShowCompanyOptions] = useState(false)
