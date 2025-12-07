@@ -40,7 +40,7 @@ function App() {
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
 
   useEffect(() => {
-    if (currentUser && users && currentScreen !== 'login' && currentScreen !== 'splash') {
+    if (currentUser && users && currentScreen !== 'login' && currentScreen !== 'splash' && currentScreen !== 'register') {
       const updatedUser = users.find(u => u.id === currentUser.id)
       if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
         setCurrentUser(updatedUser)
@@ -92,7 +92,7 @@ function App() {
   useEffect(() => {
     console.log('App useEffect triggered', { currentScreen, currentUser: currentUser?.email, companyId: currentUser?.companyId, role: currentUser?.role })
     
-    if (currentScreen === 'create-company' || currentScreen === 'join-company' || currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' || currentScreen === 'customer-dashboard') {
+    if (currentScreen === 'create-company' || currentScreen === 'join-company' || currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' || currentScreen === 'customer-dashboard' || currentScreen === 'track-package' || currentScreen === 'company-list') {
       return
     }
 
@@ -114,19 +114,8 @@ function App() {
           return
         }
       }
-
-      if (currentScreen === 'home-dashboard') {
-        if (currentUser.companyId && currentUser.role) {
-          console.log('Auto-navigating based on role:', currentUser.role)
-          if (currentUser.role === 'admin') {
-            setCurrentScreen('admin-dashboard')
-          } else if (currentUser.role === 'courier') {
-            setCurrentScreen('courier-dashboard')
-          }
-        }
-      }
     }
-  }, [currentUser, companies, currentScreen])
+  }, [currentUser?.companyId, companies, currentScreen])
 
   const handleLogout = () => {
     setCurrentUser(null)

@@ -102,6 +102,15 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
       return updated
     })
     
+    setUsers((prevUsers) => 
+      (prevUsers || []).map(u => {
+        if (u.id === activeUser.id) {
+          return { ...u, companyId, role: role as any }
+        }
+        return u
+      })
+    )
+    
     console.log('Navigating to dashboard, role:', role)
     
     setTimeout(() => {
