@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { User } from '@/lib/types'
+import { useState, useEffect } from 'react'
+import { useKV } from '@github/spark/hooks'
+import { User, Company } from '@/lib/types'
 import AdminSidebar from './AdminSidebar'
 import HomeView from './HomeView'
 import InputDataView from './InputDataView'
@@ -18,6 +19,19 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState<AdminView>('home')
+  const [companies] = useKV<Company[]>('companies', [])
+  
+  useEffect(() => {
+    if (!user.companyId) {
+      if (onBackToHome) onBackToHome()
+      return
+    }
+    
+    const companyExists = (companies || []).some(c => c.id === user.companyId)
+    if (!companyExists && onBackToHome) {
+      onBackToHome()
+    }
+  }, [user.companyId, companies, onBackToHome])
 
   const renderView = () => {
     switch (currentView) {

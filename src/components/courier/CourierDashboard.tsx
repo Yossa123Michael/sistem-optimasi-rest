@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { User } from '@/lib/types'
+import { useState, useEffect } from 'react'
+import { useKV } from '@github/spark/hooks'
+import { User, Company } from '@/lib/types'
 import CourierSidebar from './CourierSidebar'
 import CourierHomeView from './CourierHomeView'
 import CourierPackageListView from './CourierPackageListView'
@@ -16,6 +17,19 @@ interface CourierDashboardProps {
 
 export default function CourierDashboard({ user, onLogout, onBackToHome }: CourierDashboardProps) {
   const [currentView, setCurrentView] = useState<CourierView>('home')
+  const [companies] = useKV<Company[]>('companies', [])
+  
+  useEffect(() => {
+    if (!user.companyId) {
+      if (onBackToHome) onBackToHome()
+      return
+    }
+    
+    const companyExists = (companies || []).some(c => c.id === user.companyId)
+    if (!companyExists && onBackToHome) {
+      onBackToHome()
+    }
+  }, [user.companyId, companies, onBackToHome])
 
   const renderView = () => {
     switch (currentView) {
