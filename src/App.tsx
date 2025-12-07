@@ -148,12 +148,31 @@ function App() {
   }
 
   const handleCompanyCreated = (companyId: string) => {
+    console.log('handleCompanyCreated called with companyId:', companyId)
+    
     setCurrentUser((prev) => {
       if (!prev) return null
-      return { ...prev, companyId, role: 'admin' as UserRole }
+      const updated = { ...prev, companyId, role: 'admin' as UserRole }
+      console.log('Setting current user in handleCompanyCreated:', updated)
+      return updated
     })
+    
+    setUsers((prevUsers) => 
+      (prevUsers || []).map((u) => {
+        if (u.id === currentUser?.id) {
+          const updated = { ...u, companyId, role: 'admin' as UserRole }
+          console.log('Setting user in users array:', updated)
+          return updated
+        }
+        return u
+      })
+    )
+    
+    console.log('Updating homeRefreshKey to trigger reload')
     setHomeRefreshKey(prev => prev + 1)
+    
     setTimeout(() => {
+      console.log('Navigating to admin-dashboard')
       setCurrentScreen('admin-dashboard')
     }, 300)
   }

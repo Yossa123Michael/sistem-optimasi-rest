@@ -47,6 +47,8 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
     console.log('New membership:', newMembership)
 
+    await new Promise(resolve => setTimeout(resolve, 50))
+
     setCompanies((currentCompanies) => {
       const existingCompanies = currentCompanies || []
       console.log('Adding company to list. Current count:', existingCompanies.length)
@@ -55,6 +57,8 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       console.log('Updated companies array:', updated)
       return updated
     })
+
+    await new Promise(resolve => setTimeout(resolve, 50))
     
     setCurrentUser((prev) => {
       if (!prev) return null
@@ -68,6 +72,8 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       console.log('Updated current user companies:', updated.companies)
       return updated
     })
+
+    await new Promise(resolve => setTimeout(resolve, 50))
 
     setUsers((currentUsers) => 
       (currentUsers || []).map((u) => {
@@ -83,10 +89,15 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       })
     )
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 200))
 
     const verifyCompanies = await window.spark.kv.get<Company[]>('companies')
-    console.log('Verified companies in KV after creation:', verifyCompanies)
+    const verifyCurrentUser = await window.spark.kv.get<User | null>('current-user')
+    console.log('Verified data in KV after creation:', {
+      companies: verifyCompanies,
+      currentUser: verifyCurrentUser,
+      currentUserCompanies: verifyCurrentUser?.companies
+    })
 
     toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
     console.log('Calling onCompanyCreated with ID:', newCompany.id)

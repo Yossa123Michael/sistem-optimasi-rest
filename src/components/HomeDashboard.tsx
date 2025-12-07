@@ -40,7 +40,8 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         const companiesData = await window.spark.kv.get<Company[]>('companies')
         console.log('Companies from KV on load:', companiesData)
         
-        if (companiesData && companiesData.length > 0) {
+        if (companiesData) {
+          console.log('Setting companies state with:', companiesData)
           setCompanies(companiesData)
         }
         
@@ -52,27 +53,73 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
     loadCompanies()
   }, [refreshTrigger])
 
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userData = await window.spark.kv.get<User>(`user-${activeUser.id}`)
+        const usersData = await window.spark.kv.get<User[]>('users')
+        const currentUserData = await window.spark.kv.get<User | null>('current-user')
+        
+        console.log('User data from KV:', {
+          userData,
+          usersData: usersData?.find(u => u.id === activeUser.id),
+          currentUserData
+        })
+        
+        if (currentUserData && currentUserData.companies) {
+          console.log('Current user companies from KV:', currentUserData.companies)
+          
+          if (JSON.stringify(currentUserData.companies) !== JSON.stringify(activeUser.companies)) {
+            console.log('User companies changed, updating local state')
+            setCurrentUser(currentUserData)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error)
+      }
+    }
+    loadUserData()
+  }, [activeUser.id, refreshTrigger])
+
   console.log('HomeDashboard render:', { 
     userId: activeUser.id,
     userCompaniesCount: activeUser.companies?.length || 0,
     totalCompaniesCount: companies?.length || 0,
     userMemberships: activeUser.companies,
     allCompanies: companies,
-    companiesLoaded
+    companiesLoaded,
+    refreshTrigger,
+    refreshKey
   })
 
   const userCompanies = (activeUser.companies || [])
     .map((membership) => {
       const company = (companies || []).find((c) => c.id === membership.companyId)
       if (!company) {
-        console.log('Company not found for membership:', membership.companyId)
+        console.log('Company not found for membership:', { 
+          membershipId: membership.companyId,
+          availableCompanies: (companies || []).map(c => ({ id: c.id, name: c.name }))
+        })
+      } else {
+        console.log('Company found for membership:', { 
+          membershipId: membership.companyId,
+          companyName: company.name,
+          role: membership.role
+        })
       }
       return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
     .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
 
-  console.log('HomeDashboard userCompanies:', userCompanies)
+  console.log('HomeDashboard userCompanies result:', userCompanies)
+  
+  if (userCompanies.length === 0 && activeUser.companies && activeUser.companies.length > 0) {
+    console.warn('⚠️ USER HAS MEMBERSHIPS BUT NO COMPANIES MATCHED!', {
+      userMemberships: activeUser.companies,
+      availableCompanies: companies
+    })
+  }
 
   const validCompanyIds = userCompanies.map(c => c.id)
 
@@ -208,26 +255,32 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
               Home
             </button>
 
-            {userCompanies.length > 0 && userCompanies.map((company) => (
-              <button
-                key={company.id}
-                type="button"
-                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  console.log('Company button clicked:', { 
-                    name: company.name, 
-                    id: company.id, 
-                    role: company.role,
-                    allCompanies: companies
-                  })
-                  handleCompanyClick(company.id, company.role)
-                }}
-              >
-                {company.name}
-              </button>
-            ))}
+            {userCompanies.length > 0 ? (
+              userCompanies.map((company) => (
+                <button
+                  key={company.id}
+                  type="button"
+                  className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    console.log('Company button clicked:', { 
+                      name: company.name, 
+                      id: company.id, 
+                      role: company.role,
+                      allCompanies: companies
+                    })
+                    handleCompanyClick(company.id, company.role)
+                  }}
+                >
+                  {company.name}
+                </button>
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground/60 py-2">
+                Belum ada perusahaan
+              </div>
+            )}
 
             <button
               className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
