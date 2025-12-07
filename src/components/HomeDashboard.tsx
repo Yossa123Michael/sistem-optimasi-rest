@@ -101,20 +101,15 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       
       console.log('Company found:', company.name)
       
-      const freshUser = await window.spark.kv.get<User | null>('current-user')
-      if (!freshUser) {
         toast.error('Sesi pengguna tidak ditemukan')
         isNavigatingRef.current = false
-        return
       }
       
       const updatedUser = { ...freshUser, companyId, role: role as UserRole }
       await window.spark.kv.set('current-user', updatedUser)
       setCurrentUser(updatedUser)
       
-      setUsers((prevUsers) => 
         (prevUsers || []).map(u => 
-          u.id === freshUser.id ? updatedUser : u
         )
       )
       
@@ -123,22 +118,21 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       console.log('User updated, navigating to:', role === 'admin' ? 'admin-dashboard' : 'courier-dashboard')
       
       setTimeout(() => {
+      if (isMobile) setSidebarOpen(false)
+          onNavigate('admin-dashboard')
+      console.log('User updated, navigating to:', role === 'admin' ? 'admin-dashboard' : 'courier-dashboard')
+      
+      setTimeout(() => {
         if (role === 'admin') {
           onNavigate('admin-dashboard')
         } else {
-          onNavigate('courier-dashboard')
-        }
-        isNavigatingRef.current = false
-      }, 100)
-    } catch (error) {
-      console.error('Error in handleCompanyClick:', error)
-      toast.error('Terjadi kesalahan')
-      isNavigatingRef.current = false
+          onNavigate('courier-dashboard'):', error)
+        }or('Terjadi kesalahan')
     }
-  }
+      }, 100)
 
   const handleCreateCompany = () => {
-    setShowCompanyOptions(false)
+      toast.error('Terjadi kesalahan')
     onNavigate('create-company')
     if (isMobile) setSidebarOpen(false)
   }
@@ -161,28 +155,28 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
           </p>
         </div>
       </div>
-
-      <div className="overflow-y-auto flex-1">
-        <nav className="px-6 py-4 space-y-2">
-          <button
-            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+    <div className="flex flex-col h-full bg-card">
+      <div className="flex flex-col items-center gap-3 p-6 pt-8 relative flex-shrink-0">
+            {activeUser.name || activeUser.email.split('@')[0]}nd/30 flex items-center justify-center bg-background text-muted-foreground/40">
+          <span className="text-sm">Photo</span>
+        </div>
             onClick={() => {
-              onNavigate('home')
+e text-primary font-medium">
               if (isMobile) setSidebarOpen(false)
             }}
-          >
+          <nav className="px-6 py-4 space-y-2">
             Home
           </button>
-
+              onClick={() => {
           {userCompanies.length > 0 ? (
             userCompanies.map((company) => (
               <button
                 key={company.id}
                 type="button"
-                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+            </button>ext-muted-foreground py-3 hover:text-primary transition-colors"
                 onClick={(e) => {
                   e.preventDefault()
-                  e.stopPropagation()
+              userCompanies.map((company) => (
                   console.log('Company button clicked:', { 
                     name: company.name, 
                     id: company.id, 
