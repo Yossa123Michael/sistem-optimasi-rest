@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,11 +14,51 @@ interface CompanyListScreenProps {
 
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
   const [companies] = useKV<Company[]>('companies', [])
+  const [users, setUsers] = useKV<User[]>('users', [])
+  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
 
-  const userCompanyIds = (user.companies || []).map(m => m.companyId)
+  const existingCompanyIds = (companies || []).map(c => c.id)
+  const userCompanyIds = (user.companies || [])
+    .filter(m => existingCompanyIds.includes(m.companyId))
+    .map(m => m.companyId)
+  
   const userCompanies = (companies || []).filter(
     (company) => userCompanyIds.includes(company.id)
   )
+
+  useEffect(() => {
+    if (user && user.companies && user.companies.length > 0) {
+      const hasInvalidCompanies = user.companies.some(
+        m => !existingCompanyIds.includes(m.companyId)
+      )
+
+      if (hasInvalidCompanies) {
+        const cleanedCompanies = user.companies.filter(m => 
+          existingCompanyIds.includes(m.companyId)
+        )
+
+        setCurrentUser((prev) => {
+          if (!prev) return null
+          return {
+            ...prev,
+            companies: cleanedCompanies
+          }
+        })
+
+        setUsers((prevUsers) => 
+          (prevUsers || []).map(u => {
+            if (u.id === user.id) {
+              return {
+                ...u,
+                companies: cleanedCompanies
+              }
+            }
+            return u
+          })
+        )
+      }
+    }
+  }, [companies, user.id])
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code)

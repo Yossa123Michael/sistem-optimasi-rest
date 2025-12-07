@@ -36,7 +36,7 @@ type AppScreen =
 function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash')
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [users] = useKV<User[]>('users', [])
+  const [users, setUsers] = useKV<User[]>('users', [])
   const [companies] = useKV<Company[]>('companies', [])
 
   useEffect(() => {
@@ -47,6 +47,43 @@ function App() {
       }
     }
   }, [users, currentUser?.id])
+
+  useEffect(() => {
+    const existingCompanyIds = (companies || []).map(c => c.id)
+    
+    if (users && users.length > 0) {
+      const needsCleanup = users.some(u => 
+        u.companies && u.companies.some(m => !existingCompanyIds.includes(m.companyId))
+      )
+
+      if (needsCleanup) {
+        setUsers((prevUsers) => 
+          (prevUsers || []).map(u => ({
+            ...u,
+            companies: (u.companies || []).filter(m => existingCompanyIds.includes(m.companyId)),
+            companyId: u.companyId && !existingCompanyIds.includes(u.companyId) ? undefined : u.companyId,
+            role: u.companyId && !existingCompanyIds.includes(u.companyId) ? undefined : u.role
+          }))
+        )
+      }
+    }
+
+    if (currentUser && currentUser.companies && currentUser.companies.length > 0) {
+      const hasInvalidCompanies = currentUser.companies.some(
+        m => !existingCompanyIds.includes(m.companyId)
+      )
+
+      if (hasInvalidCompanies) {
+        setCurrentUser((prev) => {
+          if (!prev) return null
+          return {
+            ...prev,
+            companies: prev.companies?.filter(m => existingCompanyIds.includes(m.companyId)) || []
+          }
+        })
+      }
+    }
+  }, [companies])
 
   useEffect(() => {
     if (currentUser && currentUser.companyId) {
