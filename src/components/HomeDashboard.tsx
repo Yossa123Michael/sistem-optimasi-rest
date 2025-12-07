@@ -33,6 +33,18 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
     if (isMobile) setSidebarOpen(false)
   }
 
+  const handleCreateCompany = () => {
+    setShowCompanyOptions(false)
+    onNavigate('create-company')
+    if (isMobile) setSidebarOpen(false)
+  }
+
+  const handleJoinCompany = () => {
+    setShowCompanyOptions(false)
+    onNavigate('join-company')
+    if (isMobile) setSidebarOpen(false)
+  }
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-card">
       <div className="flex flex-col items-center gap-3 p-6 pt-8 relative">
@@ -226,20 +238,14 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
           </DialogHeader>
           <div className="flex flex-col gap-3 mt-4">
             <Button
-              onClick={() => {
-                setShowCompanyOptions(false)
-                onNavigate('create-company')
-              }}
+              onClick={handleCreateCompany}
               className="w-full h-16 text-base"
             >
               <Buildings className="mr-2" size={24} />
               Buat Perusahaan
             </Button>
             <Button
-              onClick={() => {
-                setShowCompanyOptions(false)
-                onNavigate('join-company')
-              }}
+              onClick={handleJoinCompany}
               variant="outline"
               className="w-full h-16 text-base"
             >

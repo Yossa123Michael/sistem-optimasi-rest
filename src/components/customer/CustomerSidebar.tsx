@@ -18,7 +18,7 @@ export default function CustomerSidebar({ user, currentView, onViewChange, onLog
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
-    { id: 'orders' as const, label: 'Gabung/Buat Pesanan Saya' },
+    { id: 'orders' as const, label: 'Pesanan Saya' },
     { id: 'track' as const, label: 'Cek paket' }
   ]
 

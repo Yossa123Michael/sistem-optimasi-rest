@@ -15,11 +15,14 @@ interface CourierSidebarProps {
 
 export default function CourierSidebar({ user, currentView, onViewChange, onLogout }: CourierSidebarProps) {
   const isMobile = useIsMobile()
+  
+  const userName = user.name || user.email.split('@')[0]
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
-    { id: 'package-list' as const, label: 'Gabung/Buat Pesanan Saya' },
-    { id: 'recommendation' as const, label: 'Cek paket' }
+    { id: 'package-list' as const, label: 'Daftar Paket' },
+    { id: 'recommendation' as const, label: 'Rekomendasi Rute' },
+    { id: 'update' as const, label: 'Update Status' }
   ]
 
   const SidebarContent = () => (
@@ -28,7 +31,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Photo</p>
         </div>
-        <p className="text-sm text-center text-foreground font-medium">Nama User</p>
+        <p className="text-sm text-center text-foreground font-medium">{userName}</p>
       </div>
 
       <nav className="flex-1 p-4">

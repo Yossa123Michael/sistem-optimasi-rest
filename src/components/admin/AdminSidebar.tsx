@@ -15,11 +15,15 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ user, currentView, onViewChange, onLogout }: AdminSidebarProps) {
   const isMobile = useIsMobile()
+  
+  const userName = user.name || user.email.split('@')[0]
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
-    { id: 'input-data' as const, label: 'Gabung/Buat Pesanan Saya' },
-    { id: 'monitoring' as const, label: 'Cek paket' }
+    { id: 'input-data' as const, label: 'Input Data Paket' },
+    { id: 'courier' as const, label: 'Kelola Kurir' },
+    { id: 'monitoring' as const, label: 'Monitoring' },
+    { id: 'history' as const, label: 'Riwayat' }
   ]
 
   const SidebarContent = () => (
@@ -28,7 +32,7 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
         <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Photo</p>
         </div>
-        <p className="text-sm text-center text-foreground font-medium">Nama User</p>
+        <p className="text-sm text-center text-foreground font-medium">{userName}</p>
       </div>
 
       <nav className="flex-1 p-4">
