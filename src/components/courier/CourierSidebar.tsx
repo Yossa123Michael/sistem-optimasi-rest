@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { List } from '@phosphor-icons/react'
 import { User, Company } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -18,10 +19,45 @@ interface CourierSidebarProps {
 export default function CourierSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: CourierSidebarProps) {
   const isMobile = useIsMobile()
   const [companies] = useKV<Company[]>('companies', [])
+  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
+  const [users, setUsers] = useKV<User[]>('users', [])
   
-  const userName = user.name || user.email.split('@')[0]
-  const currentCompany = (companies || []).find(c => c.id === user.companyId)
+  const activeUser = currentUser || user
+  const userName = activeUser.name || activeUser.email.split('@')[0]
+  const currentCompany = (companies || []).find(c => c.id === activeUser.companyId)
   const companyExists = !!currentCompany
+
+  const userCompanies = (activeUser.companies || [])
+    .map((membership) => {
+      const company = (companies || []).find((c) => c.id === membership.companyId)
+      return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
+    })
+    .filter((c): c is NonNullable<typeof c> => c !== null)
+    .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
+
+  const handleCompanyClick = (companyId: string, role: string) => {
+    if (companyId === activeUser.companyId) {
+      return
+    }
+
+    setCurrentUser((prev) => {
+      if (!prev) return null
+      return { ...prev, companyId, role: role as any }
+    })
+
+    setUsers((prevUsers) => 
+      (prevUsers || []).map(u => {
+        if (u.id === activeUser.id) {
+          return { ...u, companyId, role: role as any }
+        }
+        return u
+      })
+    )
+
+    setTimeout(() => {
+      window.location.reload()
+    }, 100)
+  }
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
@@ -55,23 +91,47 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         </div>
       )}
 
-      <nav className="flex-1 p-4">
-        <div className="space-y-2">
-          {menuItems.map((item) => (
-            <Button
-              key={item.id}
-              variant="ghost"
-              className={currentView === item.id ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
-              onClick={() => onViewChange(item.id)}
-              disabled={!companyExists}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </nav>
+      <div className="flex-1 overflow-y-auto">
+        <ScrollArea className="h-full">
+          <nav className="p-4">
+            <div className="space-y-2 mb-4">
+              {menuItems.map((item) => (
+                <Button
+                  key={item.id}
+                  variant="ghost"
+                  className={currentView === item.id ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
+                  onClick={() => onViewChange(item.id)}
+                  disabled={!companyExists}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
 
-      <div className="p-4 space-y-2">
+            {userCompanies.length > 1 && (
+              <div className="border-t pt-4">
+                <p className="text-xs text-muted-foreground mb-2 px-2">Perusahaan Lainnya</p>
+                <div className="space-y-1">
+                  {userCompanies
+                    .filter(c => c.id !== activeUser.companyId)
+                    .map((company) => (
+                      <Button
+                        key={company.id}
+                        variant="ghost"
+                        className="w-full justify-center text-foreground text-sm"
+                        onClick={() => handleCompanyClick(company.id, company.role)}
+                      >
+                        {company.name}
+                      </Button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </nav>
+        </ScrollArea>
+      </div>
+
+      <div className="p-4 space-y-2 border-t">
         {onBackToHome && (
           <Button
             variant="ghost"
