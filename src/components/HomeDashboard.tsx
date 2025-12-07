@@ -204,39 +204,32 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       }
     }
     
-    console.log('Company validated, updating user state')
-    
-    setCurrentUser((prev) => {
-      if (!prev) return null
-      const updated = { ...prev, companyId, role: role as any }
-      console.log('Updated current user:', updated)
-      return updated
-    })
-    
-    setUsers((prevUsers) => 
-      (prevUsers || []).map(u => {
-        if (u.id === activeUser.id) {
-          const updated = { ...u, companyId, role: role as any }
-          console.log('Updated user in users array:', updated)
-          return updated
-        }
-        return u
-      })
-    )
-    
-    console.log('Navigating to dashboard, role:', role)
+    console.log('Company validated, updating user state and navigating immediately')
     
     if (isMobile) setSidebarOpen(false)
     
-    setTimeout(() => {
-      if (role === 'admin') {
-        console.log('Calling onNavigate with admin-dashboard')
-        onNavigate('admin-dashboard')
-      } else if (role === 'courier') {
-        console.log('Calling onNavigate with courier-dashboard')
-        onNavigate('courier-dashboard')
-      }
-    }, 50)
+    await Promise.all([
+      window.spark.kv.set('current-user', { ...activeUser, companyId, role: role as any }),
+      window.spark.kv.get<User[]>('users').then(prevUsers => {
+        const updatedUsers = (prevUsers || []).map(u => {
+          if (u.id === activeUser.id) {
+            return { ...u, companyId, role: role as any }
+          }
+          return u
+        })
+        return window.spark.kv.set('users', updatedUsers)
+      })
+    ])
+    
+    console.log('Navigating to dashboard immediately, role:', role)
+    
+    if (role === 'admin') {
+      console.log('Calling onNavigate with admin-dashboard')
+      onNavigate('admin-dashboard')
+    } else if (role === 'courier') {
+      console.log('Calling onNavigate with courier-dashboard')
+      onNavigate('courier-dashboard')
+    }
   }
 
   const handleCreateCompany = () => {
