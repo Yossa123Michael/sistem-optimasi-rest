@@ -87,19 +87,27 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       
       if (isMobile) setSidebarOpen(false)
       
-      const updatedUser = { ...activeUser, companyId, role: role as UserRole }
+      const freshUser = await window.spark.kv.get<User | null>('current-user')
+      if (!freshUser) {
+        console.error('Current user not found in storage')
+        toast.error('Sesi pengguna tidak ditemukan')
+        isNavigatingRef.current = false
+        return
+      }
       
-      setCurrentUser(updatedUser)
+      const updatedUser = { ...freshUser, companyId, role: role as UserRole }
       
       await window.spark.kv.set('current-user', updatedUser)
       
+      setCurrentUser(updatedUser)
+      
       setUsers((prevUsers) => 
         (prevUsers || []).map(u => 
-          u.id === activeUser.id ? updatedUser : u
+          u.id === freshUser.id ? updatedUser : u
         )
       )
       
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise(resolve => setTimeout(resolve, 150))
       
       if (role === 'admin') {
         console.log('Navigating to admin dashboard')
