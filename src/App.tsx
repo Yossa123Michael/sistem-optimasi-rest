@@ -112,6 +112,13 @@ function App() {
 
   const handleNavigateFromHome = (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
     console.log('handleNavigateFromHome called:', screen)
+    
+    if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
+      console.log(`Navigating to ${screen}, setting screen immediately`)
+      setCurrentScreen(screen)
+      return
+    }
+    
     if (screen === 'home') {
       setHomeRefreshKey(prev => prev + 1)
       setCurrentScreen('home-dashboard')
@@ -125,12 +132,6 @@ function App() {
       setCurrentScreen('join-company')
     } else if (screen === 'customer-mode') {
       setCurrentScreen('customer-dashboard')
-    } else if (screen === 'admin-dashboard') {
-      console.log('Navigating to admin-dashboard')
-      setCurrentScreen('admin-dashboard')
-    } else if (screen === 'courier-dashboard') {
-      console.log('Navigating to courier-dashboard')
-      setCurrentScreen('courier-dashboard')
     }
   }
 

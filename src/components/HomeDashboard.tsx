@@ -31,9 +31,16 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
 
   useEffect(() => {
     const loadData = async () => {
+      setCompaniesLoaded(false)
+      console.log('HomeDashboard loading data, refreshKey:', refreshKey)
+      
       try {
         const companiesData = await window.spark.kv.get<Company[]>('companies')
         const currentUserData = await window.spark.kv.get<User | null>('current-user')
+        
+        console.log('Loaded companies from KV:', companiesData?.length || 0)
+        console.log('Loaded current user from KV:', currentUserData?.email)
+        console.log('Current user companies:', currentUserData?.companies?.length || 0)
         
         if (companiesData) {
           setCompanies(companiesData)
@@ -46,22 +53,31 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         setCompaniesLoaded(true)
       } catch (error) {
         console.error('Error loading data:', error)
+        setCompaniesLoaded(true)
       }
     }
     loadData()
   }, [refreshKey, activeUser.id])
 
-  const userCompanies = (activeUser.companies || [])
-    .map((membership) => {
-      const company = (companies || []).find((c) => c.id === membership.companyId)
-      return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
-    })
-    .filter((c): c is NonNullable<typeof c> => c !== null)
-    .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
+  const userCompanies = companiesLoaded 
+    ? (activeUser.companies || [])
+        .map((membership) => {
+          const company = (companies || []).find((c) => c.id === membership.companyId)
+          if (!company) {
+            console.warn('Company not found for membership:', membership.companyId)
+          }
+          return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
+        })
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+        .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
+    : []
   
-  if (userCompanies.length === 0 && activeUser.companies && activeUser.companies.length > 0) {
-    console.warn('User has memberships but no companies matched')
-  }
+  console.log('HomeDashboard render:', { 
+    companiesLoaded, 
+    activeUserHasMemberships: activeUser.companies?.length || 0,
+    userCompaniesFound: userCompanies.length,
+    allCompaniesCount: companies?.length || 0
+  })
 
   const handleCompanyClick = async (companyId: string, role: string) => {
     if (isNavigatingRef.current) {
@@ -70,9 +86,12 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
     }
     
     isNavigatingRef.current = true
+    console.log('Company button clicked:', { name: 'finding...', id: companyId, role })
     console.log('handleCompanyClick called', { companyId, role })
     
     try {
+      if (isMobile) setSidebarOpen(false)
+      
       const allCompanies = await window.spark.kv.get<Company[]>('companies')
       const company = (allCompanies || []).find(c => c.id === companyId)
       
@@ -83,9 +102,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         return
       }
       
-      console.log('Company found, navigating to dashboard', { role })
-      
-      if (isMobile) setSidebarOpen(false)
+      console.log('Company found:', company.name)
       
       const freshUser = await window.spark.kv.get<User | null>('current-user')
       if (!freshUser) {
@@ -98,7 +115,6 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       const updatedUser = { ...freshUser, companyId, role: role as UserRole }
       
       await window.spark.kv.set('current-user', updatedUser)
-      
       setCurrentUser(updatedUser)
       
       setUsers((prevUsers) => 
@@ -107,13 +123,11 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         )
       )
       
-      await new Promise(resolve => setTimeout(resolve, 150))
+      console.log('User updated, navigating to:', role === 'admin' ? 'admin-dashboard' : 'courier-dashboard')
       
       if (role === 'admin') {
-        console.log('Navigating to admin dashboard')
         onNavigate('admin-dashboard')
       } else if (role === 'courier') {
-        console.log('Navigating to courier dashboard')
         onNavigate('courier-dashboard')
       }
       
