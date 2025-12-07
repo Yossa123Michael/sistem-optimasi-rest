@@ -31,18 +31,14 @@ export default function SplashScreen({ onStart }: SplashScreenProps) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
           className="text-5xl font-semibold text-white mb-3 tracking-tight"
-        >
-          RouteOptima
-        </motion.h1>
+        >Tugas Kelompok 4</motion.h1>
         
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
           className="text-xl text-white/90 mb-12"
-        >
-          Optimize Deliveries, Maximize Efficiency
-        </motion.p>
+        >Optimize Deliveries, Maximize Efficiency</motion.p>
         
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -59,5 +55,5 @@ export default function SplashScreen({ onStart }: SplashScreenProps) {
         </motion.div>
       </motion.div>
     </div>
-  )
+  );
 }
