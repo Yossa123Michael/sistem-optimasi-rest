@@ -37,7 +37,7 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash')
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
-  const [companies] = useKV<Company[]>('companies', [])
+  const [companies, setCompanies] = useKV<Company[]>('companies', [])
 
   useEffect(() => {
     if (currentUser && users && currentScreen !== 'login' && currentScreen !== 'splash') {

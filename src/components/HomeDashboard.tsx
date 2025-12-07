@@ -16,7 +16,7 @@ interface HomeDashboardProps {
 }
 
 function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
-  const [companies] = useKV<Company[]>('companies', [])
+  const [companies, setCompanies] = useKV<Company[]>('companies', [])
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
   const isMobile = useIsMobile()
@@ -24,13 +24,26 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
 
   const activeUser = currentUser || user
 
+  console.log('HomeDashboard render:', { 
+    userId: activeUser.id,
+    userCompaniesCount: activeUser.companies?.length || 0,
+    totalCompaniesCount: companies?.length || 0,
+    userMemberships: activeUser.companies,
+    allCompanies: companies
+  })
+
   const userCompanies = (activeUser.companies || [])
     .map((membership) => {
       const company = (companies || []).find((c) => c.id === membership.companyId)
+      if (!company) {
+        console.log('Company not found for membership:', membership.companyId)
+      }
       return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
     .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
+
+  console.log('HomeDashboard userCompanies:', userCompanies)
 
   const validCompanyIds = userCompanies.map(c => c.id)
 

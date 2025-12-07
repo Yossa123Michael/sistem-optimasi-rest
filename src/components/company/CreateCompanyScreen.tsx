@@ -27,6 +27,8 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       return
     }
 
+    console.log('Creating company:', companyName)
+
     const newCompany: Company = {
       id: generateId(),
       name: companyName.trim(),
@@ -35,41 +37,53 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       createdAt: new Date().toISOString()
     }
 
+    console.log('New company object:', newCompany)
+
     const newMembership = {
       companyId: newCompany.id,
       role: 'admin' as const,
       joinedAt: new Date().toISOString()
     }
 
+    console.log('New membership:', newMembership)
+
     setCompanies((currentCompanies) => {
       const existingCompanies = currentCompanies || []
-      return [...existingCompanies, newCompany]
+      console.log('Adding company to list. Current count:', existingCompanies.length)
+      const updated = [...existingCompanies, newCompany]
+      console.log('New company list count:', updated.length)
+      return updated
     })
     
     setCurrentUser((prev) => {
       if (!prev) return null
-      return {
+      const updated = {
         ...prev,
         companies: [
           ...(prev.companies || []),
           newMembership
         ]
       }
+      console.log('Updated current user companies:', updated.companies)
+      return updated
     })
 
     setUsers((currentUsers) => 
       (currentUsers || []).map((u) => {
         if (u.id === user.id) {
-          return { 
+          const updated = { 
             ...u, 
             companies: [...(u.companies || []), newMembership]
           }
+          console.log('Updated user in users array:', updated)
+          return updated
         }
         return u
       })
     )
 
     toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
+    console.log('Calling onCompanyCreated with ID:', newCompany.id)
     onCompanyCreated(newCompany.id)
   }
 
