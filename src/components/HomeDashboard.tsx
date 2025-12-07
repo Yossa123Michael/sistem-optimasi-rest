@@ -40,9 +40,14 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         const companiesData = await window.spark.kv.get<Company[]>('companies')
         console.log('Companies from KV on load:', companiesData)
         
-        if (companiesData) {
-          console.log('Setting companies state with:', companiesData)
-          setCompanies(companiesData)
+        const currentCompaniesStr = JSON.stringify(companies || [])
+        const kvCompaniesStr = JSON.stringify(companiesData || [])
+        
+        if (kvCompaniesStr !== currentCompaniesStr) {
+          console.log('Companies changed, updating state')
+          console.log('Old companies:', companies)
+          console.log('New companies:', companiesData)
+          setCompanies(companiesData || [])
         }
         
         setCompaniesLoaded(true)
@@ -51,27 +56,44 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       }
     }
     loadCompanies()
-  }, [refreshTrigger])
+  }, [refreshTrigger, users])
 
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        const userData = await window.spark.kv.get<User>(`user-${activeUser.id}`)
         const usersData = await window.spark.kv.get<User[]>('users')
         const currentUserData = await window.spark.kv.get<User | null>('current-user')
         
         console.log('User data from KV:', {
-          userData,
           usersData: usersData?.find(u => u.id === activeUser.id),
-          currentUserData
+          currentUserData,
+          currentUserCompanies: currentUserData?.companies
         })
         
-        if (currentUserData && currentUserData.companies) {
+        if (currentUserData) {
           console.log('Current user companies from KV:', currentUserData.companies)
           
-          if (JSON.stringify(currentUserData.companies) !== JSON.stringify(activeUser.companies)) {
+          const currentCompaniesStr = JSON.stringify(currentUserData.companies || [])
+          const activeCompaniesStr = JSON.stringify(activeUser.companies || [])
+          
+          if (currentCompaniesStr !== activeCompaniesStr) {
             console.log('User companies changed, updating local state')
+            console.log('KV companies:', currentUserData.companies)
+            console.log('Active user companies:', activeUser.companies)
             setCurrentUser(currentUserData)
+          }
+        }
+        
+        const userFromArray = usersData?.find(u => u.id === activeUser.id)
+        if (userFromArray && userFromArray.companies) {
+          console.log('User from users array has companies:', userFromArray.companies)
+          
+          const arrayCompaniesStr = JSON.stringify(userFromArray.companies || [])
+          const activeCompaniesStr = JSON.stringify(activeUser.companies || [])
+          
+          if (arrayCompaniesStr !== activeCompaniesStr) {
+            console.log('Syncing from users array to current user')
+            setCurrentUser((prev) => prev ? { ...prev, companies: userFromArray.companies } : null)
           }
         }
       } catch (error) {
@@ -79,7 +101,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       }
     }
     loadUserData()
-  }, [activeUser.id, refreshTrigger])
+  }, [activeUser.id, refreshTrigger, users])
 
   console.log('HomeDashboard render:', { 
     userId: activeUser.id,
