@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { User, Company } from '@/lib/types'
 import { Button } from './ui/button'
@@ -24,216 +24,93 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [companiesLoaded, setCompaniesLoaded] = useState(false)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [showCompanyOptions, setShowCompanyOptions] = useState(false)
+  const isNavigatingRef = useRef(false)
 
   const activeUser = currentUser || user
 
   useEffect(() => {
-    console.log('=== HomeDashboard mounted or refreshKey changed:', refreshKey)
-    setRefreshTrigger(prev => prev + 1)
-  }, [refreshKey])
-
-  useEffect(() => {
-    if (isInitialLoad) {
-      console.log('=== Initial load, forcing data refresh')
-      setIsInitialLoad(false)
-      setRefreshTrigger(prev => prev + 1)
-    }
-  }, [])
-
-  useEffect(() => {
-    const loadCompanies = async () => {
+    const loadData = async () => {
       try {
-        console.log('=== Loading companies - refreshTrigger:', refreshTrigger, 'refreshKey:', refreshKey)
-        const keys = await window.spark.kv.keys()
-        console.log('All KV keys:', keys)
         const companiesData = await window.spark.kv.get<Company[]>('companies')
-        console.log('Companies from KV on load:', companiesData)
+        const currentUserData = await window.spark.kv.get<User | null>('current-user')
         
-        if (companiesData && companiesData.length > 0) {
-          console.log('Setting companies from KV, count:', companiesData.length)
+        if (companiesData) {
           setCompanies(companiesData)
-        } else {
-          console.log('No companies in KV or empty array')
+        }
+        
+        if (currentUserData && currentUserData.id === activeUser.id) {
+          setCurrentUser(currentUserData)
         }
         
         setCompaniesLoaded(true)
       } catch (error) {
-        console.error('Error loading companies:', error)
+        console.error('Error loading data:', error)
       }
     }
-    loadCompanies()
-  }, [refreshTrigger, refreshKey])
-
-  useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        console.log('=== Loading user data - refreshTrigger:', refreshTrigger, 'refreshKey:', refreshKey)
-        const usersData = await window.spark.kv.get<User[]>('users')
-        const currentUserData = await window.spark.kv.get<User | null>('current-user')
-        
-        console.log('User data from KV:', {
-          usersData: usersData?.find(u => u.id === activeUser.id),
-          currentUserData,
-          currentUserCompanies: currentUserData?.companies
-        })
-        
-        if (currentUserData && currentUserData.companies && currentUserData.companies.length > 0) {
-          console.log('Current user companies from KV:', currentUserData.companies)
-          console.log('Setting current user from KV')
-          setCurrentUser(currentUserData)
-        }
-        
-        const userFromArray = usersData?.find(u => u.id === activeUser.id)
-        if (userFromArray && userFromArray.companies && userFromArray.companies.length > 0) {
-          console.log('User from users array has companies:', userFromArray.companies)
-          if (!currentUserData || !currentUserData.companies || currentUserData.companies.length === 0) {
-            console.log('Current user missing companies, syncing from users array')
-            setCurrentUser((prev) => {
-              if (!prev) return userFromArray
-              return { ...prev, companies: userFromArray.companies }
-            })
-          }
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error)
-      }
-    }
-    loadUserData()
-  }, [activeUser.id, refreshTrigger, refreshKey])
-
-  console.log('HomeDashboard render:', { 
-    userId: activeUser.id,
-    userCompaniesCount: activeUser.companies?.length || 0,
-    totalCompaniesCount: companies?.length || 0,
-    userMemberships: activeUser.companies,
-    allCompanies: companies,
-    companiesLoaded,
-    refreshTrigger,
-    refreshKey
-  })
+    loadData()
+  }, [refreshKey, activeUser.id])
 
   const userCompanies = (activeUser.companies || [])
     .map((membership) => {
       const company = (companies || []).find((c) => c.id === membership.companyId)
-      if (!company) {
-        console.log('Company not found for membership:', { 
-          membershipId: membership.companyId,
-          availableCompanies: (companies || []).map(c => ({ id: c.id, name: c.name }))
-        })
-      } else {
-        console.log('Company found for membership:', { 
-          membershipId: membership.companyId,
-          companyName: company.name,
-          role: membership.role
-        })
-      }
       return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
     .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
-
-  console.log('HomeDashboard userCompanies result:', userCompanies)
   
   if (userCompanies.length === 0 && activeUser.companies && activeUser.companies.length > 0) {
-    console.warn('⚠️ USER HAS MEMBERSHIPS BUT NO COMPANIES MATCHED!', {
-      userMemberships: activeUser.companies,
-      availableCompanies: companies
-    })
+    console.warn('User has memberships but no companies matched')
   }
 
-  const validCompanyIds = userCompanies.map(c => c.id)
-
-  useEffect(() => {
-    if (activeUser && activeUser.companies && activeUser.companies.length > 0) {
-      const existingCompanyIds = (companies || []).map(c => c.id)
-      const hasInvalidCompanies = activeUser.companies.some(
-        m => !existingCompanyIds.includes(m.companyId)
-      )
-
-      if (hasInvalidCompanies) {
-        const cleanedCompanies = (activeUser.companies || []).filter(m => 
-          existingCompanyIds.includes(m.companyId)
-        )
-
-        setCurrentUser((prev) => {
-          if (!prev) return null
-          return {
-            ...prev,
-            companies: cleanedCompanies
-          }
-        })
-
-        setUsers((prevUsers) => 
-          (prevUsers || []).map(u => {
-            if (u.id === activeUser.id) {
-              return {
-                ...u,
-                companies: cleanedCompanies
-              }
-            }
-            return u
-          })
-        )
-      }
-    }
-  }, [companies, activeUser.id])
-
-  const [showCompanyOptions, setShowCompanyOptions] = useState(false)
-
   const handleCompanyClick = async (companyId: string, role: string) => {
-    console.log('handleCompanyClick called', { companyId, role, companies })
+    if (isNavigatingRef.current) {
+      console.log('Already navigating, ignoring click')
+      return
+    }
     
-    const allCompanies = companies || []
-    const company = allCompanies.find(c => c.id === companyId)
+    isNavigatingRef.current = true
+    console.log('handleCompanyClick called', { companyId, role })
     
-    if (!company) {
-      console.error('Company not found in companies array', { 
-        companyId, 
-        availableCompanies: allCompanies.map(c => ({ id: c.id, name: c.name }))
-      })
+    try {
+      const allCompanies = await window.spark.kv.get<Company[]>('companies')
+      const company = (allCompanies || []).find(c => c.id === companyId)
       
-      const companiesFromKV = await window.spark.kv.get<Company[]>('companies')
-      console.log('Companies loaded directly from KV:', companiesFromKV)
-      
-      const companyFromKV = (companiesFromKV || []).find(c => c.id === companyId)
-      if (!companyFromKV) {
-        toast.error('Perusahaan tidak ditemukan. Silakan refresh halaman.')
+      if (!company) {
+        console.error('Company not found', { companyId })
+        toast.error('Perusahaan tidak ditemukan')
+        isNavigatingRef.current = false
         return
       }
-    }
-    
-    console.log('Company validated, updating user state')
-    
-    if (isMobile) setSidebarOpen(false)
-    
-    const updatedUser = { ...activeUser, companyId, role: role as any }
-    
-    await window.spark.kv.set('current-user', updatedUser)
-    
-    setUsers((prevUsers) => 
-      (prevUsers || []).map(u => {
-        if (u.id === activeUser.id) {
-          return updatedUser
-        }
-        return u
-      })
-    )
-    
-    setCurrentUser(updatedUser)
-    
-    console.log('User state updated, navigating, role:', role)
-    
-    setTimeout(() => {
+      
+      console.log('Company found, navigating to dashboard')
+      
+      if (isMobile) setSidebarOpen(false)
+      
+      const updatedUser = { ...activeUser, companyId, role: role as any }
+      await window.spark.kv.set('current-user', updatedUser)
+      
+      setUsers((prevUsers) => 
+        (prevUsers || []).map(u => 
+          u.id === activeUser.id ? updatedUser : u
+        )
+      )
+      
+      setCurrentUser(updatedUser)
+      
       if (role === 'admin') {
-        console.log('Calling onNavigate with admin-dashboard')
         onNavigate('admin-dashboard')
       } else if (role === 'courier') {
-        console.log('Calling onNavigate with courier-dashboard')
         onNavigate('courier-dashboard')
       }
-    }, 50)
+      
+      setTimeout(() => {
+        isNavigatingRef.current = false
+      }, 1000)
+    } catch (error) {
+      console.error('Error in handleCompanyClick:', error)
+      isNavigatingRef.current = false
+    }
   }
 
   const handleCreateCompany = () => {
