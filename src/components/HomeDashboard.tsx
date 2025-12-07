@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { User, Company } from '@/lib/types'
 import { Button } from './ui/button'
@@ -18,6 +18,7 @@ interface HomeDashboardProps {
 function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const [companies] = useKV<Company[]>('companies', [])
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
+  const [users, setUsers] = useKV<User[]>('users', [])
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -30,6 +31,43 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
     .sort((a, b) => new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime())
+
+  const validCompanyIds = userCompanies.map(c => c.id)
+
+  useEffect(() => {
+    if (activeUser && activeUser.companies && activeUser.companies.length > 0) {
+      const existingCompanyIds = (companies || []).map(c => c.id)
+      const hasInvalidCompanies = activeUser.companies.some(
+        m => !existingCompanyIds.includes(m.companyId)
+      )
+
+      if (hasInvalidCompanies) {
+        const cleanedCompanies = (activeUser.companies || []).filter(m => 
+          existingCompanyIds.includes(m.companyId)
+        )
+
+        setCurrentUser((prev) => {
+          if (!prev) return null
+          return {
+            ...prev,
+            companies: cleanedCompanies
+          }
+        })
+
+        setUsers((prevUsers) => 
+          (prevUsers || []).map(u => {
+            if (u.id === activeUser.id) {
+              return {
+                ...u,
+                companies: cleanedCompanies
+              }
+            }
+            return u
+          })
+        )
+      }
+    }
+  }, [companies, activeUser.id])
 
   const [showCompanyOptions, setShowCompanyOptions] = useState(false)
 

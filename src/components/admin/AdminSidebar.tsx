@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { List } from '@phosphor-icons/react'
-import { User, Company } from '@/lib/types'
+import { User, Company, Package, Courier } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { toast } from 'sonner'
@@ -22,6 +22,8 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
   const isMobile = useIsMobile()
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
   const [users, setUsers] = useKV<User[]>('users', [])
+  const [packages, setPackages] = useKV<Package[]>('packages', [])
+  const [couriers, setCouriers] = useKV<Courier[]>('couriers', [])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   
   const userName = user.name || user.email.split('@')[0]
@@ -33,16 +35,22 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
   const handleDeleteCompany = () => {
     if (!user.companyId || !isOwner || !companyExists) return
 
-    setCompanies((prev) => (prev || []).filter(c => c.id !== user.companyId))
+    const companyIdToDelete = user.companyId
+
+    setCompanies((prev) => (prev || []).filter(c => c.id !== companyIdToDelete))
 
     setUsers((prevUsers) => 
       (prevUsers || []).map(u => ({
         ...u,
-        companies: (u.companies || []).filter(m => m.companyId !== user.companyId),
-        companyId: u.companyId === user.companyId ? undefined : u.companyId,
-        role: u.companyId === user.companyId ? undefined : u.role
+        companies: (u.companies || []).filter(m => m.companyId !== companyIdToDelete),
+        companyId: u.companyId === companyIdToDelete ? undefined : u.companyId,
+        role: u.companyId === companyIdToDelete ? undefined : u.role
       }))
     )
+
+    setPackages((prev) => (prev || []).filter(p => p.companyId !== companyIdToDelete))
+
+    setCouriers((prev) => (prev || []).filter(c => c.companyId !== companyIdToDelete))
 
     toast.success('Perusahaan berhasil dihapus')
     setShowDeleteDialog(false)
