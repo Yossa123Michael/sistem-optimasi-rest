@@ -23,25 +23,27 @@ export default function MapView({
 }: MapViewProps) {
   const mapRef = useRef<L.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const initializedRef = useRef(false)
 
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!containerRef.current || initializedRef.current) return
 
-    if (!mapRef.current) {
-      mapRef.current = L.map(containerRef.current).setView(center, zoom)
+    mapRef.current = L.map(containerRef.current).setView(center, zoom)
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(mapRef.current)
-    }
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(mapRef.current)
+
+    initializedRef.current = true
 
     return () => {
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null
+        initializedRef.current = false
       }
     }
-  }, [])
+  }, [center, zoom])
 
   useEffect(() => {
     if (!mapRef.current) return
