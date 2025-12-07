@@ -29,13 +29,15 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
     const newCompany: Company = {
       id: generateId(),
-      name: companyName,
+      name: companyName.trim(),
       code: generateCode(),
       ownerId: user.id,
       createdAt: new Date().toISOString()
     }
 
     setCompanies((currentCompanies) => [...(currentCompanies || []), newCompany])
+    
+    const existingCompanyIds = (companies || []).map(c => c.id)
     
     const newMembership = {
       companyId: newCompany.id,
@@ -45,25 +47,31 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
     
     setCurrentUser((prev) => {
       if (!prev) return null
-      const existingCompanies = prev.companies || []
+      const cleanedCompanies = (prev.companies || []).filter(m => 
+        existingCompanyIds.includes(m.companyId)
+      )
       return {
         ...prev,
         companies: [
-          ...existingCompanies,
+          ...cleanedCompanies,
           newMembership
         ]
       }
     })
 
     setUsers((currentUsers) => 
-      (currentUsers || []).map((u) => 
-        u.id === user.id 
-          ? { 
-              ...u, 
-              companies: [...(u.companies || []), newMembership]
-            }
-          : u
-      )
+      (currentUsers || []).map((u) => {
+        if (u.id === user.id) {
+          const cleanedCompanies = (u.companies || []).filter(m => 
+            existingCompanyIds.includes(m.companyId)
+          )
+          return { 
+            ...u, 
+            companies: [...cleanedCompanies, newMembership]
+          }
+        }
+        return u
+      })
     )
 
     toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
