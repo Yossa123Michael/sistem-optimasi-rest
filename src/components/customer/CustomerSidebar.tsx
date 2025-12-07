@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { List } from '@phosphor-icons/react'
-import { User } from '@/lib/types'
+import { User, Company } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useKV } from '@github/spark/hooks'
 
 type CustomerView = 'home' | 'orders' | 'track'
 
@@ -15,12 +16,15 @@ interface CustomerSidebarProps {
 
 export default function CustomerSidebar({ user, currentView, onViewChange, onLogout }: CustomerSidebarProps) {
   const isMobile = useIsMobile()
+  const [companies] = useKV<Company[]>('companies', [])
 
-  const menuItems = [
-    { id: 'home' as const, label: 'Home' },
-    { id: 'orders' as const, label: 'Pesanan Saya' },
-    { id: 'track' as const, label: 'Cek paket' }
-  ]
+  const userCompanies = (user.companies || [])
+    .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())
+    .map((membership) => {
+      const company = (companies || []).find((c) => c.id === membership.companyId)
+      return company ? { ...company, role: membership.role } : null
+    })
+    .filter((c) => c !== null)
 
   const userName = user.name || user.email.split('@')[0]
 
@@ -35,23 +39,46 @@ export default function CustomerSidebar({ user, currentView, onViewChange, onLog
 
       <nav className="flex-1 p-4">
         <div className="space-y-2">
-          {menuItems.map((item) => (
+          <Button
+            variant="ghost"
+            className={currentView === 'home' ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
+            onClick={() => onViewChange('home')}
+          >
+            Home
+          </Button>
+
+          {userCompanies.map((company) => (
             <Button
-              key={item.id}
+              key={company.id}
               variant="ghost"
-              className={currentView === item.id ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
-              onClick={() => onViewChange(item.id)}
+              className="w-full justify-center text-foreground hover:bg-secondary"
             >
-              {item.label}
+              {company.name}
             </Button>
           ))}
+
+          <Button
+            variant="ghost"
+            className={currentView === 'orders' ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
+            onClick={() => onViewChange('orders')}
+          >
+            Pesanan Saya
+          </Button>
+
+          <Button
+            variant="ghost"
+            className={currentView === 'track' ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
+            onClick={() => onViewChange('track')}
+          >
+            Cek paket
+          </Button>
         </div>
       </nav>
 
       <div className="p-4">
         <Button
           variant="ghost"
-          className="w-full justify-center text-foreground"
+          className="w-full justify-center text-destructive hover:text-destructive/80"
           onClick={onLogout}
         >
           Sign Out
