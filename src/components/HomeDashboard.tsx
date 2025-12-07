@@ -117,8 +117,8 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <ScrollArea className="h-full">
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="overflow-y-auto flex-1">
           <nav className="px-6 py-4 space-y-2">
             <button
               className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
@@ -130,12 +130,15 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
               Home
             </button>
 
-            {userCompanies.map((company) => (
+            {userCompanies.length > 0 && userCompanies.map((company) => (
               <button
                 key={company.id}
                 type="button"
-                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors cursor-pointer"
-                onClick={() => handleCompanyClick(company.id, company.role)}
+                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+                onClick={() => {
+                  console.log('Company clicked:', company.name, company.id, company.role)
+                  handleCompanyClick(company.id, company.role)
+                }}
               >
                 {company.name}
               </button>
@@ -161,7 +164,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
               Cek paket
             </button>
           </nav>
-        </ScrollArea>
+        </div>
       </div>
 
       <div className="px-6 pb-8 flex-shrink-0">
