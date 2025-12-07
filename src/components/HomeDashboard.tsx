@@ -72,22 +72,32 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const [showCompanyOptions, setShowCompanyOptions] = useState(false)
 
   const handleCompanyClick = (companyId: string, role: string) => {
+    console.log('handleCompanyClick called', { companyId, role, companies })
     const company = (companies || []).find(c => c.id === companyId)
     
     if (!company) {
+      console.log('Company not found', companyId)
       return
     }
     
+    console.log('Company found, updating user', company)
+    
     setCurrentUser((prev) => {
       if (!prev) return null
-      return { ...prev, companyId, role: role as any }
+      const updated = { ...prev, companyId, role: role as any }
+      console.log('Updated user:', updated)
+      return updated
     })
     
-    if (role === 'admin') {
-      onNavigate('admin-dashboard')
-    } else if (role === 'courier') {
-      onNavigate('courier-dashboard')
-    }
+    console.log('Navigating to dashboard, role:', role)
+    
+    setTimeout(() => {
+      if (role === 'admin') {
+        onNavigate('admin-dashboard')
+      } else if (role === 'courier') {
+        onNavigate('courier-dashboard')
+      }
+    }, 100)
     
     if (isMobile) setSidebarOpen(false)
   }

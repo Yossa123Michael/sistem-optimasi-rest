@@ -90,6 +90,8 @@ function App() {
   }, [companies, currentScreen, currentUser])
 
   useEffect(() => {
+    console.log('App useEffect triggered', { currentScreen, currentUser: currentUser?.email, companyId: currentUser?.companyId, role: currentUser?.role })
+    
     if (currentScreen === 'create-company' || currentScreen === 'join-company' || currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' || currentScreen === 'customer-dashboard') {
       return
     }
@@ -115,6 +117,7 @@ function App() {
 
       if (currentScreen === 'home-dashboard') {
         if (currentUser.companyId && currentUser.role) {
+          console.log('Auto-navigating based on role:', currentUser.role)
           if (currentUser.role === 'admin') {
             setCurrentScreen('admin-dashboard')
           } else if (currentUser.role === 'courier') {
@@ -131,6 +134,7 @@ function App() {
   }
 
   const handleNavigateFromHome = (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
+    console.log('handleNavigateFromHome called:', screen)
     if (screen === 'home') {
       setCurrentScreen('home-dashboard')
     } else if (screen === 'companies') {
@@ -144,8 +148,10 @@ function App() {
     } else if (screen === 'customer-mode') {
       setCurrentScreen('customer-dashboard')
     } else if (screen === 'admin-dashboard') {
+      console.log('Navigating to admin-dashboard')
       setCurrentScreen('admin-dashboard')
     } else if (screen === 'courier-dashboard') {
+      console.log('Navigating to courier-dashboard')
       setCurrentScreen('courier-dashboard')
     }
   }
