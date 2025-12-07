@@ -204,13 +204,14 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       }
     }
     
-    console.log('Company validated, navigating immediately')
+    console.log('Company validated, updating user state')
     
     if (isMobile) setSidebarOpen(false)
     
     const updatedUser = { ...activeUser, companyId, role: role as any }
     
-    setCurrentUser(updatedUser)
+    await window.spark.kv.set('current-user', updatedUser)
+    
     setUsers((prevUsers) => 
       (prevUsers || []).map(u => {
         if (u.id === activeUser.id) {
@@ -220,15 +221,19 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       })
     )
     
-    console.log('Navigating to dashboard immediately, role:', role)
+    setCurrentUser(updatedUser)
     
-    if (role === 'admin') {
-      console.log('Calling onNavigate with admin-dashboard')
-      onNavigate('admin-dashboard')
-    } else if (role === 'courier') {
-      console.log('Calling onNavigate with courier-dashboard')
-      onNavigate('courier-dashboard')
-    }
+    console.log('User state updated, navigating, role:', role)
+    
+    setTimeout(() => {
+      if (role === 'admin') {
+        console.log('Calling onNavigate with admin-dashboard')
+        onNavigate('admin-dashboard')
+      } else if (role === 'courier') {
+        console.log('Calling onNavigate with courier-dashboard')
+        onNavigate('courier-dashboard')
+      }
+    }, 50)
   }
 
   const handleCreateCompany = () => {

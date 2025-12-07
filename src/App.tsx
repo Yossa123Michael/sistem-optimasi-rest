@@ -102,21 +102,8 @@ function App() {
         setCurrentScreen('home-dashboard')
         return
       }
-
-      if (currentUser.companyId) {
-        const companyStillExists = (companies || []).some(c => c.id === currentUser.companyId)
-        
-        if (!companyStillExists) {
-          setCurrentUser((prev) => {
-            if (!prev) return null
-            return { ...prev, companyId: undefined, role: undefined }
-          })
-          setCurrentScreen('home-dashboard')
-          return
-        }
-      }
     }
-  }, [currentUser?.companyId, companies, currentScreen])
+  }, [companies, currentScreen])
 
   const handleLogout = () => {
     setCurrentUser(null)
