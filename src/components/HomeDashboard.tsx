@@ -11,7 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 interface HomeDashboardProps {
   user: User
   onLogout: () => void
-  onNavigate: (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode') => void
+  onNavigate: (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => void
 }
 
 function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
@@ -25,8 +25,14 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const [showCompanyOptions, setShowCompanyOptions] = useState(false)
 
   const handleCompanyNavigate = () => {
-    if (userCompany) {
-      onNavigate('companies')
+    if (userCompany && user.role) {
+      if (user.role === 'admin') {
+        onNavigate('admin-dashboard')
+      } else if (user.role === 'courier') {
+        onNavigate('courier-dashboard')
+      } else {
+        setShowCompanyOptions(true)
+      }
     } else {
       setShowCompanyOptions(true)
     }

@@ -59,7 +59,7 @@ function App() {
     setCurrentScreen('splash')
   }
 
-  const handleNavigateFromHome = (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode') => {
+  const handleNavigateFromHome = (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
     if (screen === 'home') {
       setCurrentScreen('home-dashboard')
     } else if (screen === 'companies') {
@@ -72,6 +72,10 @@ function App() {
       setCurrentScreen('join-company')
     } else if (screen === 'customer-mode') {
       setCurrentScreen('customer-dashboard')
+    } else if (screen === 'admin-dashboard') {
+      setCurrentScreen('admin-dashboard')
+    } else if (screen === 'courier-dashboard') {
+      setCurrentScreen('courier-dashboard')
     }
   }
 
@@ -203,6 +207,7 @@ function App() {
           <AdminDashboard
             user={currentUser!}
             onLogout={handleLogout}
+            onBackToHome={() => setCurrentScreen('home-dashboard')}
           />
         )
       case 'courier-dashboard':
@@ -210,6 +215,7 @@ function App() {
           <CourierDashboard
             user={currentUser!}
             onLogout={handleLogout}
+            onBackToHome={() => setCurrentScreen('home-dashboard')}
           />
         )
       case 'customer-dashboard':

@@ -11,9 +11,10 @@ type CourierView = 'home' | 'package-list' | 'recommendation' | 'update'
 interface CourierDashboardProps {
   user: User
   onLogout: () => void
+  onBackToHome?: () => void
 }
 
-export default function CourierDashboard({ user, onLogout }: CourierDashboardProps) {
+export default function CourierDashboard({ user, onLogout, onBackToHome }: CourierDashboardProps) {
   const [currentView, setCurrentView] = useState<CourierView>('home')
 
   const renderView = () => {
@@ -38,6 +39,7 @@ export default function CourierDashboard({ user, onLogout }: CourierDashboardPro
         currentView={currentView}
         onViewChange={setCurrentView}
         onLogout={onLogout}
+        onBackToHome={onBackToHome}
       />
       <main className="flex-1 lg:ml-48">
         {renderView()}

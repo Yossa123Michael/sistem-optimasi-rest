@@ -11,9 +11,10 @@ interface CourierSidebarProps {
   currentView: CourierView
   onViewChange: (view: CourierView) => void
   onLogout: () => void
+  onBackToHome?: () => void
 }
 
-export default function CourierSidebar({ user, currentView, onViewChange, onLogout }: CourierSidebarProps) {
+export default function CourierSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: CourierSidebarProps) {
   const isMobile = useIsMobile()
   
   const userName = user.name || user.email.split('@')[0]
@@ -49,7 +50,16 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         </div>
       </nav>
 
-      <div className="p-4">
+      <div className="p-4 space-y-2">
+        {onBackToHome && (
+          <Button
+            variant="ghost"
+            className="w-full justify-center text-foreground"
+            onClick={onBackToHome}
+          >
+            Kembali ke Home
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-center text-foreground"

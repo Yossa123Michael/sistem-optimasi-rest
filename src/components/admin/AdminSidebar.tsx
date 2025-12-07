@@ -11,9 +11,10 @@ interface AdminSidebarProps {
   currentView: AdminView
   onViewChange: (view: AdminView) => void
   onLogout: () => void
+  onBackToHome?: () => void
 }
 
-export default function AdminSidebar({ user, currentView, onViewChange, onLogout }: AdminSidebarProps) {
+export default function AdminSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: AdminSidebarProps) {
   const isMobile = useIsMobile()
   
   const userName = user.name || user.email.split('@')[0]
@@ -50,7 +51,16 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
         </div>
       </nav>
 
-      <div className="p-4">
+      <div className="p-4 space-y-2">
+        {onBackToHome && (
+          <Button
+            variant="ghost"
+            className="w-full justify-center text-foreground"
+            onClick={onBackToHome}
+          >
+            Kembali ke Home
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-center text-foreground"

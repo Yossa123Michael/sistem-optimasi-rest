@@ -13,9 +13,10 @@ type AdminView = 'home' | 'input-data' | 'courier' | 'courier-activation' | 'mon
 interface AdminDashboardProps {
   user: User
   onLogout: () => void
+  onBackToHome?: () => void
 }
 
-export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
+export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState<AdminView>('home')
 
   const renderView = () => {
@@ -44,6 +45,7 @@ export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) 
         currentView={currentView}
         onViewChange={setCurrentView}
         onLogout={onLogout}
+        onBackToHome={onBackToHome}
       />
       <main className="flex-1 lg:ml-48">
         {renderView()}
