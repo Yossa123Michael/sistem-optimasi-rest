@@ -86,6 +86,10 @@ function App() {
   }, [companies])
 
   useEffect(() => {
+    if (currentScreen === 'create-company' || currentScreen === 'join-company') {
+      return
+    }
+
     if (currentUser && currentUser.companyId) {
       const companyStillExists = (companies || []).some(c => c.id === currentUser.companyId)
       
@@ -112,7 +116,7 @@ function App() {
         setCurrentScreen('home-dashboard')
       }
     }
-  }, [currentUser, companies])
+  }, [currentUser, companies, currentScreen])
 
   const handleLogout = () => {
     setCurrentUser(null)
@@ -145,7 +149,7 @@ function App() {
       const updatedUser = { ...prev, companyId, role: 'admin' as UserRole }
       return updatedUser
     })
-    setTimeout(() => setCurrentScreen('admin-dashboard'), 100)
+    setCurrentScreen('admin-dashboard')
   }
 
   const handleCompanyJoined = (companyId: string, role: UserRole) => {

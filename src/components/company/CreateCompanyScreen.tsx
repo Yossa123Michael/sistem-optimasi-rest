@@ -35,13 +35,13 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       createdAt: new Date().toISOString()
     }
 
-    setCompanies((currentCompanies) => [...(currentCompanies || []), newCompany])
-    
     const newMembership = {
       companyId: newCompany.id,
       role: 'admin' as const,
       joinedAt: new Date().toISOString()
     }
+
+    setCompanies((currentCompanies) => [...(currentCompanies || []), newCompany])
     
     setCurrentUser((prev) => {
       if (!prev) return null
