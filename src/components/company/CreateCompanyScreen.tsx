@@ -19,6 +19,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
   const [companyName, setCompanyName] = useState('')
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
+  const [users, setUsers] = useKV<User[]>('users', [])
 
   const handleCreateCompany = () => {
     if (!companyName.trim()) {
@@ -36,6 +37,12 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
     setCompanies((currentCompanies) => [...(currentCompanies || []), newCompany])
     
+    const newMembership = {
+      companyId: newCompany.id,
+      role: 'admin' as const,
+      joinedAt: new Date().toISOString()
+    }
+    
     setCurrentUser((prev) => {
       if (!prev) return null
       const existingCompanies = prev.companies || []
@@ -43,14 +50,21 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
         ...prev,
         companies: [
           ...existingCompanies,
-          {
-            companyId: newCompany.id,
-            role: 'admin' as const,
-            joinedAt: new Date().toISOString()
-          }
+          newMembership
         ]
       }
     })
+
+    setUsers((currentUsers) => 
+      (currentUsers || []).map((u) => 
+        u.id === user.id 
+          ? { 
+              ...u, 
+              companies: [...(u.companies || []), newMembership]
+            }
+          : u
+      )
+    )
 
     toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
     onCompanyCreated(newCompany.id)

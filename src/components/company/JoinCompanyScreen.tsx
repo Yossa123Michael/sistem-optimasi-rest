@@ -19,6 +19,7 @@ export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: Joi
   const [companyCode, setCompanyCode] = useState('')
   const [companies] = useKV<Company[]>('companies', [])
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
+  const [users, setUsers] = useKV<User[]>('users', [])
   const [showRoleSelection, setShowRoleSelection] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
 
@@ -47,6 +48,12 @@ export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: Joi
 
   const handleRoleSelected = (role: UserRole) => {
     if (selectedCompany) {
+      const newMembership = {
+        companyId: selectedCompany.id,
+        role: role,
+        joinedAt: new Date().toISOString()
+      }
+
       setCurrentUser((prev) => {
         if (!prev) return null
         const existingCompanies = prev.companies || []
@@ -54,14 +61,21 @@ export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: Joi
           ...prev,
           companies: [
             ...existingCompanies,
-            {
-              companyId: selectedCompany.id,
-              role: role,
-              joinedAt: new Date().toISOString()
-            }
+            newMembership
           ]
         }
       })
+
+      setUsers((currentUsers) => 
+        (currentUsers || []).map((u) => 
+          u.id === user.id 
+            ? { 
+                ...u, 
+                companies: [...(u.companies || []), newMembership]
+              }
+            : u
+        )
+      )
 
       toast.success(`Bergabung dengan ${selectedCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
       onCompanyJoined(selectedCompany.id, role)
