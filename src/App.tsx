@@ -90,25 +90,32 @@ function App() {
       return
     }
 
-    if (currentUser && currentUser.companyId) {
-      const companyStillExists = (companies || []).some(c => c.id === currentUser.companyId)
-      
-      if (!companyStillExists) {
-        setCurrentUser((prev) => {
-          if (!prev) return null
-          return { ...prev, companyId: undefined, role: undefined }
-        })
+    if (currentUser) {
+      if (currentScreen === 'login' || currentScreen === 'register') {
         setCurrentScreen('home-dashboard')
         return
       }
-    }
 
-    if (currentUser && currentScreen === 'home-dashboard') {
-      if (currentUser.companyId && currentUser.role) {
-        if (currentUser.role === 'admin') {
-          setCurrentScreen('admin-dashboard')
-        } else if (currentUser.role === 'courier') {
-          setCurrentScreen('courier-dashboard')
+      if (currentUser.companyId) {
+        const companyStillExists = (companies || []).some(c => c.id === currentUser.companyId)
+        
+        if (!companyStillExists) {
+          setCurrentUser((prev) => {
+            if (!prev) return null
+            return { ...prev, companyId: undefined, role: undefined }
+          })
+          setCurrentScreen('home-dashboard')
+          return
+        }
+      }
+
+      if (currentScreen === 'home-dashboard') {
+        if (currentUser.companyId && currentUser.role) {
+          if (currentUser.role === 'admin') {
+            setCurrentScreen('admin-dashboard')
+          } else if (currentUser.role === 'courier') {
+            setCurrentScreen('courier-dashboard')
+          }
         }
       }
     }
