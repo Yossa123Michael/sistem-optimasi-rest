@@ -148,26 +148,24 @@ function App() {
       return
     }
     
-    const updatedUser = { ...freshUser, companyId, role: 'admin' as UserRole }
-    await window.spark.kv.set('current-user', updatedUser)
-    setCurrentUser(updatedUser)
+    setCurrentUser(freshUser)
     
     setUsers((prevUsers) => 
       (prevUsers || []).map((u) => {
         if (u.id === freshUser.id) {
-          return { ...u, companyId, role: 'admin' as UserRole }
+          return freshUser
         }
         return u
       })
     )
     
-    console.log('Updating homeRefreshKey to trigger reload')
+    console.log('Updating homeRefreshKey to trigger reload and show new company in sidebar')
     setHomeRefreshKey(prev => prev + 1)
     
     await new Promise(resolve => setTimeout(resolve, 100))
     
-    console.log('Navigating to admin-dashboard')
-    setCurrentScreen('admin-dashboard')
+    console.log('Navigating back to home-dashboard to show new company')
+    setCurrentScreen('home-dashboard')
   }
 
   const handleCompanyJoined = (companyId: string, role: UserRole) => {

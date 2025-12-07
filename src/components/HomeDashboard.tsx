@@ -36,10 +36,12 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       try {
         const companiesData = await window.spark.kv.get<Company[]>('companies')
         const currentUserData = await window.spark.kv.get<User | null>('current-user')
+        const usersData = await window.spark.kv.get<User[]>('users')
         
         console.log('Loaded companies from KV:', companiesData?.length || 0)
+        console.log('Companies:', companiesData)
         console.log('Loaded current user from KV:', currentUserData?.email)
-        console.log('Current user companies:', currentUserData?.companies?.length || 0)
+        console.log('Current user companies:', currentUserData?.companies)
         
         if (companiesData) {
           setCompanies(companiesData)
@@ -47,6 +49,10 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         
         if (currentUserData && currentUserData.id === activeUser.id) {
           setCurrentUser(currentUserData)
+        }
+        
+        if (usersData) {
+          setUsers(usersData)
         }
         
         setCompaniesLoaded(true)
@@ -63,7 +69,9 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         .map((membership) => {
           const company = (companies || []).find((c) => c.id === membership.companyId)
           if (!company) {
-            console.warn('Company not found for membership:', membership.companyId)
+            console.warn('Company not found for membership:', membership.companyId, 'in companies:', companies)
+          } else {
+            console.log('Found company for membership:', company.name, company.id)
           }
           return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
         })
@@ -73,9 +81,13 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
   
   console.log('HomeDashboard render:', { 
     companiesLoaded, 
+    activeUserEmail: activeUser.email,
     activeUserHasMemberships: activeUser.companies?.length || 0,
+    activeUserMemberships: activeUser.companies,
     userCompaniesFound: userCompanies.length,
-    companiesInDB: companies?.length || 0
+    userCompanies: userCompanies.map(c => ({ name: c.name, id: c.id, role: c.role })),
+    companiesInDB: companies?.length || 0,
+    allCompaniesInDB: companies?.map(c => ({ name: c.name, id: c.id }))
   })
 
   const handleCompanyClick = async (companyId: string, role: string) => {
@@ -173,7 +185,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
             Home
           </button>
 
-          {userCompanies.length > 0 ? (
+          {companiesLoaded && userCompanies.length > 0 ? (
             userCompanies.map((company) => (
               <button
                 key={company.id}
@@ -193,9 +205,13 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
                 {company.name}
               </button>
             ))
-          ) : (
-            <div className="text-sm text-muted-foreground/60 py-2">
+          ) : companiesLoaded ? (
+            <div className="text-sm text-muted-foreground/60 py-2 italic">
               Belum ada perusahaan
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground/60 py-2 italic">
+              Memuat...
             </div>
           )}
 
