@@ -147,8 +147,10 @@ function App() {
     }
   }
 
-  const handleCompanyCreated = (companyId: string) => {
-    console.log('handleCompanyCreated called with companyId:', companyId)
+  const handleCompanyCreated = async (companyId: string) => {
+    console.log('=== handleCompanyCreated called with companyId:', companyId)
+    
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     setCurrentUser((prev) => {
       if (!prev) return null
@@ -156,6 +158,8 @@ function App() {
       console.log('Setting current user in handleCompanyCreated:', updated)
       return updated
     })
+    
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     setUsers((prevUsers) => 
       (prevUsers || []).map((u) => {
@@ -169,12 +173,16 @@ function App() {
     )
     
     console.log('Updating homeRefreshKey to trigger reload')
-    setHomeRefreshKey(prev => prev + 1)
+    setHomeRefreshKey(prev => {
+      const newKey = prev + 1
+      console.log('homeRefreshKey updated to:', newKey)
+      return newKey
+    })
     
-    setTimeout(() => {
-      console.log('Navigating to admin-dashboard')
-      setCurrentScreen('admin-dashboard')
-    }, 300)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    
+    console.log('Navigating to admin-dashboard')
+    setCurrentScreen('admin-dashboard')
   }
 
   const handleCompanyJoined = (companyId: string, role: UserRole) => {
@@ -274,8 +282,15 @@ function App() {
           <CreateCompanyScreen
             user={currentUser!}
             onBack={() => {
-              setHomeRefreshKey(prev => prev + 1)
-              setCurrentScreen('home-dashboard')
+              console.log('=== Going back from create-company to home ===')
+              setHomeRefreshKey(prev => {
+                const newKey = prev + 1
+                console.log('Setting homeRefreshKey to:', newKey)
+                return newKey
+              })
+              setTimeout(() => {
+                setCurrentScreen('home-dashboard')
+              }, 100)
             }}
             onCompanyCreated={handleCompanyCreated}
           />

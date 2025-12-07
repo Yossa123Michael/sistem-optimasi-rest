@@ -25,24 +25,37 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [companiesLoaded, setCompaniesLoaded] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   const activeUser = currentUser || user
 
   useEffect(() => {
+    console.log('=== HomeDashboard mounted or refreshKey changed:', refreshKey)
     setRefreshTrigger(prev => prev + 1)
   }, [refreshKey])
 
   useEffect(() => {
+    if (isInitialLoad) {
+      console.log('=== Initial load, forcing data refresh')
+      setIsInitialLoad(false)
+      setRefreshTrigger(prev => prev + 1)
+    }
+  }, [])
+
+  useEffect(() => {
     const loadCompanies = async () => {
       try {
+        console.log('=== Loading companies - refreshTrigger:', refreshTrigger, 'refreshKey:', refreshKey)
         const keys = await window.spark.kv.keys()
         console.log('All KV keys:', keys)
         const companiesData = await window.spark.kv.get<Company[]>('companies')
         console.log('Companies from KV on load:', companiesData)
         
-        if (companiesData) {
-          console.log('Setting companies from KV')
+        if (companiesData && companiesData.length > 0) {
+          console.log('Setting companies from KV, count:', companiesData.length)
           setCompanies(companiesData)
+        } else {
+          console.log('No companies in KV or empty array')
         }
         
         setCompaniesLoaded(true)
@@ -56,6 +69,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
   useEffect(() => {
     const loadUserData = async () => {
       try {
+        console.log('=== Loading user data - refreshTrigger:', refreshTrigger, 'refreshKey:', refreshKey)
         const usersData = await window.spark.kv.get<User[]>('users')
         const currentUserData = await window.spark.kv.get<User | null>('current-user')
         
@@ -65,15 +79,22 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
           currentUserCompanies: currentUserData?.companies
         })
         
-        if (currentUserData && currentUserData.companies) {
+        if (currentUserData && currentUserData.companies && currentUserData.companies.length > 0) {
           console.log('Current user companies from KV:', currentUserData.companies)
           console.log('Setting current user from KV')
           setCurrentUser(currentUserData)
         }
         
         const userFromArray = usersData?.find(u => u.id === activeUser.id)
-        if (userFromArray && userFromArray.companies) {
+        if (userFromArray && userFromArray.companies && userFromArray.companies.length > 0) {
           console.log('User from users array has companies:', userFromArray.companies)
+          if (!currentUserData || !currentUserData.companies || currentUserData.companies.length === 0) {
+            console.log('Current user missing companies, syncing from users array')
+            setCurrentUser((prev) => {
+              if (!prev) return userFromArray
+              return { ...prev, companies: userFromArray.companies }
+            })
+          }
         }
       } catch (error) {
         console.error('Error loading user data:', error)
