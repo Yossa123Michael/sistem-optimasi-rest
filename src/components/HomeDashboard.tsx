@@ -30,7 +30,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
       return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
-    .sort((a, b) => new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime())
+    .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
 
   const validCompanyIds = userCompanies.map(c => c.id)
 
@@ -133,7 +133,8 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
             {userCompanies.map((company) => (
               <button
                 key={company.id}
-                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+                type="button"
+                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors cursor-pointer"
                 onClick={() => handleCompanyClick(company.id, company.role)}
               >
                 {company.name}
