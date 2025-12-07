@@ -40,18 +40,22 @@ function App() {
   const [companies] = useKV<Company[]>('companies', [])
 
   useEffect(() => {
-    if (currentUser && users) {
+    if (currentUser && users && currentScreen !== 'login' && currentScreen !== 'splash') {
       const updatedUser = users.find(u => u.id === currentUser.id)
       if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
         setCurrentUser(updatedUser)
       }
     }
-  }, [users, currentUser?.id])
+  }, [users, currentUser?.id, currentScreen])
 
   useEffect(() => {
+    if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register') {
+      return
+    }
+
     const existingCompanyIds = (companies || []).map(c => c.id)
     
-    if (users && users.length > 0) {
+    if (users && users.length > 0 && currentUser) {
       const needsCleanup = users.some(u => 
         u.companies && u.companies.some(m => !existingCompanyIds.includes(m.companyId))
       )
@@ -83,7 +87,7 @@ function App() {
         })
       }
     }
-  }, [companies])
+  }, [companies, currentScreen, currentUser])
 
   useEffect(() => {
     if (currentScreen === 'create-company' || currentScreen === 'join-company' || currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' || currentScreen === 'customer-dashboard') {
