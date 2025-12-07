@@ -86,7 +86,7 @@ function App() {
   }, [companies])
 
   useEffect(() => {
-    if (currentScreen === 'create-company' || currentScreen === 'join-company') {
+    if (currentScreen === 'create-company' || currentScreen === 'join-company' || currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' || currentScreen === 'customer-dashboard') {
       return
     }
 
@@ -103,17 +103,13 @@ function App() {
       }
     }
 
-    if (currentUser) {
+    if (currentUser && currentScreen === 'home-dashboard') {
       if (currentUser.companyId && currentUser.role) {
         if (currentUser.role === 'admin') {
           setCurrentScreen('admin-dashboard')
         } else if (currentUser.role === 'courier') {
           setCurrentScreen('courier-dashboard')
-        } else {
-          setCurrentScreen('home-dashboard')
         }
-      } else {
-        setCurrentScreen('home-dashboard')
       }
     }
   }, [currentUser, companies, currentScreen])
@@ -146,10 +142,11 @@ function App() {
   const handleCompanyCreated = (companyId: string) => {
     setCurrentUser((prev) => {
       if (!prev) return null
-      const updatedUser = { ...prev, companyId, role: 'admin' as UserRole }
-      return updatedUser
+      return { ...prev, companyId, role: 'admin' as UserRole }
     })
-    setCurrentScreen('admin-dashboard')
+    setTimeout(() => {
+      setCurrentScreen('admin-dashboard')
+    }, 50)
   }
 
   const handleCompanyJoined = (companyId: string, role: UserRole) => {
