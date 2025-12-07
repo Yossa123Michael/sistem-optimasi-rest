@@ -16,6 +16,7 @@ import CourierDashboard from './components/courier/CourierDashboard'
 import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
 import { Toaster } from './components/ui/sonner'
+import { toast } from 'sonner'
 
 type AppScreen = 
   | 'splash'
@@ -138,36 +139,32 @@ function App() {
   const handleCompanyCreated = async (companyId: string) => {
     console.log('=== handleCompanyCreated called with companyId:', companyId)
     
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 300))
     
-    setCurrentUser((prev) => {
-      if (!prev) return null
-      const updated = { ...prev, companyId, role: 'admin' as UserRole }
-      console.log('Setting current user in handleCompanyCreated:', updated)
-      return updated
-    })
+    const freshUser = await window.spark.kv.get<User | null>('current-user')
     
-    await new Promise(resolve => setTimeout(resolve, 100))
+    if (!freshUser) {
+      toast.error('Sesi pengguna tidak ditemukan')
+      return
+    }
+    
+    const updatedUser = { ...freshUser, companyId, role: 'admin' as UserRole }
+    await window.spark.kv.set('current-user', updatedUser)
+    setCurrentUser(updatedUser)
     
     setUsers((prevUsers) => 
       (prevUsers || []).map((u) => {
-        if (u.id === currentUser?.id) {
-          const updated = { ...u, companyId, role: 'admin' as UserRole }
-          console.log('Setting user in users array:', updated)
-          return updated
+        if (u.id === freshUser.id) {
+          return { ...u, companyId, role: 'admin' as UserRole }
         }
         return u
       })
     )
     
     console.log('Updating homeRefreshKey to trigger reload')
-    setHomeRefreshKey(prev => {
-      const newKey = prev + 1
-      console.log('homeRefreshKey updated to:', newKey)
-      return newKey
-    })
+    setHomeRefreshKey(prev => prev + 1)
     
-    await new Promise(resolve => setTimeout(resolve, 200))
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     console.log('Navigating to admin-dashboard')
     setCurrentScreen('admin-dashboard')
