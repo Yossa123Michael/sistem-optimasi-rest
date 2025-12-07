@@ -37,8 +37,6 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
     setCompanies((currentCompanies) => [...(currentCompanies || []), newCompany])
     
-    const existingCompanyIds = (companies || []).map(c => c.id)
-    
     const newMembership = {
       companyId: newCompany.id,
       role: 'admin' as const,
@@ -47,13 +45,10 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
     
     setCurrentUser((prev) => {
       if (!prev) return null
-      const cleanedCompanies = (prev.companies || []).filter(m => 
-        existingCompanyIds.includes(m.companyId)
-      )
       return {
         ...prev,
         companies: [
-          ...cleanedCompanies,
+          ...(prev.companies || []),
           newMembership
         ]
       }
@@ -62,12 +57,9 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
     setUsers((currentUsers) => 
       (currentUsers || []).map((u) => {
         if (u.id === user.id) {
-          const cleanedCompanies = (u.companies || []).filter(m => 
-            existingCompanyIds.includes(m.companyId)
-          )
           return { 
             ...u, 
-            companies: [...cleanedCompanies, newMembership]
+            companies: [...(u.companies || []), newMembership]
           }
         }
         return u
