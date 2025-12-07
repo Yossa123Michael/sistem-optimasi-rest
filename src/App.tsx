@@ -39,6 +39,15 @@ function App() {
   const [users] = useKV<User[]>('users', [])
 
   useEffect(() => {
+    if (currentUser && users) {
+      const updatedUser = users.find(u => u.id === currentUser.id)
+      if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
+        setCurrentUser(updatedUser)
+      }
+    }
+  }, [users, currentUser?.id])
+
+  useEffect(() => {
     if (currentUser) {
       if (currentUser.companyId && currentUser.role) {
         if (currentUser.role === 'admin') {

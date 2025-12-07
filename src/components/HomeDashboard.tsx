@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
+import { ScrollArea } from './ui/scroll-area'
 import { List, Buildings, UserPlus } from '@phosphor-icons/react'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -23,12 +24,12 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const activeUser = currentUser || user
 
   const userCompanies = (activeUser.companies || [])
-    .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())
     .map((membership) => {
       const company = (companies || []).find((c) => c.id === membership.companyId)
-      return company ? { ...company, role: membership.role } : null
+      return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
     })
     .filter((c) => c !== null)
+    .sort((a, b) => new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime())
 
   const [showCompanyOptions, setShowCompanyOptions] = useState(false)
 
@@ -61,7 +62,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-card">
-      <div className="flex flex-col items-center gap-3 p-6 pt-8 relative">
+      <div className="flex flex-col items-center gap-3 p-6 pt-8 relative flex-shrink-0">
         <div className="w-24 h-24 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
           <span className="text-sm">Photo</span>
         </div>
@@ -72,49 +73,51 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </div>
       </div>
 
-      <nav className="flex-1 px-6 py-4 space-y-2">
-        <button
-          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-          onClick={() => {
-            onNavigate('home')
-            if (isMobile) setSidebarOpen(false)
-          }}
-        >
-          Home
-        </button>
-
-        {userCompanies.map((company) => (
+      <ScrollArea className="flex-1">
+        <nav className="px-6 py-4 space-y-2">
           <button
-            key={company.id}
             className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-            onClick={() => handleCompanyClick(company.id, company.role)}
+            onClick={() => {
+              onNavigate('home')
+              if (isMobile) setSidebarOpen(false)
+            }}
           >
-            {company.name}
+            Home
           </button>
-        ))}
 
-        <button
-          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-          onClick={() => {
-            onNavigate('home')
-            if (isMobile) setSidebarOpen(false)
-          }}
-        >
-          Pesanan Saya
-        </button>
+          {userCompanies.map((company) => (
+            <button
+              key={company.id}
+              className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+              onClick={() => handleCompanyClick(company.id, company.role)}
+            >
+              {company.name}
+            </button>
+          ))}
 
-        <button
-          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-          onClick={() => {
-            onNavigate('track-package')
-            if (isMobile) setSidebarOpen(false)
-          }}
-        >
-          Cek paket
-        </button>
-      </nav>
+          <button
+            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+            onClick={() => {
+              onNavigate('home')
+              if (isMobile) setSidebarOpen(false)
+            }}
+          >
+            Pesanan Saya
+          </button>
 
-      <div className="px-6 pb-8">
+          <button
+            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+            onClick={() => {
+              onNavigate('track-package')
+              if (isMobile) setSidebarOpen(false)
+            }}
+          >
+            Cek paket
+          </button>
+        </nav>
+      </ScrollArea>
+
+      <div className="px-6 pb-8 flex-shrink-0">
         <button
           className="w-full text-left text-base text-destructive py-3 hover:text-destructive/80 transition-colors"
           onClick={() => {
