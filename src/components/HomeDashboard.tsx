@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ScrollArea } from './ui/scroll-area'
 import { List, Buildings, UserPlus } from '@phosphor-icons/react'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { toast } from 'sonner'
 
 interface HomeDashboardProps {
   user: User
@@ -16,20 +17,37 @@ interface HomeDashboardProps {
 }
 
 function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
-  const [companies, setCompanies] = useKV<Company[]>('companies', [])
+  const [companies] = useKV<Company[]>('companies', [])
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [companiesLoaded, setCompaniesLoaded] = useState(false)
 
   const activeUser = currentUser || user
+
+  useEffect(() => {
+    const loadCompanies = async () => {
+      try {
+        const keys = await window.spark.kv.keys()
+        console.log('All KV keys:', keys)
+        const companiesData = await window.spark.kv.get<Company[]>('companies')
+        console.log('Companies from KV:', companiesData)
+        setCompaniesLoaded(true)
+      } catch (error) {
+        console.error('Error loading companies:', error)
+      }
+    }
+    loadCompanies()
+  }, [])
 
   console.log('HomeDashboard render:', { 
     userId: activeUser.id,
     userCompaniesCount: activeUser.companies?.length || 0,
     totalCompaniesCount: companies?.length || 0,
     userMemberships: activeUser.companies,
-    allCompanies: companies
+    allCompanies: companies,
+    companiesLoaded
   })
 
   const userCompanies = (activeUser.companies || [])
@@ -84,28 +102,43 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
 
   const [showCompanyOptions, setShowCompanyOptions] = useState(false)
 
-  const handleCompanyClick = (companyId: string, role: string) => {
+  const handleCompanyClick = async (companyId: string, role: string) => {
     console.log('handleCompanyClick called', { companyId, role, companies })
-    const company = (companies || []).find(c => c.id === companyId)
+    
+    const allCompanies = companies || []
+    const company = allCompanies.find(c => c.id === companyId)
     
     if (!company) {
-      console.log('Company not found', companyId)
-      return
+      console.error('Company not found in companies array', { 
+        companyId, 
+        availableCompanies: allCompanies.map(c => ({ id: c.id, name: c.name }))
+      })
+      
+      const companiesFromKV = await window.spark.kv.get<Company[]>('companies')
+      console.log('Companies loaded directly from KV:', companiesFromKV)
+      
+      const companyFromKV = (companiesFromKV || []).find(c => c.id === companyId)
+      if (!companyFromKV) {
+        toast.error('Perusahaan tidak ditemukan. Silakan refresh halaman.')
+        return
+      }
     }
     
-    console.log('Company found, updating user', company)
+    console.log('Company validated, updating user state')
     
     setCurrentUser((prev) => {
       if (!prev) return null
       const updated = { ...prev, companyId, role: role as any }
-      console.log('Updated user:', updated)
+      console.log('Updated current user:', updated)
       return updated
     })
     
     setUsers((prevUsers) => 
       (prevUsers || []).map(u => {
         if (u.id === activeUser.id) {
-          return { ...u, companyId, role: role as any }
+          const updated = { ...u, companyId, role: role as any }
+          console.log('Updated user in users array:', updated)
+          return updated
         }
         return u
       })
@@ -113,15 +146,17 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
     
     console.log('Navigating to dashboard, role:', role)
     
+    if (isMobile) setSidebarOpen(false)
+    
     setTimeout(() => {
       if (role === 'admin') {
+        console.log('Calling onNavigate with admin-dashboard')
         onNavigate('admin-dashboard')
       } else if (role === 'courier') {
+        console.log('Calling onNavigate with courier-dashboard')
         onNavigate('courier-dashboard')
       }
-    }, 100)
-    
-    if (isMobile) setSidebarOpen(false)
+    }, 50)
   }
 
   const handleCreateCompany = () => {
@@ -167,8 +202,15 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
                 key={company.id}
                 type="button"
                 className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-                onClick={() => {
-                  console.log('Company clicked:', company.name, company.id, company.role)
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('Company button clicked:', { 
+                    name: company.name, 
+                    id: company.id, 
+                    role: company.role,
+                    allCompanies: companies
+                  })
                   handleCompanyClick(company.id, company.role)
                 }}
               >
