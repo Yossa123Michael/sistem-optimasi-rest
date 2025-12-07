@@ -38,6 +38,7 @@ function App() {
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
+  const [homeRefreshKey, setHomeRefreshKey] = useState(0)
 
   useEffect(() => {
     if (currentUser && users && currentScreen !== 'login' && currentScreen !== 'splash' && currentScreen !== 'register') {
@@ -125,6 +126,7 @@ function App() {
   const handleNavigateFromHome = (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
     console.log('handleNavigateFromHome called:', screen)
     if (screen === 'home') {
+      setHomeRefreshKey(prev => prev + 1)
       setCurrentScreen('home-dashboard')
     } else if (screen === 'companies') {
       setCurrentScreen('company-list')
@@ -150,6 +152,7 @@ function App() {
       if (!prev) return null
       return { ...prev, companyId, role: 'admin' as UserRole }
     })
+    setHomeRefreshKey(prev => prev + 1)
     setTimeout(() => {
       setCurrentScreen('admin-dashboard')
     }, 300)
@@ -161,6 +164,7 @@ function App() {
       const updatedUser = { ...prev, companyId, role }
       return updatedUser
     })
+    setHomeRefreshKey(prev => prev + 1)
     setTimeout(() => {
       if (role === 'admin') {
         setCurrentScreen('admin-dashboard')
@@ -243,13 +247,17 @@ function App() {
             user={currentUser!}
             onLogout={handleLogout}
             onNavigate={handleNavigateFromHome}
+            refreshKey={homeRefreshKey}
           />
         )
       case 'create-company':
         return (
           <CreateCompanyScreen
             user={currentUser!}
-            onBack={() => setCurrentScreen('home-dashboard')}
+            onBack={() => {
+              setHomeRefreshKey(prev => prev + 1)
+              setCurrentScreen('home-dashboard')
+            }}
             onCompanyCreated={handleCompanyCreated}
           />
         )
@@ -257,7 +265,10 @@ function App() {
         return (
           <JoinCompanyScreen
             user={currentUser!}
-            onBack={() => setCurrentScreen('home-dashboard')}
+            onBack={() => {
+              setHomeRefreshKey(prev => prev + 1)
+              setCurrentScreen('home-dashboard')
+            }}
             onCompanyJoined={handleCompanyJoined}
           />
         )
@@ -265,7 +276,10 @@ function App() {
         return (
           <CompanyListScreen
             user={currentUser!}
-            onBack={() => setCurrentScreen('home-dashboard')}
+            onBack={() => {
+              setHomeRefreshKey(prev => prev + 1)
+              setCurrentScreen('home-dashboard')
+            }}
             onSelectCompany={handleCompanySelected}
           />
         )
@@ -274,7 +288,10 @@ function App() {
           <AdminDashboard
             user={currentUser!}
             onLogout={handleLogout}
-            onBackToHome={() => setCurrentScreen('home-dashboard')}
+            onBackToHome={() => {
+              setHomeRefreshKey(prev => prev + 1)
+              setCurrentScreen('home-dashboard')
+            }}
           />
         )
       case 'courier-dashboard':
@@ -282,7 +299,10 @@ function App() {
           <CourierDashboard
             user={currentUser!}
             onLogout={handleLogout}
-            onBackToHome={() => setCurrentScreen('home-dashboard')}
+            onBackToHome={() => {
+              setHomeRefreshKey(prev => prev + 1)
+              setCurrentScreen('home-dashboard')
+            }}
           />
         )
       case 'customer-dashboard':

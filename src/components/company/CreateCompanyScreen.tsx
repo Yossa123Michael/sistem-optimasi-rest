@@ -21,7 +21,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
 
-  const handleCreateCompany = () => {
+  const handleCreateCompany = async () => {
     if (!companyName.trim()) {
       toast.error('Masukan nama perusahaan')
       return
@@ -52,6 +52,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       console.log('Adding company to list. Current count:', existingCompanies.length)
       const updated = [...existingCompanies, newCompany]
       console.log('New company list count:', updated.length)
+      console.log('Updated companies array:', updated)
       return updated
     })
     
@@ -81,6 +82,11 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
         return u
       })
     )
+
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    const verifyCompanies = await window.spark.kv.get<Company[]>('companies')
+    console.log('Verified companies in KV after creation:', verifyCompanies)
 
     toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
     console.log('Calling onCompanyCreated with ID:', newCompany.id)

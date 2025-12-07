@@ -14,17 +14,23 @@ interface HomeDashboardProps {
   user: User
   onLogout: () => void
   onNavigate: (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => void
+  refreshKey?: number
 }
 
-function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
-  const [companies] = useKV<Company[]>('companies', [])
+function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashboardProps) {
+  const [companies, setCompanies] = useKV<Company[]>('companies', [])
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [companiesLoaded, setCompaniesLoaded] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const activeUser = currentUser || user
+
+  useEffect(() => {
+    setRefreshTrigger(prev => prev + 1)
+  }, [refreshKey])
 
   useEffect(() => {
     const loadCompanies = async () => {
@@ -32,14 +38,19 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         const keys = await window.spark.kv.keys()
         console.log('All KV keys:', keys)
         const companiesData = await window.spark.kv.get<Company[]>('companies')
-        console.log('Companies from KV:', companiesData)
+        console.log('Companies from KV on load:', companiesData)
+        
+        if (companiesData && companiesData.length > 0) {
+          setCompanies(companiesData)
+        }
+        
         setCompaniesLoaded(true)
       } catch (error) {
         console.error('Error loading companies:', error)
       }
     }
     loadCompanies()
-  }, [])
+  }, [refreshTrigger])
 
   console.log('HomeDashboard render:', { 
     userId: activeUser.id,
