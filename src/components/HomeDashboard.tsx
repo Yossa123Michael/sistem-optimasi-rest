@@ -20,7 +20,9 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const userCompanies = (user.companies || [])
+  const activeUser = currentUser || user
+
+  const userCompanies = (activeUser.companies || [])
     .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())
     .map((membership) => {
       const company = (companies || []).find((c) => c.id === membership.companyId)
@@ -65,7 +67,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </div>
         <div className="text-center">
           <p className="text-base text-primary font-medium">
-            {user.name || user.email.split('@')[0]}
+            {activeUser.name || activeUser.email.split('@')[0]}
           </p>
         </div>
       </div>
@@ -142,14 +144,14 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
                   <SidebarContent />
                 </SheetContent>
               </Sheet>
-              <h1 className="ml-4 text-lg font-medium">{user.name || user.email}</h1>
+              <h1 className="ml-4 text-lg font-medium">{activeUser.name || activeUser.email}</h1>
             </div>
             <main className="flex-1 overflow-y-auto pt-16">
               <div className="p-6 max-w-2xl mx-auto space-y-4">
                 <Card className="rounded-3xl border-muted-foreground/20">
                   <CardContent className="p-8">
                     <h2 className="text-lg text-center text-muted-foreground">
-                      Halo, ({user.name || user.email.split('@')[0]})
+                      Halo, ({activeUser.name || activeUser.email.split('@')[0]})
                     </h2>
                   </CardContent>
                 </Card>
@@ -200,7 +202,7 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
                 <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
                   <CardContent className="p-10">
                     <h2 className="text-xl text-center text-muted-foreground">
-                      Halo, ({user.name || user.email.split('@')[0]})
+                      Halo, ({activeUser.name || activeUser.email.split('@')[0]})
                     </h2>
                   </CardContent>
                 </Card>
