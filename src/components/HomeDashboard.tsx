@@ -4,7 +4,8 @@ import { User, Company } from '@/lib/types'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet'
-import { List } from '@phosphor-icons/react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
+import { List, Buildings, UserPlus } from '@phosphor-icons/react'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 interface HomeDashboardProps {
@@ -21,11 +22,13 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const userCompany = (companies || []).find((company) => company.id === user.companyId)
   const companyDisplayName = userCompany ? userCompany.name : 'Buat/Gabung perusahaan'
 
+  const [showCompanyOptions, setShowCompanyOptions] = useState(false)
+
   const handleCompanyNavigate = () => {
     if (userCompany) {
       onNavigate('companies')
     } else {
-      onNavigate('companies')
+      setShowCompanyOptions(true)
     }
     if (isMobile) setSidebarOpen(false)
   }
@@ -97,120 +100,156 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {isMobile ? (
-        <>
-          <div className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-border flex items-center px-4 z-10">
-            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <List className="h-6 w-6" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-64">
-                <SidebarContent />
-              </SheetContent>
-            </Sheet>
-            <h1 className="ml-4 text-lg font-medium">{user.name || user.email}</h1>
+    <>
+      <div className="flex h-screen overflow-hidden bg-background">
+        {isMobile ? (
+          <>
+            <div className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-border flex items-center px-4 z-10">
+              <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <List className="h-6 w-6" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="p-0 w-64">
+                  <SidebarContent />
+                </SheetContent>
+              </Sheet>
+              <h1 className="ml-4 text-lg font-medium">{user.name || user.email}</h1>
+            </div>
+            <main className="flex-1 overflow-y-auto pt-16">
+              <div className="p-6 max-w-2xl mx-auto space-y-4">
+                <Card className="rounded-3xl border-muted-foreground/20">
+                  <CardContent className="p-8">
+                    <h2 className="text-lg text-center text-muted-foreground">
+                      Halo, ({user.name || user.email.split('@')[0]})
+                    </h2>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-3xl border-muted-foreground/20">
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-24 text-base rounded-2xl border-muted-foreground/20 hover:bg-muted/50"
+                        onClick={() => onNavigate('create-company')}
+                      >
+                        Buat Perusahaan
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-24 text-base rounded-2xl border-muted-foreground/20 hover:bg-muted/50"
+                        onClick={() => onNavigate('join-company')}
+                      >
+                        Gabung<br />Perusahaan
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-3xl border-muted-foreground/20">
+                  <CardContent className="p-6">
+                    <Button
+                      variant="outline"
+                      className="w-full h-24 text-base rounded-2xl border-muted-foreground/20 hover:bg-muted/50"
+                      onClick={() => onNavigate('customer-mode')}
+                    >
+                      Sebagai Customer
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </main>
+          </>
+        ) : (
+          <>
+            <aside className="w-64 flex-shrink-0 border-r border-border bg-card">
+              <SidebarContent />
+            </aside>
+
+            <main className="flex-1 overflow-y-auto bg-background flex items-center justify-center">
+              <div className="w-full max-w-2xl px-8 space-y-6">
+                <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
+                  <CardContent className="p-10">
+                    <h2 className="text-xl text-center text-muted-foreground">
+                      Halo, ({user.name || user.email.split('@')[0]})
+                    </h2>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
+                  <CardContent className="p-8">
+                    <div className="flex gap-4">
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-28 text-lg rounded-2xl border-muted-foreground/20 hover:bg-muted/50 text-muted-foreground"
+                        onClick={() => onNavigate('create-company')}
+                      >
+                        Buat Perusahaan
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-28 text-lg rounded-2xl border-muted-foreground/20 hover:bg-muted/50 text-muted-foreground"
+                        onClick={() => onNavigate('join-company')}
+                      >
+                        Gabung<br />Perusahaan
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
+                  <CardContent className="p-8">
+                    <Button
+                      variant="outline"
+                      className="w-full h-28 text-lg rounded-2xl border-muted-foreground/20 hover:bg-muted/50 text-muted-foreground"
+                      onClick={() => onNavigate('customer-mode')}
+                    >
+                      Sebagai Customer
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </main>
+          </>
+        )}
+      </div>
+
+      <Dialog open={showCompanyOptions} onOpenChange={setShowCompanyOptions}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pilih Aksi</DialogTitle>
+            <DialogDescription>
+              Apakah Anda ingin membuat perusahaan baru atau bergabung dengan perusahaan yang sudah ada?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button
+              onClick={() => {
+                setShowCompanyOptions(false)
+                onNavigate('create-company')
+              }}
+              className="w-full h-16 text-base"
+            >
+              <Buildings className="mr-2" size={24} />
+              Buat Perusahaan
+            </Button>
+            <Button
+              onClick={() => {
+                setShowCompanyOptions(false)
+                onNavigate('join-company')
+              }}
+              variant="outline"
+              className="w-full h-16 text-base"
+            >
+              <UserPlus className="mr-2" size={24} />
+              Gabung Perusahaan
+            </Button>
           </div>
-          <main className="flex-1 overflow-y-auto pt-16">
-            <div className="p-6 max-w-2xl mx-auto space-y-4">
-              <Card className="rounded-3xl border-muted-foreground/20">
-                <CardContent className="p-8">
-                  <h2 className="text-lg text-center text-muted-foreground">
-                    Halo, ({user.name || user.email.split('@')[0]})
-                  </h2>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-3xl border-muted-foreground/20">
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Button
-                      variant="outline"
-                      className="h-24 text-base rounded-2xl border-muted-foreground/20 hover:bg-muted/50"
-                      onClick={() => onNavigate('create-company')}
-                    >
-                      Buat Perusahaan
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-24 text-base rounded-2xl border-muted-foreground/20 hover:bg-muted/50"
-                      onClick={() => onNavigate('join-company')}
-                    >
-                      Gabung<br />Perusahaan
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-3xl border-muted-foreground/20">
-                <CardContent className="p-6">
-                  <Button
-                    variant="outline"
-                    className="w-full h-24 text-base rounded-2xl border-muted-foreground/20 hover:bg-muted/50"
-                    onClick={() => onNavigate('customer-mode')}
-                  >
-                    Sebagai Customer
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </main>
-        </>
-      ) : (
-        <>
-          <aside className="w-64 flex-shrink-0 border-r border-border bg-card">
-            <SidebarContent />
-          </aside>
-
-          <main className="flex-1 overflow-y-auto bg-background flex items-center justify-center">
-            <div className="w-full max-w-2xl px-8 space-y-6">
-              <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
-                <CardContent className="p-10">
-                  <h2 className="text-xl text-center text-muted-foreground">
-                    Halo, ({user.name || user.email.split('@')[0]})
-                  </h2>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
-                <CardContent className="p-8">
-                  <div className="flex gap-4">
-                    <Button
-                      variant="outline"
-                      className="flex-1 h-28 text-lg rounded-2xl border-muted-foreground/20 hover:bg-muted/50 text-muted-foreground"
-                      onClick={() => onNavigate('create-company')}
-                    >
-                      Buat Perusahaan
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1 h-28 text-lg rounded-2xl border-muted-foreground/20 hover:bg-muted/50 text-muted-foreground"
-                      onClick={() => onNavigate('join-company')}
-                    >
-                      Gabung<br />Perusahaan
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-3xl border-muted-foreground/20 shadow-sm">
-                <CardContent className="p-8">
-                  <Button
-                    variant="outline"
-                    className="w-full h-28 text-lg rounded-2xl border-muted-foreground/20 hover:bg-muted/50 text-muted-foreground"
-                    onClick={() => onNavigate('customer-mode')}
-                  >
-                    Sebagai Customer
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </main>
-        </>
-      )}
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
