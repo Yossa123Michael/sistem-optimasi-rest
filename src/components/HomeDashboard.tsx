@@ -76,21 +76,18 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
     companiesLoaded, 
     activeUserHasMemberships: activeUser.companies?.length || 0,
     userCompaniesFound: userCompanies.length,
-    allCompaniesCount: companies?.length || 0
+    companiesInDB: companies?.length || 0
   })
 
   const handleCompanyClick = async (companyId: string, role: string) => {
-    if (isNavigatingRef.current) {
-      console.log('Already navigating, ignoring click')
-      return
-    }
-    
-    isNavigatingRef.current = true
-    console.log('Company button clicked:', { name: 'finding...', id: companyId, role })
-    console.log('handleCompanyClick called', { companyId, role })
-    
     try {
-      if (isMobile) setSidebarOpen(false)
+      if (isNavigatingRef.current) {
+        console.log('Navigation already in progress, skipping')
+        return
+      }
+      
+      isNavigatingRef.current = true
+      console.log('Handling company click:', { companyId, role })
       
       const allCompanies = await window.spark.kv.get<Company[]>('companies')
       const company = (allCompanies || []).find(c => c.id === companyId)
@@ -106,14 +103,12 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       
       const freshUser = await window.spark.kv.get<User | null>('current-user')
       if (!freshUser) {
-        console.error('Current user not found in storage')
         toast.error('Sesi pengguna tidak ditemukan')
         isNavigatingRef.current = false
         return
       }
       
       const updatedUser = { ...freshUser, companyId, role: role as UserRole }
-      
       await window.spark.kv.set('current-user', updatedUser)
       setCurrentUser(updatedUser)
       
@@ -123,20 +118,21 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         )
       )
       
+      if (isMobile) setSidebarOpen(false)
+      
       console.log('User updated, navigating to:', role === 'admin' ? 'admin-dashboard' : 'courier-dashboard')
       
-      if (role === 'admin') {
-        onNavigate('admin-dashboard')
-      } else if (role === 'courier') {
-        onNavigate('courier-dashboard')
-      }
-      
       setTimeout(() => {
+        if (role === 'admin') {
+          onNavigate('admin-dashboard')
+        } else {
+          onNavigate('courier-dashboard')
+        }
         isNavigatingRef.current = false
-      }, 500)
+      }, 100)
     } catch (error) {
       console.error('Error in handleCompanyClick:', error)
-      toast.error('Terjadi kesalahan saat membuka perusahaan')
+      toast.error('Terjadi kesalahan')
       isNavigatingRef.current = false
     }
   }
@@ -166,67 +162,65 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col">
-        <div className="overflow-y-auto flex-1">
-          <nav className="px-6 py-4 space-y-2">
-            <button
-              className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-              onClick={() => {
-                onNavigate('home')
-                if (isMobile) setSidebarOpen(false)
-              }}
-            >
-              Home
-            </button>
+      <div className="overflow-y-auto flex-1">
+        <nav className="px-6 py-4 space-y-2">
+          <button
+            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+            onClick={() => {
+              onNavigate('home')
+              if (isMobile) setSidebarOpen(false)
+            }}
+          >
+            Home
+          </button>
 
-            {userCompanies.length > 0 ? (
-              userCompanies.map((company) => (
-                <button
-                  key={company.id}
-                  type="button"
-                  className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    console.log('Company button clicked:', { 
-                      name: company.name, 
-                      id: company.id, 
-                      role: company.role,
-                      allCompanies: companies
-                    })
-                    handleCompanyClick(company.id, company.role)
-                  }}
-                >
-                  {company.name}
-                </button>
-              ))
-            ) : (
-              <div className="text-sm text-muted-foreground/60 py-2">
-                Belum ada perusahaan
-              </div>
-            )}
+          {userCompanies.length > 0 ? (
+            userCompanies.map((company) => (
+              <button
+                key={company.id}
+                type="button"
+                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('Company button clicked:', { 
+                    name: company.name, 
+                    id: company.id, 
+                    role: company.role,
+                    allCompanies: companies
+                  })
+                  handleCompanyClick(company.id, company.role)
+                }}
+              >
+                {company.name}
+              </button>
+            ))
+          ) : (
+            <div className="text-sm text-muted-foreground/60 py-2">
+              Belum ada perusahaan
+            </div>
+          )}
 
-            <button
-              className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-              onClick={() => {
-                onNavigate('home')
-                if (isMobile) setSidebarOpen(false)
-              }}
-            >
-              Pesanan Saya
-            </button>
+          <button
+            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+            onClick={() => {
+              onNavigate('home')
+              if (isMobile) setSidebarOpen(false)
+            }}
+          >
+            Pesanan Saya
+          </button>
 
-            <button
-              className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-              onClick={() => {
-                onNavigate('track-package')
-                if (isMobile) setSidebarOpen(false)
-              }}
-            >
-              Cek paket
-            </button>
-          </nav>
-        </div>
+          <button
+            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+            onClick={() => {
+              onNavigate('track-package')
+              if (isMobile) setSidebarOpen(false)
+            }}
+          >
+            Cek paket
+          </button>
+        </nav>
       </div>
 
       <div className="px-6 pb-8 flex-shrink-0">
