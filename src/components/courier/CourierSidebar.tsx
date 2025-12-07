@@ -62,7 +62,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         )}
         <Button
           variant="ghost"
-          className="w-full justify-center text-foreground"
+          className="w-full justify-center text-destructive hover:text-destructive/80"
           onClick={onLogout}
         >
           Sign Out

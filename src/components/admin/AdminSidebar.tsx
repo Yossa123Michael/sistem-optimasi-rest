@@ -1,8 +1,12 @@
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { List } from '@phosphor-icons/react'
-import { User } from '@/lib/types'
+import { User, Company } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useKV } from '@github/spark/hooks'
+import { toast } from 'sonner'
+import { useState } from 'react'
 
 type AdminView = 'home' | 'input-data' | 'courier' | 'courier-activation' | 'monitoring' | 'history'
 
@@ -16,8 +20,36 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: AdminSidebarProps) {
   const isMobile = useIsMobile()
+  const [companies, setCompanies] = useKV<Company[]>('companies', [])
+  const [users, setUsers] = useKV<User[]>('users', [])
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   
   const userName = user.name || user.email.split('@')[0]
+
+  const currentCompany = (companies || []).find(c => c.id === user.companyId)
+  const isOwner = currentCompany?.ownerId === user.id
+
+  const handleDeleteCompany = () => {
+    if (!user.companyId || !isOwner) return
+
+    setCompanies((prev) => (prev || []).filter(c => c.id !== user.companyId))
+
+    setUsers((prevUsers) => 
+      (prevUsers || []).map(u => ({
+        ...u,
+        companies: (u.companies || []).filter(m => m.companyId !== user.companyId),
+        companyId: u.companyId === user.companyId ? undefined : u.companyId,
+        role: u.companyId === user.companyId ? undefined : u.role
+      }))
+    )
+
+    toast.success('Perusahaan berhasil dihapus')
+    setShowDeleteDialog(false)
+    
+    if (onBackToHome) {
+      setTimeout(() => onBackToHome(), 500)
+    }
+  }
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
@@ -48,6 +80,15 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
               {item.label}
             </Button>
           ))}
+          {isOwner && (
+            <Button
+              variant="ghost"
+              className="w-full justify-center text-destructive hover:text-destructive/80"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              Hapus Perusahaan
+            </Button>
+          )}
         </div>
       </nav>
 
@@ -63,7 +104,7 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
         )}
         <Button
           variant="ghost"
-          className="w-full justify-center text-foreground"
+          className="w-full justify-center text-destructive hover:text-destructive/80"
           onClick={onLogout}
         >
           Sign Out
@@ -88,13 +129,47 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
             </SheetContent>
           </Sheet>
         </div>
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Hapus Perusahaan?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tindakan ini tidak dapat dibatalkan. Semua data perusahaan, termasuk paket dan kurir akan dihapus secara permanen.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteCompany} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Hapus
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     )
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-48 z-40">
-      <SidebarContent />
-    </aside>
+    <>
+      <aside className="fixed left-0 top-0 h-screen w-48 z-40">
+        <SidebarContent />
+      </aside>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Perusahaan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tindakan ini tidak dapat dibatalkan. Semua data perusahaan, termasuk paket dan kurir akan dihapus secara permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCompany} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
