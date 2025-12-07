@@ -73,49 +73,51 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <nav className="px-6 py-4 space-y-2">
-          <button
-            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-            onClick={() => {
-              onNavigate('home')
-              if (isMobile) setSidebarOpen(false)
-            }}
-          >
-            Home
-          </button>
-
-          {userCompanies.map((company) => (
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <ScrollArea className="h-full">
+          <nav className="px-6 py-4 space-y-2">
             <button
-              key={company.id}
               className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-              onClick={() => handleCompanyClick(company.id, company.role)}
+              onClick={() => {
+                onNavigate('home')
+                if (isMobile) setSidebarOpen(false)
+              }}
             >
-              {company.name}
+              Home
             </button>
-          ))}
 
-          <button
-            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-            onClick={() => {
-              onNavigate('home')
-              if (isMobile) setSidebarOpen(false)
-            }}
-          >
-            Pesanan Saya
-          </button>
+            {userCompanies.map((company) => (
+              <button
+                key={company.id}
+                className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+                onClick={() => handleCompanyClick(company.id, company.role)}
+              >
+                {company.name}
+              </button>
+            ))}
 
-          <button
-            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-            onClick={() => {
-              onNavigate('track-package')
-              if (isMobile) setSidebarOpen(false)
-            }}
-          >
-            Cek paket
-          </button>
-        </nav>
-      </ScrollArea>
+            <button
+              className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+              onClick={() => {
+                onNavigate('home')
+                if (isMobile) setSidebarOpen(false)
+              }}
+            >
+              Pesanan Saya
+            </button>
+
+            <button
+              className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+              onClick={() => {
+                onNavigate('track-package')
+                if (isMobile) setSidebarOpen(false)
+              }}
+            >
+              Cek paket
+            </button>
+          </nav>
+        </ScrollArea>
+      </div>
 
       <div className="px-6 pb-8 flex-shrink-0">
         <button
