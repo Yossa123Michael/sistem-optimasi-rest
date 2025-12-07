@@ -1,5 +1,11 @@
 export type UserRole = 'admin' | 'courier' | 'customer'
 
+export interface UserCompanyMembership {
+  companyId: string
+  role: UserRole
+  joinedAt: string
+}
+
 export interface User {
   id: string
   email: string
@@ -7,6 +13,7 @@ export interface User {
   role?: UserRole
   companyId?: string
   name?: string
+  companies?: UserCompanyMembership[]
 }
 
 export interface Company {

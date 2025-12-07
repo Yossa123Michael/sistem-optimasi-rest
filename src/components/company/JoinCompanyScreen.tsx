@@ -18,6 +18,7 @@ interface JoinCompanyScreenProps {
 export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: JoinCompanyScreenProps) {
   const [companyCode, setCompanyCode] = useState('')
   const [companies] = useKV<Company[]>('companies', [])
+  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [showRoleSelection, setShowRoleSelection] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
 
@@ -34,12 +35,34 @@ export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: Joi
       return
     }
 
+    const alreadyJoined = (user.companies || []).some(m => m.companyId === company.id)
+    if (alreadyJoined) {
+      toast.error('Anda sudah bergabung dengan perusahaan ini')
+      return
+    }
+
     setSelectedCompany(company)
     setShowRoleSelection(true)
   }
 
   const handleRoleSelected = (role: UserRole) => {
     if (selectedCompany) {
+      setCurrentUser((prev) => {
+        if (!prev) return null
+        const existingCompanies = prev.companies || []
+        return {
+          ...prev,
+          companies: [
+            ...existingCompanies,
+            {
+              companyId: selectedCompany.id,
+              role: role,
+              joinedAt: new Date().toISOString()
+            }
+          ]
+        }
+      })
+
       toast.success(`Bergabung dengan ${selectedCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
       onCompanyJoined(selectedCompany.id, role)
     }

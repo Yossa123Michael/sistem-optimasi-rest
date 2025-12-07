@@ -16,26 +16,32 @@ interface HomeDashboardProps {
 
 function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
   const [companies] = useKV<Company[]>('companies', [])
+  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const userCompany = (companies || []).find((company) => company.id === user.companyId)
-  const companyDisplayName = userCompany ? userCompany.name : 'Buat/Gabung perusahaan'
+  const userCompanies = (user.companies || [])
+    .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())
+    .map((membership) => {
+      const company = (companies || []).find((c) => c.id === membership.companyId)
+      return company ? { ...company, role: membership.role } : null
+    })
+    .filter((c) => c !== null)
 
   const [showCompanyOptions, setShowCompanyOptions] = useState(false)
 
-  const handleCompanyNavigate = () => {
-    if (userCompany && user.role) {
-      if (user.role === 'admin') {
-        onNavigate('admin-dashboard')
-      } else if (user.role === 'courier') {
-        onNavigate('courier-dashboard')
-      } else {
-        setShowCompanyOptions(true)
-      }
-    } else {
-      setShowCompanyOptions(true)
+  const handleCompanyClick = (companyId: string, role: string) => {
+    setCurrentUser((prev) => {
+      if (!prev) return null
+      return { ...prev, companyId, role: role as any }
+    })
+    
+    if (role === 'admin') {
+      onNavigate('admin-dashboard')
+    } else if (role === 'courier') {
+      onNavigate('courier-dashboard')
     }
+    
     if (isMobile) setSidebarOpen(false)
   }
 
@@ -75,12 +81,15 @@ function HomeDashboard({ user, onLogout, onNavigate }: HomeDashboardProps) {
           Home
         </button>
 
-        <button
-          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-          onClick={handleCompanyNavigate}
-        >
-          {companyDisplayName}
-        </button>
+        {userCompanies.map((company) => (
+          <button
+            key={company.id}
+            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+            onClick={() => handleCompanyClick(company.id, company.role)}
+          >
+            {company.name}
+          </button>
+        ))}
 
         <button
           className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
