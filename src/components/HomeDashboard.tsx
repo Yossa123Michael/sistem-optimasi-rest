@@ -31,7 +31,6 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
 
   useEffect(() => {
     const loadData = async () => {
-      setCompaniesLoaded(false)
       console.log('HomeDashboard loading data, refreshKey:', refreshKey)
       
       try {
@@ -57,7 +56,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       }
     }
     loadData()
-  }, [refreshKey, activeUser.id])
+  }, [refreshKey])
 
   const userCompanies = companiesLoaded 
     ? (activeUser.companies || [])

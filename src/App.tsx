@@ -99,12 +99,12 @@ function App() {
     }
 
     if (currentUser) {
-      if (currentScreen === 'login' || currentScreen === 'register') {
+      if (currentScreen === 'login' || currentScreen === 'register' || currentScreen === 'splash') {
         setCurrentScreen('home-dashboard')
         return
       }
     }
-  }, [companies, currentScreen])
+  }, [currentScreen, currentUser])
 
   const handleLogout = () => {
     setCurrentUser(null)
@@ -200,6 +200,7 @@ function App() {
   }
 
   const renderScreen = () => {
+    console.log('Rendering screen:', currentScreen, 'User:', currentUser?.email)
     switch (currentScreen) {
       case 'splash':
         return (
@@ -344,7 +345,7 @@ function App() {
 
   return (
     <>
-      {renderScreen()}
+      {currentScreen && renderScreen()}
       <Toaster position="top-right" />
     </>
   )
