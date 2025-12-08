@@ -185,7 +185,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
             Home
           </button>
 
-          {companiesLoaded && userCompanies.length > 0 ? (
+          {companiesLoaded && userCompanies.length > 0 && (
             userCompanies.map((company) => (
               <button
                 key={company.id}
@@ -205,12 +205,6 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
                 {company.name}
               </button>
             ))
-          ) : companiesLoaded ? (
-            <div className="text-sm text-muted-foreground/60 py-2 italic">Belum ada perusahaan</div>
-          ) : (
-            <div className="text-sm text-muted-foreground/60 py-2 italic">
-              Memuat...
-            </div>
           )}
 
           <button
