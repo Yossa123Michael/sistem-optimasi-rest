@@ -128,11 +128,9 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       console.log('Updating user with companyId and role:', { companyId, role })
       
       await window.spark.kv.set('current-user', updatedUser)
-      
       console.log('User saved to KV')
       
       setCurrentUser(updatedUser)
-      
       console.log('User state updated')
       
       setUsers((prevUsers) =>
@@ -146,16 +144,15 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       console.log('=== Navigating to dashboard ===')
       const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
       console.log('Target screen:', targetScreen)
+      console.log('Calling onNavigate...')
       
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      console.log('About to call onNavigate with:', targetScreen)
       onNavigate(targetScreen)
+      
       console.log('onNavigate called successfully')
       
       setTimeout(() => {
         isNavigatingRef.current = false
-      }, 500)
+      }, 1000)
       
     } catch (error) {
       console.error('Error handling company click:', error)

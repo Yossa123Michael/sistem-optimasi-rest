@@ -42,11 +42,16 @@ function App() {
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
 
   useEffect(() => {
-    if (currentUser && users && currentScreen !== 'login' && currentScreen !== 'splash' && currentScreen !== 'register') {
-      const updatedUser = users.find(u => u.id === currentUser.id)
-      if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
-        setCurrentUser(updatedUser)
-      }
+    if (!currentUser || !users) return
+    
+    if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register' || 
+        currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard') {
+      return
+    }
+    
+    const updatedUser = users.find(u => u.id === currentUser.id)
+    if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
+      setCurrentUser(updatedUser)
     }
   }, [users, currentUser?.id, currentScreen])
 
@@ -109,7 +114,8 @@ function App() {
         currentScreen === 'courier-dashboard' || 
         currentScreen === 'customer-dashboard' || 
         currentScreen === 'track-package' || 
-        currentScreen === 'company-list') {
+        currentScreen === 'company-list' ||
+        currentScreen === 'forgot-password') {
       console.log('Skipping useEffect - already on target screen:', currentScreen)
       return
     }
@@ -133,11 +139,15 @@ function App() {
     console.log('Target screen:', screen)
     console.log('Current screen:', currentScreen)
     
-    if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
-      console.log(`Direct navigation to ${screen}`)
-      console.log('Setting currentScreen to:', screen)
-      setCurrentScreen(screen)
-      console.log('Navigation complete')
+    if (screen === 'admin-dashboard') {
+      console.log('Direct navigation to admin-dashboard')
+      setCurrentScreen('admin-dashboard')
+      return
+    }
+    
+    if (screen === 'courier-dashboard') {
+      console.log('Direct navigation to courier-dashboard')
+      setCurrentScreen('courier-dashboard')
       return
     }
     
