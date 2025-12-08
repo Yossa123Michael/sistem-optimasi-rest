@@ -154,16 +154,26 @@ function App() {
       const freshUser = await window.spark.kv.get<User | null>('current-user')
       if (freshUser) {
         console.log('Loaded fresh user from KV before navigation:', freshUser.email, 'companyId:', freshUser.companyId, 'role:', freshUser.role)
+        
+        if (!freshUser.companyId || !freshUser.role) {
+          console.error('User does not have companyId or role, cannot navigate to dashboard')
+          navigationLockRef.current = false
+          return
+        }
+        
         setCurrentUser(freshUser)
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      setCurrentScreen(screen)
-      
-      setTimeout(() => {
+        
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
+        setCurrentScreen(screen)
+        
+        setTimeout(() => {
+          navigationLockRef.current = false
+        }, 3000)
+      } else {
+        console.error('No user found in KV')
         navigationLockRef.current = false
-      }, 2000)
+      }
       return
     }
     

@@ -128,7 +128,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       console.log('Updating user with companyId and role:', { companyId, role })
       
       await window.spark.kv.set('current-user', updatedUser)
-      console.log('User saved to KV')
+      console.log('User saved to KV with companyId:', updatedUser.companyId, 'and role:', updatedUser.role)
       
       const allUsers = await window.spark.kv.get<User[]>('users')
       const updatedUsers = (allUsers || []).map(u => 
@@ -137,12 +137,15 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       await window.spark.kv.set('users', updatedUsers)
       console.log('Users array updated in KV')
       
+      const verifyUser = await window.spark.kv.get<User | null>('current-user')
+      console.log('Verification - User in KV has companyId:', verifyUser?.companyId, 'and role:', verifyUser?.role)
+      
       if (isMobile) setSidebarOpen(false)
       
       console.log('=== Navigating to dashboard ===')
       const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
       console.log('Target screen:', targetScreen)
-      console.log('Calling onNavigate...')
+      console.log('Calling onNavigate with verified user data...')
       
       onNavigate(targetScreen)
       
@@ -150,7 +153,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       
       setTimeout(() => {
         isNavigatingRef.current = false
-      }, 1000)
+      }, 1500)
       
     } catch (error) {
       console.error('Error handling company click:', error)
