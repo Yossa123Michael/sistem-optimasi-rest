@@ -43,18 +43,33 @@ function App() {
   const navigationLockRef = useRef(false)
 
   useEffect(() => {
-    if (!currentUser || !users) return
-    
-    if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register' || 
-        currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' ||
-        currentScreen === 'customer-dashboard') {
-      return
+    const syncUserData = async () => {
+      if (!currentUser) return
+      
+      if (currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard') {
+        const freshUser = await window.spark.kv.get<User | null>('current-user')
+        if (freshUser && freshUser.id === currentUser.id) {
+          if (freshUser.companyId !== currentUser.companyId || freshUser.role !== currentUser.role) {
+            setCurrentUser(freshUser)
+          }
+        }
+        return
+      }
+      
+      if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register' || 
+          currentScreen === 'customer-dashboard') {
+        return
+      }
+      
+      if (!users) return
+      
+      const updatedUser = users.find(u => u.id === currentUser.id)
+      if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
+        setCurrentUser(updatedUser)
+      }
     }
     
-    const updatedUser = users.find(u => u.id === currentUser.id)
-    if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
-      setCurrentUser(updatedUser)
-    }
+    syncUserData()
   }, [users, currentUser?.id, currentScreen])
 
   useEffect(() => {
@@ -151,8 +166,6 @@ function App() {
       console.log(`Direct navigation to ${screen}`)
       navigationLockRef.current = true
       
-      await new Promise(resolve => setTimeout(resolve, 150))
-      
       const freshUser = await window.spark.kv.get<User | null>('current-user')
       if (freshUser) {
         console.log('Loaded fresh user from KV before navigation:', freshUser.email, 'companyId:', freshUser.companyId, 'role:', freshUser.role)
@@ -162,10 +175,6 @@ function App() {
           navigationLockRef.current = false
           return
         }
-        
-        setCurrentUser(freshUser)
-        
-        await new Promise(resolve => setTimeout(resolve, 100))
         
         setCurrentScreen(screen)
         
