@@ -59,16 +59,18 @@ Anda akan melihat output seperti:
 ```
   VITE v7.x.x  ready in xxx ms
 
-  ➜  Local:   http://localhost:5173/
+  ➜  Local:   http://localhost:5000/
   ➜  Network: use --host to expose
 ```
 
 ### 5. Buka di Browser
 
-Buka browser Anda dan kunjungi:
+Buka browser Anda dan kunjungi URL yang ditampilkan di output (biasanya):
 ```
-http://localhost:5173
+http://localhost:5000
 ```
+
+**Catatan**: Port mungkin berbeda tergantung konfigurasi. Perhatikan output terminal untuk URL yang tepat.
 
 Aplikasi sekarang sudah berjalan! 🎉
 

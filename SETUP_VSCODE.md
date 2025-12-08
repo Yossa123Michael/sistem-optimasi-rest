@@ -94,7 +94,7 @@ Task yang tersedia (jalankan dengan `Ctrl+Shift+B` atau **Terminal > Run Task**)
 npm run dev
 ```
 
-Server akan berjalan di http://localhost:5173
+Server akan berjalan di http://localhost:5000 (perhatikan output terminal untuk URL yang tepat)
 
 ### 2. Membuat Component Baru
 
