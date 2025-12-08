@@ -9,7 +9,7 @@ Dokumen ini menjelaskan cara setup dan menggunakan Visual Studio Code untuk proy
 3. **Clone repository** dan buka di VS Code
 4. **Install dependencies**: `npm install`
 5. **Jalankan server**: `npm run dev`
-6. **Buka browser**: http://localhost:5173
+6. **Buka browser**: http://localhost:5000
 
 ## 🔧 Konfigurasi VS Code
 

@@ -119,8 +119,8 @@ Untuk melakukan debugging:
 
 ## 🔍 Troubleshooting
 
-### Port 5173 sudah digunakan
-Jika port 5173 sudah digunakan oleh aplikasi lain:
+### Port 5000 sudah digunakan
+Jika port 5000 sudah digunakan oleh aplikasi lain:
 ```bash
 npm run kill
 npm run dev
@@ -140,7 +140,7 @@ npm install
 ```
 
 ### Browser tidak otomatis membuka
-Buka browser secara manual dan kunjungi `http://localhost:5173`
+Buka browser secara manual dan kunjungi URL yang ditampilkan di terminal (biasanya `http://localhost:5000`)
 
 ## 📝 Struktur Proyek
 
