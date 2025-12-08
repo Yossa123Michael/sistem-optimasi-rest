@@ -5,6 +5,7 @@ import { List } from '@phosphor-icons/react'
 import { User, Company } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
+import { toast } from 'sonner'
 
 type CourierView = 'home' | 'package-list' | 'recommendation' | 'update'
 
@@ -13,27 +14,41 @@ interface CourierSidebarProps {
   currentView: CourierView
   onViewChange: (view: CourierView) => void
   onLogout: () => void
-  onBackToHome?: () => void
 }
 
-export default function CourierSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: CourierSidebarProps) {
+export default function CourierSidebar({
+  user,
+  currentView,
+  onViewChange,
+  onLogout,
+}: CourierSidebarProps) {
   const isMobile = useIsMobile()
   const [companies] = useKV<Company[]>('companies', [])
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
-  
+
   const activeUser = currentUser || user
   const userName = activeUser.name || activeUser.email.split('@')[0]
-  const currentCompany = (companies || []).find(c => c.id === activeUser.companyId)
+  const currentCompany = (companies || []).find(
+    (c) => c.id === activeUser.companyId,
+  )
   const companyExists = !!currentCompany
 
   const userCompanies = (activeUser.companies || [])
     .map((membership) => {
-      const company = (companies || []).find((c) => c.id === membership.companyId)
-      return company ? { ...company, role: membership.role, joinedAt: membership.joinedAt } : null
+      const company = (companies || []).find(
+        (c) => c.id === membership.companyId,
+      )
+      return company
+        ? { ...company, role: membership.role, joinedAt: membership.joinedAt }
+        : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
-    .sort((a, b) => new Date(a.joinedAt || 0).getTime() - new Date(b.joinedAt || 0).getTime())
+    .sort(
+      (a, b) =>
+        new Date(a.joinedAt || 0).getTime() -
+        new Date(b.joinedAt || 0).getTime(),
+    )
 
   const handleCompanyClick = (companyId: string, role: string) => {
     if (companyId === activeUser.companyId) {
@@ -45,25 +60,23 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
       return { ...prev, companyId, role: role as any }
     })
 
-    setUsers((prevUsers) => 
-      (prevUsers || []).map(u => {
+    setUsers((prevUsers) =>
+      (prevUsers || []).map((u) => {
         if (u.id === activeUser.id) {
           return { ...u, companyId, role: role as any }
         }
         return u
-      })
+      }),
     )
 
-    setTimeout(() => {
-      window.location.reload()
-    }, 100)
+    toast.success('Perusahaan aktif berhasil diubah')
   }
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
     { id: 'package-list' as const, label: 'Daftar Paket' },
     { id: 'recommendation' as const, label: 'Rekomendasi Rute' },
-    { id: 'update' as const, label: 'Update Status' }
+    { id: 'update' as const, label: 'Update Status' },
   ]
 
   const SidebarContent = () => (
@@ -72,7 +85,9 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Photo</p>
         </div>
-        <p className="text-sm text-center text-foreground font-medium">{userName}</p>
+        <p className="text-sm text-center text-foreground font-medium">
+          {userName}
+        </p>
       </div>
 
       {!companyExists && (
@@ -80,14 +95,6 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
           <p className="text-xs text-destructive text-center mb-2">
             Perusahaan ini sudah dihapus
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full text-xs border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-            onClick={onBackToHome}
-          >
-            Kembali ke Home
-          </Button>
         </div>
       )}
 
@@ -99,7 +106,11 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
                 <Button
                   key={item.id}
                   variant="ghost"
-                  className={currentView === item.id ? 'w-full justify-center bg-secondary text-foreground' : 'w-full justify-center text-foreground'}
+                  className={
+                    currentView === item.id
+                      ? 'w-full justify-center bg-secondary text-foreground'
+                      : 'w-full justify-center text-foreground'
+                  }
                   onClick={() => onViewChange(item.id)}
                   disabled={!companyExists}
                 >
@@ -110,10 +121,12 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
 
             {userCompanies.length > 1 && (
               <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2 px-2">Perusahaan Lainnya</p>
+                <p className="text-xs text-muted-foreground mb-2 px-2">
+                  Perusahaan Lainnya
+                </p>
                 <div className="space-y-1">
                   {userCompanies
-                    .filter(c => c.id !== activeUser.companyId)
+                    .filter((c) => c.id !== activeUser.companyId)
                     .map((company) => (
                       <Button
                         key={company.id}
@@ -132,15 +145,6 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
       </div>
 
       <div className="p-4 space-y-2 border-t">
-        {onBackToHome && (
-          <Button
-            variant="ghost"
-            className="w-full justify-center text-foreground"
-            onClick={onBackToHome}
-          >
-            Kembali ke Home
-          </Button>
-        )}
         <Button
           variant="ghost"
           className="w-full justify-center text-destructive hover:text-destructive/80"
