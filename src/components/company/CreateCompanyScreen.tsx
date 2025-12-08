@@ -27,93 +27,89 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       return
     }
 
-    console.log('Creating company:', companyName)
+    try {
+      console.log('Creating company:', companyName)
 
-    const newCompany: Company = {
-      id: generateId(),
-      name: companyName.trim(),
-      code: generateCode(),
-      ownerId: user.id,
-      createdAt: new Date().toISOString()
-    }
-
-    console.log('New company object:', newCompany)
-
-    const newMembership = {
-      companyId: newCompany.id,
-      role: 'admin' as const,
-      joinedAt: new Date().toISOString()
-    }
-
-    console.log('New membership:', newMembership)
-
-    setCompanies((currentCompanies) => {
-      const existingCompanies = currentCompanies || []
-      console.log('Adding company to list. Current count:', existingCompanies.length)
-      const updated = [...existingCompanies, newCompany]
-      console.log('New company list count:', updated.length)
-      console.log('Updated companies array:', updated)
-      return updated
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    setCurrentUser((prev) => {
-      if (!prev) return null
-      const updated = {
-        ...prev,
-        companies: [
-          ...(prev.companies || []),
-          newMembership
-        ]
+      const newCompany: Company = {
+        id: generateId(),
+        name: companyName.trim(),
+        code: generateCode(),
+        ownerId: user.id,
+        createdAt: new Date().toISOString()
       }
-      console.log('Updated current user companies:', updated.companies)
-      return updated
-    })
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+      console.log('New company object:', newCompany)
 
-    setUsers((currentUsers) => 
-      (currentUsers || []).map((u) => {
-        if (u.id === user.id) {
-          const updated = { 
-            ...u, 
-            companies: [...(u.companies || []), newMembership]
-          }
-          console.log('Updated user in users array:', updated)
-          return updated
-        }
-        return u
+      const newMembership = {
+        companyId: newCompany.id,
+        role: 'admin' as const,
+        joinedAt: new Date().toISOString()
+      }
+
+      console.log('New membership:', newMembership)
+
+      // Update companies list
+      setCompanies((currentCompanies) => {
+        const existingCompanies = currentCompanies || []
+        console.log('Adding company to list. Current count:', existingCompanies.length)
+        const updated = [...existingCompanies, newCompany]
+        console.log('New company list count:', updated.length)
+        return updated
       })
-    )
 
-    await new Promise(resolve => setTimeout(resolve, 300))
+      // Wait longer to avoid rate limit
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Update current user
+      setCurrentUser((prev) => {
+        if (!prev) return null
+        const updated = {
+          ...prev,
+          companies: [
+            ...(prev.companies || []),
+            newMembership
+          ]
+        }
+        console.log('Updated current user companies:', updated.companies)
+        return updated
+      })
 
-    const verifyCompanies = await window.spark.kv.get<Company[]>('companies')
-    const verifyCurrentUser = await window.spark.kv.get<User | null>('current-user')
-    const verifyUsers = await window.spark.kv.get<User[]>('users')
-    
-    console.log('=== POST-CREATION VERIFICATION ===')
-    console.log('Verified companies in KV:', verifyCompanies)
-    console.log('Verified current user in KV:', verifyCurrentUser)
-    console.log('Current user companies:', verifyCurrentUser?.companies)
-    console.log('User in users array:', verifyUsers?.find(u => u.id === user.id))
-    
-    const companyExists = verifyCompanies?.some(c => c.id === newCompany.id)
-    const userHasMembership = verifyCurrentUser?.companies?.some(m => m.companyId === newCompany.id)
-    
-    console.log('Company exists in KV:', companyExists)
-    console.log('User has membership in KV:', userHasMembership)
+      // Wait longer to avoid rate limit
+      await new Promise(resolve => setTimeout(resolve, 500))
 
-    if (!companyExists || !userHasMembership) {
-      console.error('!!! DATA NOT PROPERLY SAVED !!!')
-      toast.error('Terjadi kesalahan. Silakan coba lagi.')
-      return
+      // Update users array
+      setUsers((currentUsers) => 
+        (currentUsers || []).map((u) => {
+          if (u.id === user.id) {
+            const updated = { 
+              ...u, 
+              companies: [...(u.companies || []), newMembership]
+            }
+            console.log('Updated user in users array:', updated)
+            return updated
+          }
+          return u
+        })
+      )
+
+      // Wait for final KV operation to complete
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      console.log('Company creation completed successfully')
+      toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
+      console.log('Calling onCompanyCreated with ID:', newCompany.id)
+      onCompanyCreated(newCompany.id)
+    } catch (error) {
+      console.error('Error creating company:', error)
+      
+      // Check if it's a rate limit error
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (errorMessage.includes('rate limit')) {
+        toast.error('Terlalu banyak permintaan. Silakan tunggu sebentar dan coba lagi.')
+      } else {
+        toast.error('Terjadi kesalahan saat membuat perusahaan. Silakan coba lagi.')
+      }
     }
-
-    toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
-    console.log('Calling onCompanyCreated with ID:', newCompany.id)
-    onCompanyCreated(newCompany.id)
   }
 
   return (
