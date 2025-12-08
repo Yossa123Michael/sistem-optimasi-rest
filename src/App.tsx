@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { User, UserRole, Company } from './lib/types'
 import SplashScreen from './components/auth/SplashScreen'
@@ -40,12 +40,14 @@ function App() {
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
+  const navigationLockRef = useRef(false)
 
   useEffect(() => {
     if (!currentUser || !users) return
     
     if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register' || 
-        currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard') {
+        currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' ||
+        currentScreen === 'customer-dashboard') {
       return
     }
     
@@ -105,8 +107,14 @@ function App() {
       currentScreen, 
       currentUser: currentUser?.email, 
       companyId: currentUser?.companyId, 
-      role: currentUser?.role 
+      role: currentUser?.role,
+      navigationLocked: navigationLockRef.current
     })
+    
+    if (navigationLockRef.current) {
+      console.log('Navigation is locked, skipping auto-redirect')
+      return
+    }
     
     if (currentScreen === 'create-company' || 
         currentScreen === 'join-company' || 
@@ -141,13 +149,21 @@ function App() {
     
     if (screen === 'admin-dashboard') {
       console.log('Direct navigation to admin-dashboard')
+      navigationLockRef.current = true
       setCurrentScreen('admin-dashboard')
+      setTimeout(() => {
+        navigationLockRef.current = false
+      }, 2000)
       return
     }
     
     if (screen === 'courier-dashboard') {
       console.log('Direct navigation to courier-dashboard')
+      navigationLockRef.current = true
       setCurrentScreen('courier-dashboard')
+      setTimeout(() => {
+        navigationLockRef.current = false
+      }, 2000)
       return
     }
     
