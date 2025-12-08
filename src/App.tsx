@@ -96,19 +96,32 @@ function App() {
   }, [companies, currentScreen, currentUser])
 
   useEffect(() => {
-    console.log('App useEffect triggered', { currentScreen, currentUser: currentUser?.email, companyId: currentUser?.companyId, role: currentUser?.role })
+    console.log('App useEffect triggered', { 
+      currentScreen, 
+      currentUser: currentUser?.email, 
+      companyId: currentUser?.companyId, 
+      role: currentUser?.role 
+    })
     
-    if (currentScreen === 'create-company' || currentScreen === 'join-company' || currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard' || currentScreen === 'customer-dashboard' || currentScreen === 'track-package' || currentScreen === 'company-list') {
+    if (currentScreen === 'create-company' || 
+        currentScreen === 'join-company' || 
+        currentScreen === 'admin-dashboard' || 
+        currentScreen === 'courier-dashboard' || 
+        currentScreen === 'customer-dashboard' || 
+        currentScreen === 'track-package' || 
+        currentScreen === 'company-list') {
+      console.log('Skipping useEffect - already on target screen:', currentScreen)
       return
     }
 
     if (currentUser) {
       if (currentScreen === 'login' || currentScreen === 'register' || currentScreen === 'splash') {
+        console.log('User logged in, redirecting to home-dashboard')
         setCurrentScreen('home-dashboard')
         return
       }
     }
-  }, [currentScreen, currentUser])
+  }, [currentScreen, currentUser?.email])
 
   const handleLogout = () => {
     setCurrentUser(null)
@@ -116,11 +129,15 @@ function App() {
   }
 
   const handleNavigateFromHome = (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
-    console.log('handleNavigateFromHome called:', screen)
+    console.log('=== handleNavigateFromHome called ===')
+    console.log('Target screen:', screen)
+    console.log('Current screen:', currentScreen)
     
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
-      console.log(`Navigating to ${screen}, setting screen immediately`)
+      console.log(`Direct navigation to ${screen}`)
+      console.log('Setting currentScreen to:', screen)
       setCurrentScreen(screen)
+      console.log('Navigation complete')
       return
     }
     
@@ -207,7 +224,12 @@ function App() {
   }
 
   const renderScreen = () => {
-    console.log('Rendering screen:', currentScreen, 'User:', currentUser?.email)
+    console.log('=== renderScreen called ===')
+    console.log('Current screen:', currentScreen)
+    console.log('Current user:', currentUser?.email)
+    console.log('User companyId:', currentUser?.companyId)
+    console.log('User role:', currentUser?.role)
+    
     switch (currentScreen) {
       case 'splash':
         return (

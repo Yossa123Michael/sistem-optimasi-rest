@@ -98,7 +98,9 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       }
       
       isNavigatingRef.current = true
-      console.log('Handling company click:', { companyId, role })
+      console.log('=== Handling company click ===')
+      console.log('Company ID:', companyId)
+      console.log('Role:', role)
       
       const allCompanies = await window.spark.kv.get<Company[]>('companies')
       const company = (allCompanies || []).find(c => c.id === companyId)
@@ -120,9 +122,18 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
         return
       }
       
+      console.log('Current user:', freshUser.email)
+      
       const updatedUser = { ...freshUser, companyId, role: role as UserRole }
+      console.log('Updating user with companyId and role:', { companyId, role })
+      
       await window.spark.kv.set('current-user', updatedUser)
+      
+      console.log('User saved to KV')
+      
       setCurrentUser(updatedUser)
+      
+      console.log('User state updated')
       
       setUsers((prevUsers) =>
         (prevUsers || []).map(u => 
@@ -132,15 +143,20 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       
       if (isMobile) setSidebarOpen(false)
       
-      console.log('User updated, navigating to:', role === 'admin' ? 'admin-dashboard' : 'courier-dashboard')
+      console.log('=== Navigating to dashboard ===')
+      const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
+      console.log('Target screen:', targetScreen)
       
-      if (role === 'admin') {
-        onNavigate('admin-dashboard')
-      } else {
-        onNavigate('courier-dashboard')
-      }
+      await new Promise(resolve => setTimeout(resolve, 100))
       
-      isNavigatingRef.current = false
+      console.log('About to call onNavigate with:', targetScreen)
+      onNavigate(targetScreen)
+      console.log('onNavigate called successfully')
+      
+      setTimeout(() => {
+        isNavigatingRef.current = false
+      }, 500)
+      
     } catch (error) {
       console.error('Error handling company click:', error)
       toast.error('Terjadi kesalahan')
