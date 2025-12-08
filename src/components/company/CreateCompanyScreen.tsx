@@ -21,6 +21,9 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
 
+  // Delay between KV operations to avoid rate limiting
+  const KV_OPERATION_DELAY = 500
+
   const handleCreateCompany = async () => {
     if (!companyName.trim()) {
       toast.error('Masukan nama perusahaan')
@@ -58,7 +61,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       })
 
       // Wait longer to avoid rate limit
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, KV_OPERATION_DELAY))
       
       // Update current user
       setCurrentUser((prev) => {
@@ -75,7 +78,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       })
 
       // Wait longer to avoid rate limit
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, KV_OPERATION_DELAY))
 
       // Update users array
       setUsers((currentUsers) => 
@@ -93,7 +96,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       )
 
       // Wait for final KV operation to complete
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, KV_OPERATION_DELAY))
 
       console.log('Company creation completed successfully')
       toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
