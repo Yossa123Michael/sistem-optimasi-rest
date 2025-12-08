@@ -134,14 +134,13 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       
       console.log('User updated, navigating to:', role === 'admin' ? 'admin-dashboard' : 'courier-dashboard')
       
-      setTimeout(() => {
-        if (role === 'admin') {
-          onNavigate('admin-dashboard')
-        } else {
-          onNavigate('courier-dashboard')
-        }
-        isNavigatingRef.current = false
-      }, 100)
+      if (role === 'admin') {
+        onNavigate('admin-dashboard')
+      } else {
+        onNavigate('courier-dashboard')
+      }
+      
+      isNavigatingRef.current = false
     } catch (error) {
       console.error('Error handling company click:', error)
       toast.error('Terjadi kesalahan')
