@@ -104,7 +104,11 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       
       // Check if it's a rate limit error
       const errorMessage = error instanceof Error ? error.message : String(error)
-      if (errorMessage.includes('rate limit')) {
+      const isRateLimitError = errorMessage.toLowerCase().includes('rate limit') || 
+                                errorMessage.includes('429') ||
+                                errorMessage.toLowerCase().includes('too many requests')
+      
+      if (isRateLimitError) {
         toast.error('Terlalu banyak permintaan. Silakan tunggu sebentar dan coba lagi.')
       } else {
         toast.error('Terjadi kesalahan saat membuat perusahaan. Silakan coba lagi.')
