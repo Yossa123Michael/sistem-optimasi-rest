@@ -137,8 +137,17 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       await window.spark.kv.set('users', updatedUsers)
       console.log('Users array updated in KV')
       
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const verifyUser = await window.spark.kv.get<User | null>('current-user')
       console.log('Verification - User in KV has companyId:', verifyUser?.companyId, 'and role:', verifyUser?.role)
+      
+      if (!verifyUser?.companyId || !verifyUser?.role) {
+        console.error('Failed to verify user data after save')
+        toast.error('Gagal menyimpan data pengguna')
+        isNavigatingRef.current = false
+        return
+      }
       
       if (isMobile) setSidebarOpen(false)
       

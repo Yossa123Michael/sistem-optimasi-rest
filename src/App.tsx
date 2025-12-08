@@ -151,6 +151,8 @@ function App() {
       console.log(`Direct navigation to ${screen}`)
       navigationLockRef.current = true
       
+      await new Promise(resolve => setTimeout(resolve, 150))
+      
       const freshUser = await window.spark.kv.get<User | null>('current-user')
       if (freshUser) {
         console.log('Loaded fresh user from KV before navigation:', freshUser.email, 'companyId:', freshUser.companyId, 'role:', freshUser.role)
@@ -163,7 +165,7 @@ function App() {
         
         setCurrentUser(freshUser)
         
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise(resolve => setTimeout(resolve, 100))
         
         setCurrentScreen(screen)
         
