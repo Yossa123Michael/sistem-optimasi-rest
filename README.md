@@ -80,7 +80,7 @@ Berikut adalah perintah-perintah yang dapat Anda jalankan di terminal VS Code:
 
 | Perintah | Deskripsi |
 |----------|-----------|
-| `npm run dev` | Menjalankan development server (port 5173) |
+| `npm run dev` | Menjalankan development server (port 5000) |
 | `npm run build` | Build aplikasi untuk production |
 | `npm run preview` | Preview build production secara lokal |
 | `npm run lint` | Memeriksa kode dengan ESLint |
