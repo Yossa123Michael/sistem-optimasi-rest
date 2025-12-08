@@ -51,11 +51,15 @@ function App() {
   }, [users, currentUser?.id, currentScreen])
 
   useEffect(() => {
-    if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register') {
+    if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register' || currentScreen === 'create-company') {
       return
     }
 
     const existingCompanyIds = (companies || []).map(c => c.id)
+    
+    if (existingCompanyIds.length === 0) {
+      return
+    }
     
     if (users && users.length > 0 && currentUser) {
       const needsCleanup = users.some(u => 
@@ -139,9 +143,15 @@ function App() {
   const handleCompanyCreated = async (companyId: string) => {
     console.log('=== handleCompanyCreated called with companyId:', companyId)
     
-    await new Promise(resolve => setTimeout(resolve, 300))
+    await new Promise(resolve => setTimeout(resolve, 500))
     
     const freshUser = await window.spark.kv.get<User | null>('current-user')
+    const freshUsers = await window.spark.kv.get<User[]>('users')
+    const freshCompanies = await window.spark.kv.get<Company[]>('companies')
+    
+    console.log('Fresh data loaded:')
+    console.log('- User companies:', freshUser?.companies)
+    console.log('- Total companies:', freshCompanies?.length)
     
     if (!freshUser) {
       toast.error('Sesi pengguna tidak ditemukan')
@@ -150,14 +160,13 @@ function App() {
     
     setCurrentUser(freshUser)
     
-    setUsers((prevUsers) => 
-      (prevUsers || []).map((u) => {
-        if (u.id === freshUser.id) {
-          return freshUser
-        }
-        return u
-      })
-    )
+    if (freshUsers) {
+      setUsers(freshUsers)
+    }
+    
+    if (freshCompanies) {
+      setCompanies(freshCompanies)
+    }
     
     console.log('Updating homeRefreshKey to trigger reload and show new company in sidebar')
     setHomeRefreshKey(prev => prev + 1)

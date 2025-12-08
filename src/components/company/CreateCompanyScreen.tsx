@@ -47,73 +47,73 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
     console.log('New membership:', newMembership)
 
-    setCompanies((currentCompanies) => {
-      const existingCompanies = currentCompanies || []
-      console.log('Adding company to list. Current count:', existingCompanies.length)
-      const updated = [...existingCompanies, newCompany]
-      console.log('New company list count:', updated.length)
-      console.log('Updated companies array:', updated)
-      return updated
-    })
+    try {
+      const existingCompanies = await window.spark.kv.get<Company[]>('companies') || []
+      const updatedCompanies = [...existingCompanies, newCompany]
+      await window.spark.kv.set('companies', updatedCompanies)
+      console.log('Companies saved to KV:', updatedCompanies.length)
 
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    setCurrentUser((prev) => {
-      if (!prev) return null
-      const updated = {
-        ...prev,
-        companies: [
-          ...(prev.companies || []),
-          newMembership
-        ]
+      const existingCurrentUser = await window.spark.kv.get<User | null>('current-user')
+      if (!existingCurrentUser) {
+        toast.error('Sesi pengguna tidak ditemukan')
+        return
       }
-      console.log('Updated current user companies:', updated.companies)
-      return updated
-    })
+      
+      const updatedCurrentUser = {
+        ...existingCurrentUser,
+        companies: [...(existingCurrentUser.companies || []), newMembership]
+      }
+      await window.spark.kv.set('current-user', updatedCurrentUser)
+      console.log('Current user updated in KV with companies:', updatedCurrentUser.companies)
 
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    setUsers((currentUsers) => 
-      (currentUsers || []).map((u) => {
+      const existingUsers = await window.spark.kv.get<User[]>('users') || []
+      const updatedUsers = existingUsers.map((u) => {
         if (u.id === user.id) {
-          const updated = { 
+          return { 
             ...u, 
             companies: [...(u.companies || []), newMembership]
           }
-          console.log('Updated user in users array:', updated)
-          return updated
         }
         return u
       })
-    )
+      await window.spark.kv.set('users', updatedUsers)
+      console.log('Users array updated in KV')
 
-    await new Promise(resolve => setTimeout(resolve, 300))
+      setCompanies(updatedCompanies)
+      setCurrentUser(updatedCurrentUser)
+      setUsers(updatedUsers)
 
-    const verifyCompanies = await window.spark.kv.get<Company[]>('companies')
-    const verifyCurrentUser = await window.spark.kv.get<User | null>('current-user')
-    const verifyUsers = await window.spark.kv.get<User[]>('users')
-    
-    console.log('=== POST-CREATION VERIFICATION ===')
-    console.log('Verified companies in KV:', verifyCompanies)
-    console.log('Verified current user in KV:', verifyCurrentUser)
-    console.log('Current user companies:', verifyCurrentUser?.companies)
-    console.log('User in users array:', verifyUsers?.find(u => u.id === user.id))
-    
-    const companyExists = verifyCompanies?.some(c => c.id === newCompany.id)
-    const userHasMembership = verifyCurrentUser?.companies?.some(m => m.companyId === newCompany.id)
-    
-    console.log('Company exists in KV:', companyExists)
-    console.log('User has membership in KV:', userHasMembership)
+      await new Promise(resolve => setTimeout(resolve, 200))
 
-    if (!companyExists || !userHasMembership) {
-      console.error('!!! DATA NOT PROPERLY SAVED !!!')
-      toast.error('Terjadi kesalahan. Silakan coba lagi.')
-      return
+      const verifyCompanies = await window.spark.kv.get<Company[]>('companies')
+      const verifyCurrentUser = await window.spark.kv.get<User | null>('current-user')
+      const verifyUsers = await window.spark.kv.get<User[]>('users')
+      
+      console.log('=== POST-CREATION VERIFICATION ===')
+      console.log('Verified companies in KV:', verifyCompanies)
+      console.log('Verified current user in KV:', verifyCurrentUser)
+      console.log('Current user companies:', verifyCurrentUser?.companies)
+      console.log('User in users array:', verifyUsers?.find(u => u.id === user.id))
+      
+      const companyExists = verifyCompanies?.some(c => c.id === newCompany.id)
+      const userHasMembership = verifyCurrentUser?.companies?.some(m => m.companyId === newCompany.id)
+      
+      console.log('Company exists in KV:', companyExists)
+      console.log('User has membership in KV:', userHasMembership)
+
+      if (!companyExists || !userHasMembership) {
+        console.error('!!! DATA NOT PROPERLY SAVED !!!')
+        toast.error('Terjadi kesalahan. Silakan coba lagi.')
+        return
+      }
+
+      toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
+      console.log('Calling onCompanyCreated with ID:', newCompany.id)
+      onCompanyCreated(newCompany.id)
+    } catch (error) {
+      console.error('Error creating company:', error)
+      toast.error('Terjadi kesalahan saat membuat perusahaan')
     }
-
-    toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
-    console.log('Calling onCompanyCreated with ID:', newCompany.id)
-    onCompanyCreated(newCompany.id)
   }
 
   return (
