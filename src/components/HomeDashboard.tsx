@@ -137,15 +137,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
       await window.spark.kv.set('users', updatedUsers)
       console.log('Users array updated in KV')
       
-      setCurrentUser(updatedUser)
-      console.log('User state updated')
-      
-      setUsers(updatedUsers)
-      console.log('Users state updated')
-      
       if (isMobile) setSidebarOpen(false)
-      
-      await new Promise(resolve => setTimeout(resolve, 100))
       
       console.log('=== Navigating to dashboard ===')
       const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'

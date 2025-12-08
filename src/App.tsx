@@ -142,25 +142,25 @@ function App() {
     setCurrentScreen('splash')
   }
 
-  const handleNavigateFromHome = (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
+  const handleNavigateFromHome = async (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
     console.log('=== handleNavigateFromHome called ===')
     console.log('Target screen:', screen)
     console.log('Current screen:', currentScreen)
     
-    if (screen === 'admin-dashboard') {
-      console.log('Direct navigation to admin-dashboard')
+    if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
+      console.log(`Direct navigation to ${screen}`)
       navigationLockRef.current = true
-      setCurrentScreen('admin-dashboard')
-      setTimeout(() => {
-        navigationLockRef.current = false
-      }, 2000)
-      return
-    }
-    
-    if (screen === 'courier-dashboard') {
-      console.log('Direct navigation to courier-dashboard')
-      navigationLockRef.current = true
-      setCurrentScreen('courier-dashboard')
+      
+      const freshUser = await window.spark.kv.get<User | null>('current-user')
+      if (freshUser) {
+        console.log('Loaded fresh user from KV before navigation:', freshUser.email, 'companyId:', freshUser.companyId, 'role:', freshUser.role)
+        setCurrentUser(freshUser)
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      setCurrentScreen(screen)
+      
       setTimeout(() => {
         navigationLockRef.current = false
       }, 2000)
