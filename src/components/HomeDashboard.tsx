@@ -206,9 +206,7 @@ function HomeDashboard({ user, onLogout, onNavigate, refreshKey = 0 }: HomeDashb
               </button>
             ))
           ) : companiesLoaded ? (
-            <div className="text-sm text-muted-foreground/60 py-2 italic">
-              Belum ada perusahaan
-            </div>
+            <div className="text-sm text-muted-foreground/60 py-2 italic">Belum ada perusahaan</div>
           ) : (
             <div className="text-sm text-muted-foreground/60 py-2 italic">
               Memuat...
