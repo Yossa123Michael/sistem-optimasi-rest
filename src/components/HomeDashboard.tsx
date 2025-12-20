@@ -121,6 +121,9 @@ export default function HomeDashboard({
       await window.spark.kv.set('users', updatedUsers)
 
       const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
+      
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
       onNavigate(targetScreen)
       
     } catch (error) {

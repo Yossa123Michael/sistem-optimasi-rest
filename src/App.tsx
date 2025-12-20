@@ -43,6 +43,7 @@ function App() {
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
+  const [isNavigating, setIsNavigating] = useState(false)
 
   // 1. Dengarkan Firebase Auth hanya untuk kasus reload otomatis
   useEffect(() => {
@@ -164,15 +165,18 @@ function App() {
       | 'courier-dashboard',
   ) => {
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
+      setIsNavigating(true)
       const freshUser = await window.spark.kv.get<User | null>('current-user')
 
       if (!freshUser || !freshUser.companyId || !freshUser.role) {
         toast.error('Data perusahaan tidak lengkap')
+        setIsNavigating(false)
         return
       }
 
       setCurrentUser(freshUser)
       setCurrentScreen(screen)
+      setTimeout(() => setIsNavigating(false), 500)
       return
     }
 
@@ -192,11 +196,25 @@ function App() {
     }
   }
 
-  const handleCompanyCreated = async (_companyId: string) => {
+  const handleCompanyCreated = async (companyId: string) => {
     const freshUser = await window.spark.kv.get<User | null>('current-user')
     const freshUsers = await window.spark.kv.get<User[]>('users')
 
-    if (freshUser) setCurrentUser(freshUser)
+    if (freshUser) {
+      setCurrentUser(freshUser)
+      
+      const membership = freshUser.companies?.find(m => m.companyId === companyId)
+      
+      if (membership && membership.role === 'admin') {
+        const userWithCompany = { ...freshUser, companyId, role: 'admin' as const }
+        await window.spark.kv.set('current-user', userWithCompany)
+        setCurrentUser(userWithCompany)
+        
+        setCurrentScreen('admin-dashboard')
+        return
+      }
+    }
+    
     if (freshUsers) setUsers(freshUsers)
 
     setHomeRefreshKey(k => k + 1)
@@ -292,8 +310,14 @@ function App() {
             <CustomerDashboard user={currentUser} onLogout={handleLogout} />
           )
 
+        case 'home-dashboard':
         default:
-          // Default: tampilkan HomeDashboard
+          // Only render HomeDashboard if not currently navigating
+          if (isNavigating) {
+            return <div className="min-h-screen bg-background flex items-center justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          }
           return (
             <HomeDashboard
               user={currentUser}
