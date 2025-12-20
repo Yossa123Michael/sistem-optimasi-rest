@@ -167,20 +167,23 @@ function App() {
       | 'admin-dashboard'
       | 'courier-dashboard',
   ) => {
-    console.log('=== handleNavigateFromHome called ===', {
-      screen,
-      currentScreen,
-    })
+    console.log('=== handleNavigateFromHome called ===')
+    console.log('Target screen:', screen)
+    console.log('Current screen:', currentScreen)
 
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
+      console.log('Direct navigation to', screen)
+      
+      // Load fresh user dari KV untuk memastikan data terbaru
       const freshUser = await window.spark.kv.get<User | null>('current-user')
-      console.log(
-        'Fresh user from KV before dashboard navigation:',
-        freshUser,
-      )
+      console.log('Loaded fresh user from KV before navigation:', freshUser?.email, 'companyId:', freshUser?.companyId, 'role:', freshUser?.role)
 
-      if (!freshUser || !freshUser.companyId || !freshUser.role) return
+      if (!freshUser) {
+        console.error('No user found in KV')
+        return
+      }
 
+      // Update state dengan user terbaru, lalu set screen
       setCurrentUser(freshUser)
       setCurrentScreen(screen)
       return
@@ -232,21 +235,97 @@ function App() {
   }
 
   const renderScreen = () => {
-    console.log('=== renderScreen called ===', {
-      currentScreen,
-      currentUser: currentUser?.email,
-    })
+    console.log('=== renderScreen called ===')
+    console.log('Current screen:', currentScreen)
+    console.log('Current user:', currentUser?.email)
+    console.log('User companyId:', currentUser?.companyId)
+    console.log('User role:', currentUser?.role)
 
-    // Jika SUDAH login → selalu HomeDashboard
-    if (currentUser) {
+    // Prioritaskan screen khusus (admin/courier dashboard) jika sudah di set
+    if (currentUser && currentScreen === 'admin-dashboard') {
+      console.log('Rendering AdminDashboard')
       return (
-        <HomeDashboard
+        <AdminDashboard
           user={currentUser}
           onLogout={handleLogout}
-          onNavigate={handleNavigateFromHome}
-          refreshKey={homeRefreshKey}
+          onBackToHome={() => {
+            setHomeRefreshKey(k => k + 1)
+            setCurrentScreen('home-dashboard')
+          }}
         />
       )
+    }
+
+    if (currentUser && currentScreen === 'courier-dashboard') {
+      console.log('Rendering CourierDashboard')
+      return (
+        <CourierDashboard
+          user={currentUser}
+          onLogout={handleLogout}
+          onBackToHome={() => {
+            setHomeRefreshKey(k => k + 1)
+            setCurrentScreen('home-dashboard')
+          }}
+        />
+      )
+    }
+
+    // Jika SUDAH login dan screen lain → HomeDashboard atau screen spesifik
+    if (currentUser) {
+      // Handle screen lainnya yang butuh login
+      switch (currentScreen) {
+        case 'create-company':
+          return (
+            <CreateCompanyScreen
+              user={currentUser}
+              onBack={() => {
+                setHomeRefreshKey(k => k + 1)
+                setCurrentScreen('home-dashboard')
+              }}
+              onCompanyCreated={handleCompanyCreated}
+            />
+          )
+
+        case 'join-company':
+          return (
+            <JoinCompanyScreen
+              user={currentUser}
+              onBack={() => {
+                setHomeRefreshKey(k => k + 1)
+                setCurrentScreen('home-dashboard')
+              }}
+              onCompanyJoined={handleCompanyJoined}
+            />
+          )
+
+        case 'company-list':
+          return (
+            <CompanyListScreen
+              user={currentUser}
+              onBack={() => {
+                setHomeRefreshKey(k => k + 1)
+                setCurrentScreen('home-dashboard')
+              }}
+              onSelectCompany={handleCompanySelected}
+            />
+          )
+
+        case 'customer-dashboard':
+          return (
+            <CustomerDashboard user={currentUser} onLogout={handleLogout} />
+          )
+
+        default:
+          // Default: tampilkan HomeDashboard
+          return (
+            <HomeDashboard
+              user={currentUser}
+              onLogout={handleLogout}
+              onNavigate={handleNavigateFromHome}
+              refreshKey={homeRefreshKey}
+            />
+          )
+      }
     }
 
     // BELUM login: pilih berdasarkan currentScreen
@@ -305,71 +384,6 @@ function App() {
               )
             }
           />
-        )
-
-      case 'create-company':
-        return (
-          <CreateCompanyScreen
-            user={currentUser!}
-            onBack={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-            onCompanyCreated={handleCompanyCreated}
-          />
-        )
-
-      case 'join-company':
-        return (
-          <JoinCompanyScreen
-            user={currentUser!}
-            onBack={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-            onCompanyJoined={handleCompanyJoined}
-          />
-        )
-
-      case 'company-list':
-        return (
-          <CompanyListScreen
-            user={currentUser!}
-            onBack={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-            onSelectCompany={handleCompanySelected}
-          />
-        )
-
-      case 'admin-dashboard':
-        return (
-          <AdminDashboard
-            user={currentUser!}
-            onLogout={handleLogout}
-            onBackToHome={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-          />
-        )
-
-      case 'courier-dashboard':
-        return (
-          <CourierDashboard
-            user={currentUser!}
-            onLogout={handleLogout}
-            onBackToHome={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-          />
-        )
-
-      case 'customer-dashboard':
-        return (
-          <CustomerDashboard user={currentUser!} onLogout={handleLogout} />
         )
 
       case 'track-package':

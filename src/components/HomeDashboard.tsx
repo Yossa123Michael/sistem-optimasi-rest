@@ -108,6 +108,65 @@ export default function HomeDashboard({
     onNavigate('customer-mode')
   }
 
+  const handleCompanyClick = async (companyId: string, role: 'admin' | 'courier' | 'customer') => {
+    console.log('=== Handling company click ===')
+    console.log('Company ID:', companyId)
+    console.log('Role:', role)
+
+    try {
+      // Cari company dari list
+      const company = (companies || []).find(c => c.id === companyId)
+      
+      if (!company) {
+        toast.error('Perusahaan tidak ditemukan')
+        return
+      }
+
+      console.log('Company found:', company.name)
+
+      // Update user dengan companyId dan role
+      const currentUser = await window.spark.kv.get<User>('current-user')
+      
+      if (!currentUser) {
+        toast.error('User tidak ditemukan')
+        return
+      }
+
+      console.log('Current user:', currentUser.email)
+
+      // Update user di KV
+      console.log('Updating user with companyId and role:', { companyId, role })
+      const updatedUser = { ...currentUser, companyId, role }
+      await window.spark.kv.set('current-user', updatedUser)
+      console.log('User saved to KV with companyId:', companyId, 'and role:', role)
+
+      // Update users array di KV
+      const allUsers = (await window.spark.kv.get<User[]>('users')) || []
+      const updatedUsers = allUsers.map(u =>
+        u.id === currentUser.id ? updatedUser : u
+      )
+      await window.spark.kv.set('users', updatedUsers)
+      console.log('Users array updated in KV')
+
+      // Verify user has companyId and role
+      const verifyUser = await window.spark.kv.get<User>('current-user')
+      console.log('Verification - User in KV has companyId:', verifyUser?.companyId, 'and role:', verifyUser?.role)
+
+      // Navigate ke dashboard sesuai role
+      console.log('=== Navigating to dashboard ===')
+      const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
+      console.log('Target screen:', targetScreen)
+      console.log('Calling onNavigate with verified user data...')
+      
+      onNavigate(targetScreen)
+      console.log('onNavigate called successfully')
+      
+    } catch (error) {
+      console.error('Error handling company click:', error)
+      toast.error('Gagal membuka perusahaan')
+    }
+  }
+
   const handleOpenAdminDashboard = () => {
     if (!activeUserHasMemberships) {
       toast.error('Anda belum terdaftar di perusahaan mana pun sebagai admin.')
@@ -143,7 +202,7 @@ export default function HomeDashboard({
             </div>
           </div>
 
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             <button
               onClick={() => onNavigate('home')}
               className="w-full text-left px-3 py-2 rounded-lg bg-slate-100 text-slate-900 font-medium flex items-center gap-2"
@@ -151,13 +210,32 @@ export default function HomeDashboard({
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               Home
             </button>
-            <button
-              onClick={handleCreateCompany}
-              className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2"
-            >
-              <Building2 className="h-4 w-4" />
-              Perusahaan Saya
-            </button>
+
+            {/* Company List - Tampilkan semua perusahaan user */}
+            {(companies || []).length > 0 && activeUserMemberships.map(membership => {
+              const company = (companies || []).find(c => c.id === membership.companyId)
+              if (!company) return null
+
+              return (
+                <button
+                  key={company.id}
+                  onClick={() => {
+                    console.log('Company button clicked:', {
+                      name: company.name,
+                      id: company.id,
+                      role: membership.role,
+                      allCompanies: companies,
+                    })
+                    handleCompanyClick(company.id, membership.role)
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
+                >
+                  <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                  <span className="truncate font-medium">{company.name}</span>
+                </button>
+              )
+            })}
+
             <button
               onClick={handleTrackPackage}
               className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2"
