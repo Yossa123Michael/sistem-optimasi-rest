@@ -225,7 +225,7 @@ export default function HomeDashboard({
               <p className="text-sm text-slate-500 mb-1">
                 Halo,{' '}
                 <span className="font-semibold text-slate-800">
-                  {currentUser.name || currentUser.email}
+                  {user.name || user.email}
                 </span>
               </p>
               <h1 className="text-3xl font-bold text-slate-900 mb-2">
@@ -249,14 +249,13 @@ export default function HomeDashboard({
                     <h2 className="text-lg font-semibold text-slate-900">
                       Buat Perusahaan
                     </h2>
-                  </div>
                   <p className="text-slate-500 mb-4">
+                  <p className="text-slate-500 mb-4"> dan
                     Buat perusahaan dan kelola bisnis Anda. Tambahkan admin dan
                     kurir untuk membantu operasional.
                   </p>
                 </div>
                 <button
-                  onClick={handleCreateCompany}
                   className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
                 >
                   Mulai Buat
@@ -264,7 +263,7 @@ export default function HomeDashboard({
                 </button>
               </div>
 
-              {/* Gabung Perusahaan */}
+ Perusahaan */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-3 mb-4">
@@ -298,9 +297,7 @@ export default function HomeDashboard({
                     <Truck className="h-5 w-5 text-amber-600" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">
-                      Mode Customer
-                    </h2>
+                  <div>="text-lg font-semibold text-slate-900">
                     <p className="text-slate-500">
                       Lacak dan kelola pesanan Anda sebagai customer.
                     </p>
@@ -367,4 +364,5 @@ export default function HomeDashboard({
       </div>
     </div>
   )
-}
+}    </div>
+  )
