@@ -114,7 +114,6 @@ export default function HomeDashboard({
     console.log('Role:', role)
 
     try {
-      // Cari company dari list
       const company = (companies || []).find(c => c.id === companyId)
       
       if (!company) {
@@ -124,7 +123,6 @@ export default function HomeDashboard({
 
       console.log('Company found:', company.name)
 
-      // Update user dengan companyId dan role
       const currentUser = await window.spark.kv.get<User>('current-user')
       
       if (!currentUser) {
@@ -134,13 +132,10 @@ export default function HomeDashboard({
 
       console.log('Current user:', currentUser.email)
 
-      // Update user di KV
-      console.log('Updating user with companyId and role:', { companyId, role })
       const updatedUser = { ...currentUser, companyId, role }
       await window.spark.kv.set('current-user', updatedUser)
       console.log('User saved to KV with companyId:', companyId, 'and role:', role)
 
-      // Update users array di KV
       const allUsers = (await window.spark.kv.get<User[]>('users')) || []
       const updatedUsers = allUsers.map(u =>
         u.id === currentUser.id ? updatedUser : u
@@ -148,15 +143,13 @@ export default function HomeDashboard({
       await window.spark.kv.set('users', updatedUsers)
       console.log('Users array updated in KV')
 
-      // Verify user has companyId and role
       const verifyUser = await window.spark.kv.get<User>('current-user')
       console.log('Verification - User in KV has companyId:', verifyUser?.companyId, 'and role:', verifyUser?.role)
 
-      // Navigate ke dashboard sesuai role
       console.log('=== Navigating to dashboard ===')
       const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
       console.log('Target screen:', targetScreen)
-      console.log('Calling onNavigate with verified user data...')
+      console.log('Calling onNavigate...')
       
       onNavigate(targetScreen)
       console.log('onNavigate called successfully')

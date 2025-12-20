@@ -18,18 +18,35 @@ interface CourierDashboardProps {
 export default function CourierDashboard({ user, onLogout, onBackToHome }: CourierDashboardProps) {
   const [currentView, setCurrentView] = useState<CourierView>('home')
   const [companies] = useKV<Company[]>('companies', [])
+  const [isReady, setIsReady] = useState(false)
   
   useEffect(() => {
     if (!user.companyId) {
-      if (onBackToHome) onBackToHome()
+      console.log('CourierDashboard: User does not have companyId, waiting...')
       return
     }
     
     const companyExists = (companies || []).some(c => c.id === user.companyId)
-    if (!companyExists && onBackToHome) {
-      onBackToHome()
+    if (!companyExists) {
+      console.log('CourierDashboard: Company does not exist')
+      if (onBackToHome) onBackToHome()
+      return
     }
+    
+    console.log('CourierDashboard: Ready to render')
+    setIsReady(true)
   }, [user.companyId, companies, onBackToHome])
+
+  if (!isReady) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Memuat dashboard...</p>
+        </div>
+      </div>
+    )
+  }
 
   const renderView = () => {
     switch (currentView) {

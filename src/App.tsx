@@ -42,6 +42,7 @@ function App() {
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
+  const [isNavigating, setIsNavigating] = useState(false)
 
   // 1. Dengarkan Firebase Auth hanya untuk kasus reload otomatis
   useEffect(() => {
@@ -174,18 +175,30 @@ function App() {
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
       console.log('Direct navigation to', screen)
       
-      // Load fresh user dari KV untuk memastikan data terbaru
+      setIsNavigating(true)
+      
       const freshUser = await window.spark.kv.get<User | null>('current-user')
       console.log('Loaded fresh user from KV before navigation:', freshUser?.email, 'companyId:', freshUser?.companyId, 'role:', freshUser?.role)
 
       if (!freshUser) {
         console.error('No user found in KV')
+        setIsNavigating(false)
         return
       }
 
-      // Update state dengan user terbaru, lalu set screen
-      setCurrentUser(freshUser)
+      if (!freshUser.companyId || !freshUser.role) {
+        console.error('User does not have companyId or role')
+        setIsNavigating(false)
+        return
+      }
+
+      await setCurrentUser(freshUser)
+      
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       setCurrentScreen(screen)
+      setIsNavigating(false)
+      console.log('Screen set to:', screen)
       return
     }
 
@@ -240,8 +253,19 @@ function App() {
     console.log('Current user:', currentUser?.email)
     console.log('User companyId:', currentUser?.companyId)
     console.log('User role:', currentUser?.role)
+    console.log('Is navigating:', isNavigating)
 
-    // Prioritaskan screen khusus (admin/courier dashboard) jika sudah di set
+    if (isNavigating) {
+      return (
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+            <p className="text-slate-600">Membuka dashboard...</p>
+          </div>
+        </div>
+      )
+    }
+
     if (currentUser && currentScreen === 'admin-dashboard') {
       console.log('Rendering AdminDashboard')
       return (
