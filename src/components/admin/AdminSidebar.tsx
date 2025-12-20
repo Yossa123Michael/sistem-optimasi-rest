@@ -31,6 +31,7 @@ interface AdminSidebarProps {
   currentView: AdminView
   onViewChange: (view: AdminView) => void
   onLogout: () => void
+  onBackToHome?: () => void
 }
 
 export default function AdminSidebar({
@@ -38,6 +39,7 @@ export default function AdminSidebar({
   currentView,
   onViewChange,
   onLogout,
+  onBackToHome,
 }: AdminSidebarProps) {
   const isMobile = useIsMobile()
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
@@ -51,18 +53,17 @@ export default function AdminSidebar({
   const userName = activeUser.name || activeUser.email.split('@')[0]
 
   const currentCompany = (companies || []).find(
-    (c) => c.id === activeUser.companyId,
+    c => c.id === activeUser.companyId,
   )
   const isOwner = currentCompany?.ownerId === activeUser.id
   const companyExists = !!currentCompany
 
+  // Hanya ambil membership yang masih punya company di DB
   const userCompanies = (activeUser.companies || [])
-    .map((membership) => {
-      const company = (companies || []).find(
-        (c) => c.id === membership.companyId,
-      )
+    .map(m => {
+      const company = (companies || []).find(c => c.id === m.companyId)
       return company
-        ? { ...company, role: membership.role, joinedAt: membership.joinedAt }
+        ? { ...company, role: m.role, joinedAt: m.joinedAt }
         : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
@@ -73,52 +74,58 @@ export default function AdminSidebar({
     )
 
   const handleDeleteCompany = () => {
-    if (!activeUser.companyId || !isOwner || !companyExists) return
+  if (!activeUser.companyId || !isOwner || !companyExists) return
 
-    const companyIdToDelete = activeUser.companyId
+  const companyIdToDelete = activeUser.companyId
 
-    setCompanies((prev) => (prev || []).filter((c) => c.id !== companyIdToDelete))
+  setCompanies(prev => (prev || []).filter(c => c.id !== companyIdToDelete))
 
-    setUsers((prevUsers) =>
-      (prevUsers || []).map((u) => ({
-        ...u,
-        companies: (u.companies || []).filter(
-          (m) => m.companyId !== companyIdToDelete,
-        ),
-        companyId: u.companyId === companyIdToDelete ? undefined : u.companyId,
-        role: u.companyId === companyIdToDelete ? undefined : u.role,
-      })),
-    )
+  setUsers(prev =>
+    (prev || []).map(u => ({
+      ...u,
+      companies: (u.companies || []).filter(
+        m => m.companyId !== companyIdToDelete,
+      ),
+      companyId: u.companyId === companyIdToDelete ? undefined : u.companyId,
+      role: u.companyId === companyIdToDelete ? undefined : u.role,
+    })),
+  )
 
-    setPackages((prev) =>
-      (prev || []).filter((p) => p.companyId !== companyIdToDelete),
-    )
+  setPackages(prev =>
+    (prev || []).filter(p => p.companyId !== companyIdToDelete),
+  )
 
-    setCouriers((prev) =>
-      (prev || []).filter((c) => c.companyId !== companyIdToDelete),
-    )
+  setCouriers(prev =>
+    (prev || []).filter(c => c.companyId !== companyIdToDelete),
+  )
 
-    toast.success('Perusahaan berhasil dihapus')
-    setShowDeleteDialog(false)
+  // reset current user companyId & role juga – pastikan return User|null
+  setCurrentUser(prev => {
+    if (!prev) return null
+    if (prev.companyId !== companyIdToDelete) return prev
+    return { ...prev, companyId: undefined, role: undefined }
+  })
+
+  toast.success('Perusahaan berhasil dihapus')
+  setShowDeleteDialog(false)
+
+  if (onBackToHome) {
+    onBackToHome()
   }
+}
 
   const handleCompanyClick = (companyId: string, role: string) => {
-    if (companyId === activeUser.companyId) {
-      return
-    }
+    if (companyId === activeUser.companyId) return
 
-    setCurrentUser((prev) => {
+    setCurrentUser(prev => {
       if (!prev) return null
       return { ...prev, companyId, role: role as any }
     })
 
-    setUsers((prevUsers) =>
-      (prevUsers || []).map((u) => {
-        if (u.id === activeUser.id) {
-          return { ...u, companyId, role: role as any }
-        }
-        return u
-      }),
+    setUsers(prev =>
+      (prev || []).map(u =>
+        u.id === activeUser.id ? { ...u, companyId, role: role as any } : u,
+      ),
     )
 
     toast.success('Perusahaan aktif berhasil diubah')
@@ -148,6 +155,16 @@ export default function AdminSidebar({
           <p className="text-xs text-destructive text-center mb-2">
             Perusahaan ini sudah dihapus
           </p>
+
+          {onBackToHome && (
+            <Button
+              size="sm"
+              className="w-full text-xs"
+              onClick={onBackToHome}
+            >
+              Ke layar utama
+            </Button>
+          )}
         </div>
       )}
 
@@ -155,7 +172,7 @@ export default function AdminSidebar({
         <ScrollArea className="h-full">
           <nav className="p-4">
             <div className="space-y-2 mb-4">
-              {menuItems.map((item) => (
+              {menuItems.map(item => (
                 <Button
                   key={item.id}
                   variant="ghost"
@@ -179,13 +196,15 @@ export default function AdminSidebar({
                 </p>
                 <div className="space-y-1">
                   {userCompanies
-                    .filter((c) => c.id !== activeUser.companyId)
-                    .map((company) => (
+                    .filter(c => c.id !== activeUser.companyId)
+                    .map(company => (
                       <Button
                         key={company.id}
                         variant="ghost"
                         className="w-full justify-center text-foreground text-sm"
-                        onClick={() => handleCompanyClick(company.id, company.role)}
+                        onClick={() =>
+                          handleCompanyClick(company.id, company.role)
+                        }
                       >
                         {company.name}
                       </Button>
@@ -210,6 +229,15 @@ export default function AdminSidebar({
       </div>
 
       <div className="p-4 space-y-2 border-t">
+        {onBackToHome && companyExists && (
+          <Button
+            variant="ghost"
+            className="w-full justify-center text-foreground"
+            onClick={onBackToHome}
+          >
+            Ke layar utama
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-center text-destructive hover:text-destructive/80"

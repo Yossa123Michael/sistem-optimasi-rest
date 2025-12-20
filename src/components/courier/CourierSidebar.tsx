@@ -14,6 +14,7 @@ interface CourierSidebarProps {
   currentView: CourierView
   onViewChange: (view: CourierView) => void
   onLogout: () => void
+  onBackToHome?: () => void
 }
 
 export default function CourierSidebar({
@@ -21,6 +22,7 @@ export default function CourierSidebar({
   currentView,
   onViewChange,
   onLogout,
+  onBackToHome,
 }: CourierSidebarProps) {
   const isMobile = useIsMobile()
   const [companies] = useKV<Company[]>('companies', [])
@@ -30,17 +32,16 @@ export default function CourierSidebar({
   const activeUser = currentUser || user
   const userName = activeUser.name || activeUser.email.split('@')[0]
   const currentCompany = (companies || []).find(
-    (c) => c.id === activeUser.companyId,
+    c => c.id === activeUser.companyId,
   )
   const companyExists = !!currentCompany
 
+  // Hanya perusahaan yang masih ada
   const userCompanies = (activeUser.companies || [])
-    .map((membership) => {
-      const company = (companies || []).find(
-        (c) => c.id === membership.companyId,
-      )
+    .map(m => {
+      const company = (companies || []).find(c => c.id === m.companyId)
       return company
-        ? { ...company, role: membership.role, joinedAt: membership.joinedAt }
+        ? { ...company, role: m.role, joinedAt: m.joinedAt }
         : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
@@ -51,22 +52,17 @@ export default function CourierSidebar({
     )
 
   const handleCompanyClick = (companyId: string, role: string) => {
-    if (companyId === activeUser.companyId) {
-      return
-    }
+    if (companyId === activeUser.companyId) return
 
-    setCurrentUser((prev) => {
+    setCurrentUser(prev => {
       if (!prev) return null
       return { ...prev, companyId, role: role as any }
     })
 
-    setUsers((prevUsers) =>
-      (prevUsers || []).map((u) => {
-        if (u.id === activeUser.id) {
-          return { ...u, companyId, role: role as any }
-        }
-        return u
-      }),
+    setUsers(prev =>
+      (prev || []).map(u =>
+        u.id === activeUser.id ? { ...u, companyId, role: role as any } : u,
+      ),
     )
 
     toast.success('Perusahaan aktif berhasil diubah')
@@ -95,6 +91,16 @@ export default function CourierSidebar({
           <p className="text-xs text-destructive text-center mb-2">
             Perusahaan ini sudah dihapus
           </p>
+
+          {onBackToHome && (
+            <Button
+              size="sm"
+              className="w-full text-xs"
+              onClick={onBackToHome}
+            >
+              Ke layar utama
+            </Button>
+          )}
         </div>
       )}
 
@@ -102,7 +108,7 @@ export default function CourierSidebar({
         <ScrollArea className="h-full">
           <nav className="p-4">
             <div className="space-y-2 mb-4">
-              {menuItems.map((item) => (
+              {menuItems.map(item => (
                 <Button
                   key={item.id}
                   variant="ghost"
@@ -126,13 +132,15 @@ export default function CourierSidebar({
                 </p>
                 <div className="space-y-1">
                   {userCompanies
-                    .filter((c) => c.id !== activeUser.companyId)
-                    .map((company) => (
+                    .filter(c => c.id !== activeUser.companyId)
+                    .map(company => (
                       <Button
                         key={company.id}
                         variant="ghost"
                         className="w-full justify-center text-foreground text-sm"
-                        onClick={() => handleCompanyClick(company.id, company.role)}
+                        onClick={() =>
+                          handleCompanyClick(company.id, company.role)
+                        }
                       >
                         {company.name}
                       </Button>
@@ -145,6 +153,15 @@ export default function CourierSidebar({
       </div>
 
       <div className="p-4 space-y-2 border-t">
+        {onBackToHome && companyExists && (
+          <Button
+            variant="ghost"
+            className="w-full justify-center text-foreground"
+            onClick={onBackToHome}
+          >
+            Ke layar utama
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-center text-destructive hover:text-destructive/80"

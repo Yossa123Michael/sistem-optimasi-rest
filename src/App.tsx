@@ -16,16 +16,18 @@ import CourierDashboard from './components/courier/CourierDashboard'
 import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
 import { Toaster } from './components/ui/sonner'
-import { toast } from 'sonner'
 
-type AppScreen = 
+import { auth } from './lib/firebase'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
+
+type AppScreen =
   | 'splash'
   | 'login'
+  | 'home-dashboard'
   | 'register'
   | 'forgot-password'
   | 'role-selection'
   | 'company-selection'
-  | 'home-dashboard'
   | 'create-company'
   | 'join-company'
   | 'company-list'
@@ -38,136 +40,154 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash')
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
-  const [companies, setCompanies] = useKV<Company[]>('companies', [])
+  const [companies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
 
-  // 1. Sinkronisasi LIST perusahaan user (companies[]), TIDAK menyentuh companyId/role
+  // 1. Dengarkan Firebase Auth hanya untuk kasus reload otomatis
   useEffect(() => {
-    const syncUserCompanies = async () => {
-      if (!currentUser) return
+    const unsubscribe = onAuthStateChanged(auth, fbUser => {
+      console.log('onAuthStateChanged:', fbUser?.email)
 
-      // Di dashboard jangan sync apa2 untuk menghindari race
-      if (currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard') {
+      if (!fbUser) {
+        // Tidak ada sesi Firebase → kosongkan user
+        setCurrentUser(null)
         return
       }
 
-      if (!users || users.length === 0) return
-
-      const updatedUser = users.find(u => u.id === currentUser.id)
-      if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
-        setCurrentUser((prev: User | null | undefined): User | null => {
-  if (!prev) return null
-  return {
-    ...prev,
-    companies: updatedUser.companies,
-  }
-})
+      const userFromAuth: User = {
+        id: fbUser.uid,
+        email: fbUser.email || '',
+        password: '',
+        name:
+          fbUser.displayName ||
+          (fbUser.email ? fbUser.email.split('@')[0] : 'User'),
       }
-    }
 
-    syncUserCompanies()
-  }, [users, currentUser?.id, currentScreen])
+      setCurrentUser(userFromAuth)
 
-  // 2. Bersihkan membership jika perusahaan dihapus (JUGA tidak menyentuh companyId/role user aktif)
+      // Kalau posisi awal masih di splash/login, arahkan ke home-dashboard
+      setCurrentScreen(prev =>
+        prev === 'splash' || prev === 'login' ? 'home-dashboard' : prev,
+      )
+    })
+
+    return () => unsubscribe()
+  }, [setCurrentUser])
+
+  // 2. Sinkronisasi membership user (tidak mengubah layar utama)
   useEffect(() => {
-    if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register' || currentScreen === 'create-company') {
+    if (!currentUser) return
+    if (
+      currentScreen === 'admin-dashboard' ||
+      currentScreen === 'courier-dashboard'
+    )
       return
+    if (!users || users.length === 0) return
+
+    const updated = users.find(u => u.id === currentUser.id)
+    if (
+      updated &&
+      JSON.stringify(updated.companies) !==
+        JSON.stringify(currentUser.companies)
+    ) {
+      setCurrentUser(prev =>
+        prev ? { ...prev, companies: updated.companies } : null,
+      )
     }
+  }, [users, currentUser?.id, currentScreen, setCurrentUser])
 
-    const existingCompanyIds = (companies || []).map(c => c.id)
-    if (existingCompanyIds.length === 0) return
+  // 3. Cleanup membership ke perusahaan yang sudah dihapus
+  useEffect(() => {
+    const ids = (companies || []).map(c => c.id)
+    if (!ids.length) return
 
-    if (users && users.length > 0) {
-      const needsCleanup = users.some(u => 
-        u.companies && u.companies.some(m => !existingCompanyIds.includes(m.companyId))
+    if (users && users.length) {
+      const needsCleanup = users.some(
+        u =>
+          u.companies &&
+          u.companies.some(m => !ids.includes(m.companyId)),
       )
 
       if (needsCleanup) {
-        setUsers((prevUsers) => 
-          (prevUsers || []).map(u => ({
+        setUsers(prev =>
+          (prev || []).map(u => ({
             ...u,
-            companies: (u.companies || []).filter(m => existingCompanyIds.includes(m.companyId)),
-          }))
+            companies: (u.companies || []).filter(m =>
+              ids.includes(m.companyId),
+            ),
+          })),
         )
       }
     }
 
-    if (currentUser && currentUser.companies && currentUser.companies.length > 0) {
-      const hasInvalidCompanies = currentUser.companies.some(
-        m => !existingCompanyIds.includes(m.companyId)
+    if (currentUser && currentUser.companies && currentUser.companies.length) {
+      const invalid = currentUser.companies.some(
+        m => !ids.includes(m.companyId),
       )
-
-      if (hasInvalidCompanies) {
-        setCurrentUser((prev) => {
+      if (invalid) {
+        setCurrentUser(prev => {
           if (!prev) return null
           return {
             ...prev,
-            companies: prev.companies?.filter(m => existingCompanyIds.includes(m.companyId)) || []
+            companies:
+              prev.companies?.filter(m => ids.includes(m.companyId)) || [],
           }
         })
       }
     }
-  }, [companies, currentScreen, currentUser])
+  }, [companies, users, currentUser, setUsers, setCurrentUser])
 
-  // 3. Auto-redirect dasar: login -> home, splash -> login
-  useEffect(() => {
-    console.log('App useEffect triggered', { 
-      currentScreen, 
-      currentUser: currentUser?.email, 
-      companyId: currentUser?.companyId, 
-      role: currentUser?.role,
-    })
+  // 4. Sign Out: Firebase + bersihkan KV + ke LOGIN (bukan splash)
+  const handleLogout = async () => {
+    console.log('=== handleLogout called ===')
+    try {
+      await signOut(auth)
+    } catch (e) {
+      console.error('Error while signing out from Firebase:', e)
+    } finally {
+      try {
+        await window.spark.kv.set('current-user', null)
+      } catch (e) {
+        console.warn('Failed to clear KV current-user:', e)
+      }
 
-    if (currentUser && (currentScreen === 'login' || currentScreen === 'register' || currentScreen === 'splash')) {
-      console.log('User logged in, redirecting to home-dashboard')
-      setCurrentScreen('home-dashboard')
-      return
+      setCurrentUser(null)
+      setCurrentScreen('login') // setelah sign out → login page
     }
-
-    if (!currentUser && currentScreen === 'splash') {
-      setCurrentScreen('login')
-    }
-  }, [currentScreen, currentUser?.email])
-
-  const handleLogout = () => {
-    setCurrentUser(null)
-    setCurrentScreen('splash')
   }
 
-  // 4. Navigasi dari HomeDashboard
   const handleNavigateFromHome = async (
-    screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard'
+    screen:
+      | 'home'
+      | 'companies'
+      | 'track-package'
+      | 'create-company'
+      | 'join-company'
+      | 'customer-mode'
+      | 'admin-dashboard'
+      | 'courier-dashboard',
   ) => {
-    console.log('=== handleNavigateFromHome called ===')
-    console.log('Target screen:', screen)
-    console.log('Current screen:', currentScreen)
-    
+    console.log('=== handleNavigateFromHome called ===', {
+      screen,
+      currentScreen,
+    })
+
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
-      console.log(`Direct navigation to ${screen}`)
-
       const freshUser = await window.spark.kv.get<User | null>('current-user')
-      console.log('Fresh user from KV before dashboard navigation:', freshUser)
+      console.log(
+        'Fresh user from KV before dashboard navigation:',
+        freshUser,
+      )
 
-      if (!freshUser) {
-        console.error('No user found in KV')
-        toast.error('Sesi pengguna tidak ditemukan')
-        return
-      }
+      if (!freshUser || !freshUser.companyId || !freshUser.role) return
 
-      if (!freshUser.companyId || !freshUser.role) {
-        console.error('User does not have companyId or role, cannot navigate to dashboard')
-        toast.error('Perusahaan atau peran belum terpilih')
-        return
-      }
-
-      // Pakai user fresh penuh (companies, companyId, role)
       setCurrentUser(freshUser)
       setCurrentScreen(screen)
       return
     }
-    
+
     if (screen === 'home') {
-      setHomeRefreshKey(prev => prev + 1)
+      setHomeRefreshKey(k => k + 1)
       setCurrentScreen('home-dashboard')
     } else if (screen === 'companies') {
       setCurrentScreen('company-list')
@@ -182,224 +202,187 @@ function App() {
     }
   }
 
-  const handleCompanyCreated = async (companyId: string) => {
-    console.log('=== handleCompanyCreated called with companyId:', companyId)
-    
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
+  const handleCompanyCreated = async (_companyId: string) => {
     const freshUser = await window.spark.kv.get<User | null>('current-user')
     const freshUsers = await window.spark.kv.get<User[]>('users')
-    const freshCompanies = await window.spark.kv.get<Company[]>('companies')
-    
-    console.log('Fresh data loaded:')
-    console.log('- User companies:', freshUser?.companies)
-    console.log('- Total companies:', freshCompanies?.length)
-    
-    if (!freshUser) {
-      toast.error('Sesi pengguna tidak ditemukan')
-      return
-    }
-    
-    setCurrentUser(freshUser)
-    
-    if (freshUsers) {
-      setUsers(freshUsers)
-    }
-    
-    if (freshCompanies) {
-      setCompanies(freshCompanies)
-    }
-    
-    console.log('Updating homeRefreshKey to trigger reload and show new company in sidebar')
-    setHomeRefreshKey(prev => prev + 1)
-    
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    console.log('Navigating back to home-dashboard to show new company')
+
+    if (freshUser) setCurrentUser(freshUser)
+    if (freshUsers) setUsers(freshUsers)
+
+    setHomeRefreshKey(k => k + 1)
     setCurrentScreen('home-dashboard')
   }
 
   const handleCompanyJoined = (companyId: string, role: UserRole) => {
-    setCurrentUser((prev) => {
-      if (!prev) return null
-      const updatedUser = { ...prev, companyId, role }
-      return updatedUser
-    })
-    setHomeRefreshKey(prev => prev + 1)
+    setCurrentUser(prev => (prev ? { ...prev, companyId, role } : null))
+    setHomeRefreshKey(k => k + 1)
     setTimeout(() => {
-      if (role === 'admin') {
-        setCurrentScreen('admin-dashboard')
-      } else if (role === 'courier') {
-        setCurrentScreen('courier-dashboard')
-      } else {
-        setCurrentScreen('home-dashboard')
-      }
+      if (role === 'admin') setCurrentScreen('admin-dashboard')
+      else if (role === 'courier') setCurrentScreen('courier-dashboard')
+      else setCurrentScreen('home-dashboard')
     }, 100)
   }
 
   const handleCompanySelected = (companyId: string) => {
-    setCurrentUser((prev) => prev ? { ...prev, companyId } : null)
-    if (currentUser?.role === 'admin') {
-      setCurrentScreen('admin-dashboard')
-    } else if (currentUser?.role === 'courier') {
+    setCurrentUser(prev => (prev ? { ...prev, companyId } : null))
+    if (currentUser?.role === 'admin') setCurrentScreen('admin-dashboard')
+    else if (currentUser?.role === 'courier')
       setCurrentScreen('courier-dashboard')
-    } else {
-      setCurrentScreen('home-dashboard')
-    }
+    else setCurrentScreen('home-dashboard')
   }
 
   const renderScreen = () => {
-  console.log('=== renderScreen called ===')
-  console.log('Current screen:', currentScreen)
-  console.log('Current user:', currentUser?.email)
-  console.log('User companyId:', currentUser?.companyId)
-  console.log('User role:', currentUser?.role)
-  
-  switch (currentScreen) {
-    case 'splash':
-      return (
-        <SplashScreen
-          onStart={() => {
-            setCurrentScreen('login')
-          }}
-        />
-      )
-    case 'login':
-      return (
-        <LoginScreen
-          onLoginSuccess={(user) => {
-            setCurrentUser(user)
-          }}
-          onForgotPassword={() => {
-            setCurrentScreen('forgot-password')
-          }}
-          onRegister={() => {
-            setCurrentScreen('register')
-          }}
-          onTrackPackage={() => {
-            setCurrentScreen('track-package')
-          }}
-        />
-      )
-    case 'register':
-      return (
-        <RegisterScreen
-          onRegisterSuccess={(user) => {
-            setCurrentUser(user)
-          }}
-          onLogin={() => {
-            setCurrentScreen('login')
-          }}
-        />
-      )
-    case 'forgot-password':
-      return (
-        <ForgotPasswordScreen
-          onBack={() => {
-            setCurrentScreen('login')
-          }}
-          onRegister={() => {
-            setCurrentScreen('register')
-          }}
-        />
-      )
-    case 'role-selection':
-      return (
-        <RoleSelectionScreen
-          user={currentUser!}
-          onRoleSelected={(role) => {
-            setCurrentUser((prev) => prev ? { ...prev, role } : null)
-          }}
-          onSignOut={handleLogout}
-        />
-      )
-    case 'company-selection':
-      return (
-        <CompanySelectionScreen
-          user={currentUser!}
-          onCompanySet={(companyId) => {
-            setCurrentUser((prev) => prev ? { ...prev, companyId } : null)
-          }}
-        />
-      )
-    case 'home-dashboard':
+    console.log('=== renderScreen called ===', {
+      currentScreen,
+      currentUser: currentUser?.email,
+    })
+
+    // Jika SUDAH login → selalu HomeDashboard
+    if (currentUser) {
       return (
         <HomeDashboard
-          user={currentUser!}
+          user={currentUser}
           onLogout={handleLogout}
           onNavigate={handleNavigateFromHome}
           refreshKey={homeRefreshKey}
         />
       )
-    case 'create-company':
-      return (
-        <CreateCompanyScreen
-          user={currentUser!}
-          onBack={() => {
-            console.log('=== Going back from create-company to home ===')
-            setHomeRefreshKey(prev => prev + 1)
-            setTimeout(() => {
+    }
+
+    // BELUM login: pilih berdasarkan currentScreen
+    switch (currentScreen) {
+      case 'splash':
+        // Splash permanen; klik Start → login
+        return <SplashScreen onStart={() => setCurrentScreen('login')} />
+
+      case 'login':
+        return (
+          <LoginScreen
+            onLoginSuccess={user => {
+              setCurrentUser(user)
               setCurrentScreen('home-dashboard')
-            }, 100)
-          }}
-          onCompanyCreated={handleCompanyCreated}
-        />
-      )
-    case 'join-company':
-      return (
-        <JoinCompanyScreen
-          user={currentUser!}
-          onBack={() => {
-            setHomeRefreshKey(prev => prev + 1)
-            setCurrentScreen('home-dashboard')
-          }}
-          onCompanyJoined={handleCompanyJoined}
-        />
-      )
-    case 'company-list':
-      return (
-        <CompanyListScreen
-          user={currentUser!}
-          onBack={() => {
-            setHomeRefreshKey(prev => prev + 1)
-            setCurrentScreen('home-dashboard')
-          }}
-          onSelectCompany={handleCompanySelected}
-        />
-      )
-    case 'admin-dashboard':
-      return (
-        <AdminDashboard
-          user={currentUser!}
-          onLogout={handleLogout}
-        />
-      )
-    case 'courier-dashboard':
-      return (
-        <CourierDashboard
-          user={currentUser!}
-          onLogout={handleLogout}
-        />
-      )
-    case 'customer-dashboard':
-      return (
-        <CustomerDashboard
-          user={currentUser!}
-          onLogout={handleLogout}
-        />
-      )
-    case 'track-package':
-      return (
-        <TrackPackageScreen
-          onBack={() => {
-            setCurrentScreen(currentUser ? 'home-dashboard' : 'login')
-          }}
-        />
-      )
-    default:
-      return null
+            }}
+            onForgotPassword={() => setCurrentScreen('forgot-password')}
+            onRegister={() => setCurrentScreen('register')}
+            onTrackPackage={() => setCurrentScreen('track-package')}
+          />
+        )
+
+      case 'register':
+        return (
+          <RegisterScreen
+            onRegisterSuccess={user => setCurrentUser(user)}
+            onLogin={() => setCurrentScreen('login')}
+          />
+        )
+
+      case 'forgot-password':
+        return (
+          <ForgotPasswordScreen
+            onBack={() => setCurrentScreen('login')}
+            onRegister={() => setCurrentScreen('register')}
+          />
+        )
+
+      case 'role-selection':
+        return (
+          <RoleSelectionScreen
+            user={currentUser!}
+            onRoleSelected={role =>
+              setCurrentUser(prev => (prev ? { ...prev, role } : null))
+            }
+            onSignOut={handleLogout}
+          />
+        )
+
+      case 'company-selection':
+        return (
+          <CompanySelectionScreen
+            user={currentUser!}
+            onCompanySet={companyId =>
+              setCurrentUser(prev =>
+                prev ? { ...prev, companyId } : null,
+              )
+            }
+          />
+        )
+
+      case 'create-company':
+        return (
+          <CreateCompanyScreen
+            user={currentUser!}
+            onBack={() => {
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+            onCompanyCreated={handleCompanyCreated}
+          />
+        )
+
+      case 'join-company':
+        return (
+          <JoinCompanyScreen
+            user={currentUser!}
+            onBack={() => {
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+            onCompanyJoined={handleCompanyJoined}
+          />
+        )
+
+      case 'company-list':
+        return (
+          <CompanyListScreen
+            user={currentUser!}
+            onBack={() => {
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+            onSelectCompany={handleCompanySelected}
+          />
+        )
+
+      case 'admin-dashboard':
+        return (
+          <AdminDashboard
+            user={currentUser!}
+            onLogout={handleLogout}
+            onBackToHome={() => {
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+          />
+        )
+
+      case 'courier-dashboard':
+        return (
+          <CourierDashboard
+            user={currentUser!}
+            onLogout={handleLogout}
+            onBackToHome={() => {
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+          />
+        )
+
+      case 'customer-dashboard':
+        return (
+          <CustomerDashboard user={currentUser!} onLogout={handleLogout} />
+        )
+
+      case 'track-package':
+        return (
+          <TrackPackageScreen
+            onBack={() => setCurrentScreen('login')}
+          />
+        )
+
+      default:
+        return null
+    }
   }
-}
 
   return (
     <>

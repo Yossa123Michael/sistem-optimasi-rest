@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -7,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { User } from '@/lib/types'
-import { verifyPassword } from '@/lib/auth'
+import { auth, googleProvider } from '@/lib/firebase'
+import { signInWithPopup } from 'firebase/auth'
 
 interface LoginScreenProps {
   onLoginSuccess: (user: User) => void
@@ -20,39 +20,47 @@ export default function LoginScreen({
   onLoginSuccess,
   onForgotPassword,
   onRegister,
-  onTrackPackage
+  onTrackPackage,
 }: LoginScreenProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [users] = useKV<User[]>('users', [])
+  const [loadingGoogle, setLoadingGoogle] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    toast.error('Login dengan email/password akan diganti. Gunakan Login dengan Google.')
+  }
 
-    if (!email && !password) {
-      toast.error('Masukan email dan password')
-      return
+  const handleGoogleLogin = async () => {
+    try {
+      setLoadingGoogle(true)
+      const result = await signInWithPopup(auth, googleProvider)
+      const fUser = result.user
+
+      if (!fUser.email) {
+        toast.error('Akun Google tidak memiliki email.')
+        return
+      }
+
+      const user: User = {
+        id: fUser.uid,
+        email: fUser.email,
+        password: '',
+        name: fUser.displayName || fUser.email.split('@')[0],
+      }
+
+      toast.success('Login Google berhasil')
+      onLoginSuccess(user)
+    } catch (error: any) {
+      console.error('Error login Google:', error)
+      toast.error('Login Google gagal')
+    } finally {
+      setLoadingGoogle(false)
     }
+  }
 
-    if (!email) {
-      toast.error('Masukan email')
-      return
-    }
-
-    if (!password) {
-      toast.error('Masukan password')
-      return
-    }
-
-    const user = users?.find(u => u.email === email)
-
-    if (!user || !verifyPassword(password, user.password)) {
-      toast.error('Email atau password salah')
-      return
-    }
-
-    toast.success('Login berhasil')
-    onLoginSuccess(user)
+  const handlePhoneClick = () => {
+    toast.info('Segera hadir')
   }
 
   return (
@@ -75,10 +83,10 @@ export default function LoginScreen({
                 type="email"
                 placeholder="your@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -86,14 +94,36 @@ export default function LoginScreen({
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
               />
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Login
+            <Button type="submit" className="w-full" size="lg" variant="outline">
+              Login (lama) – akan diganti
             </Button>
           </form>
+
+          <div className="mt-4 space-y-2">
+            <Button
+              type="button"
+              className="w-full"
+              size="lg"
+              onClick={handleGoogleLogin}
+              disabled={loadingGoogle}
+            >
+              {loadingGoogle ? 'Sedang masuk...' : 'Login dengan Google'}
+            </Button>
+
+            <Button
+              type="button"
+              className="w-full"
+              size="lg"
+              variant="outline"
+              onClick={handlePhoneClick}
+            >
+              Login dengan Nomor HP (Segera Hadir)
+            </Button>
+          </div>
 
           <div className="mt-6 flex flex-col gap-3 text-center text-sm">
             <button
@@ -102,7 +132,7 @@ export default function LoginScreen({
             >
               Lupa Password?
             </button>
-            
+
             <div className="flex items-center justify-center gap-2">
               <span className="text-muted-foreground">Belum punya akun?</span>
               <button
