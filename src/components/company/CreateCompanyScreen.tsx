@@ -48,17 +48,22 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
     console.log('New membership:', newMembership)
 
     try {
+      // Step 1: Get all existing data
       const existingCompanies = await window.spark.kv.get<Company[]>('companies') || []
-      const updatedCompanies = [...existingCompanies, newCompany]
-      await window.spark.kv.set('companies', updatedCompanies)
-      console.log('Companies saved to KV:', updatedCompanies.length)
-
       const existingCurrentUser = await window.spark.kv.get<User | null>('current-user')
+      const existingUsers = await window.spark.kv.get<User[]>('users') || []
+      
       if (!existingCurrentUser) {
         toast.error('Sesi pengguna tidak ditemukan')
         return
       }
       
+      // Step 2: Save company first
+      const updatedCompanies = [...existingCompanies, newCompany]
+      await window.spark.kv.set('companies', updatedCompanies)
+      console.log('Companies saved to KV:', updatedCompanies.length)
+
+      // Step 3: Update current user with membership
       const updatedCurrentUser = {
         ...existingCurrentUser,
         companies: [...(existingCurrentUser.companies || []), newMembership]
@@ -66,7 +71,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       await window.spark.kv.set('current-user', updatedCurrentUser)
       console.log('Current user updated in KV with companies:', updatedCurrentUser.companies)
 
-      const existingUsers = await window.spark.kv.get<User[]>('users') || []
+      // Step 4: Update users array
       const updatedUsers = existingUsers.map((u) => {
         if (u.id === user.id) {
           return { 
@@ -79,21 +84,22 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       await window.spark.kv.set('users', updatedUsers)
       console.log('Users array updated in KV')
 
+      // Step 5: Update local state with useKV setters
       setCompanies(updatedCompanies)
       setCurrentUser(updatedCurrentUser)
       setUsers(updatedUsers)
 
-      await new Promise(resolve => setTimeout(resolve, 200))
+      // Step 6: Wait and verify everything was saved
+      await new Promise(resolve => setTimeout(resolve, 300))
 
       const verifyCompanies = await window.spark.kv.get<Company[]>('companies')
       const verifyCurrentUser = await window.spark.kv.get<User | null>('current-user')
-      const verifyUsers = await window.spark.kv.get<User[]>('users')
       
       console.log('=== POST-CREATION VERIFICATION ===')
-      console.log('Verified companies in KV:', verifyCompanies)
-      console.log('Verified current user in KV:', verifyCurrentUser)
-      console.log('Current user companies:', verifyCurrentUser?.companies)
-      console.log('User in users array:', verifyUsers?.find(u => u.id === user.id))
+      console.log('Verified companies in KV:', verifyCompanies?.length, 'companies')
+      console.log('Company IDs:', verifyCompanies?.map(c => c.id))
+      console.log('Verified current user memberships:', verifyCurrentUser?.companies?.length)
+      console.log('Membership IDs:', verifyCurrentUser?.companies?.map(m => m.companyId))
       
       const companyExists = verifyCompanies?.some(c => c.id === newCompany.id)
       const userHasMembership = verifyCurrentUser?.companies?.some(m => m.companyId === newCompany.id)
@@ -108,7 +114,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
       }
 
       toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
-      console.log('Calling onCompanyCreated with ID:', newCompany.id)
+      console.log('=== CALLING onCompanyCreated with ID:', newCompany.id, '===')
       onCompanyCreated(newCompany.id)
     } catch (error) {
       console.error('Error creating company:', error)

@@ -37,6 +37,11 @@ export default function HomeDashboard({
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<User>(user)
 
+  // Update currentUser when user prop changes
+  useEffect(() => {
+    setCurrentUser(user)
+  }, [user])
+
   // 1. Load companies dan current user dari KV setiap refreshKey berubah
   useEffect(() => {
     const loadData = async () => {
@@ -45,6 +50,9 @@ export default function HomeDashboard({
         const storedCompanies =
           (await window.spark.kv.get<Company[]>('companies')) || []
         const storedUser = await window.spark.kv.get<User>('current-user')
+        
+        console.log('HomeDashboard loadData - Companies:', storedCompanies?.length)
+        console.log('HomeDashboard loadData - User memberships:', storedUser?.companies?.length)
         
         setCompanies(storedCompanies)
         if (storedUser) {
@@ -76,6 +84,10 @@ export default function HomeDashboard({
     const validMemberships = memberships.filter(m =>
       companiesById.has(m.companyId),
     )
+
+    console.log('HomeDashboard useMemo - Current user memberships:', memberships.length)
+    console.log('HomeDashboard useMemo - Available companies:', companies?.length)
+    console.log('HomeDashboard useMemo - Valid memberships to show:', validMemberships.length)
 
     return {
       activeUserMemberships: validMemberships,
@@ -153,6 +165,22 @@ export default function HomeDashboard({
     onNavigate('courier-dashboard')
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Memuat dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  console.log('=== HomeDashboard RENDER ===')
+  console.log('Current user memberships:', currentUser.companies?.length)
+  console.log('Companies available:', companies?.length)
+  console.log('Active memberships to display:', activeUserMemberships.length)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50">
       <div className="flex h-screen">
@@ -182,21 +210,25 @@ export default function HomeDashboard({
             </button>
 
             {/* Company List - Tampilkan semua perusahaan user */}
-            {activeUserMemberships.map(membership => {
-              const company = (companies || []).find(c => c.id === membership.companyId)
-              if (!company) return null
+            {(() => {
+              console.log('Rendering company sidebar - memberships:', activeUserMemberships.length)
+              return activeUserMemberships.map(membership => {
+                const company = (companies || []).find(c => c.id === membership.companyId)
+                console.log('Membership:', membership.companyId, 'Company found:', company?.name)
+                if (!company) return null
 
-              return (
-                <button
-                  key={company.id}
-                  onClick={() => handleCompanyClick(company.id, membership.role)}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
-                >
-                  <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                  <span className="truncate font-medium">{company.name}</span>
-                </button>
-              )
-            })}
+                return (
+                  <button
+                    key={company.id}
+                    onClick={() => handleCompanyClick(company.id, membership.role)}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
+                  >
+                    <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                    <span className="truncate font-medium">{company.name}</span>
+                  </button>
+                )
+              })
+            })()}
 
             <button
               onClick={handleTrackPackage}

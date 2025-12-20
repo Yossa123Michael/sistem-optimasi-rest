@@ -197,8 +197,17 @@ function App() {
   }
 
   const handleCompanyCreated = async (companyId: string) => {
+    console.log('=== handleCompanyCreated called with companyId:', companyId)
+    
+    // Wait a bit to ensure KV is fully written
+    await new Promise(resolve => setTimeout(resolve, 150))
+    
     const freshUser = await window.spark.kv.get<User | null>('current-user')
     const freshUsers = await window.spark.kv.get<User[]>('users')
+    const freshCompanies = await window.spark.kv.get<Company[]>('companies')
+
+    console.log('handleCompanyCreated - Fresh user memberships:', freshUser?.companies?.length)
+    console.log('handleCompanyCreated - Fresh companies count:', freshCompanies?.length)
 
     if (freshUser) {
       const membership = freshUser.companies?.find(m => m.companyId === companyId)
@@ -208,6 +217,7 @@ function App() {
         await window.spark.kv.set('current-user', userWithCompany)
         setCurrentUser(userWithCompany)
         
+        console.log('handleCompanyCreated - Navigating to admin-dashboard')
         setCurrentScreen('admin-dashboard')
         return
       }
@@ -217,8 +227,7 @@ function App() {
     
     if (freshUsers) setUsers(freshUsers)
 
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
+    console.log('handleCompanyCreated - Incrementing refreshKey and going to home-dashboard')
     setHomeRefreshKey(k => k + 1)
     setCurrentScreen('home-dashboard')
   }
