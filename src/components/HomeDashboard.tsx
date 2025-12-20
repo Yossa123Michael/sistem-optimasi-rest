@@ -33,18 +33,23 @@ export default function HomeDashboard({
   onNavigate,
   refreshKey,
 }: HomeDashboardProps) {
-  // Hanya simpan companies di KV; user dari props App.tsx
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
   const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<User>(user)
 
-  // 1. Load companies dari KV setiap refreshKey berubah
+  // 1. Load companies dan current user dari KV setiap refreshKey berubah
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
         const storedCompanies =
           (await window.spark.kv.get<Company[]>('companies')) || []
+        const storedUser = await window.spark.kv.get<User>('current-user')
+        
         setCompanies(storedCompanies)
+        if (storedUser) {
+          setCurrentUser(storedUser)
+        }
       } catch (error) {
         console.error('Error loading data in HomeDashboard:', error)
         toast.error('Gagal memuat data dashboard')
@@ -62,7 +67,7 @@ export default function HomeDashboard({
     activeUserHasMemberships,
     userCompaniesFound,
   } = useMemo(() => {
-    const memberships = (user.companies || []) as UserCompanyMembership[]
+    const memberships = (currentUser.companies || []) as UserCompanyMembership[]
     const hasMemberships = memberships.length > 0
 
     const companiesById = new Map<string, Company>()
@@ -77,7 +82,7 @@ export default function HomeDashboard({
       activeUserHasMemberships: hasMemberships,
       userCompaniesFound: validMemberships.length,
     }
-  }, [companies, user.companies])
+  }, [companies, currentUser.companies])
 
   const handleCreateCompany = () => {
     onNavigate('create-company')
@@ -156,12 +161,12 @@ export default function HomeDashboard({
           <div className="p-6 border-b border-slate-200">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-semibold">
-                {user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
+                {currentUser.name?.[0]?.toUpperCase() || currentUser.email[0].toUpperCase()}
               </div>
               <div>
                 <div className="text-sm text-slate-500">Akun</div>
                 <div className="font-semibold text-slate-900">
-                  {user.name || user.email}
+                  {currentUser.name || currentUser.email}
                 </div>
               </div>
             </div>
@@ -177,7 +182,7 @@ export default function HomeDashboard({
             </button>
 
             {/* Company List - Tampilkan semua perusahaan user */}
-            {(companies || []).length > 0 && activeUserMemberships.map(membership => {
+            {activeUserMemberships.map(membership => {
               const company = (companies || []).find(c => c.id === membership.companyId)
               if (!company) return null
 
@@ -220,7 +225,7 @@ export default function HomeDashboard({
               <p className="text-sm text-slate-500 mb-1">
                 Halo,{' '}
                 <span className="font-semibold text-slate-800">
-                  {user.name || user.email}
+                  {currentUser.name || currentUser.email}
                 </span>
               </p>
               <h1 className="text-3xl font-bold text-slate-900 mb-2">
