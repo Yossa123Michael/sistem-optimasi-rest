@@ -33,16 +33,14 @@ export default function HomeDashboard({
   onNavigate,
   refreshKey,
 }: HomeDashboardProps) {
-  const [companies, setCompanies] = useKV<Company[]>('companies', [])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<User>(user)
 
-  // Update currentUser when user prop changes
   useEffect(() => {
     setCurrentUser(user)
   }, [user])
 
-  // 1. Load companies dan current user dari KV setiap refreshKey berubah
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -67,7 +65,7 @@ export default function HomeDashboard({
     }
 
     loadData()
-  }, [refreshKey, setCompanies])
+  }, [refreshKey])
 
   // 2. Hitung membership user terhadap companies
   const {
@@ -121,25 +119,23 @@ export default function HomeDashboard({
         return
       }
 
-      const currentUser = await window.spark.kv.get<User>('current-user')
+      const currentUserFromKV = await window.spark.kv.get<User>('current-user')
       
-      if (!currentUser) {
+      if (!currentUserFromKV) {
         toast.error('User tidak ditemukan')
         return
       }
 
-      const updatedUser = { ...currentUser, companyId, role }
+      const updatedUser = { ...currentUserFromKV, companyId, role }
       await window.spark.kv.set('current-user', updatedUser)
 
       const allUsers = (await window.spark.kv.get<User[]>('users')) || []
       const updatedUsers = allUsers.map(u =>
-        u.id === currentUser.id ? updatedUser : u
+        u.id === currentUserFromKV.id ? updatedUser : u
       )
       await window.spark.kv.set('users', updatedUsers)
 
       const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
-      
-      await new Promise(resolve => setTimeout(resolve, 50))
       
       onNavigate(targetScreen)
       

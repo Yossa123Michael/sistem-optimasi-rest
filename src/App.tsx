@@ -43,7 +43,6 @@ function App() {
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
-  const [isNavigating, setIsNavigating] = useState(false)
 
   // 1. Dengarkan Firebase Auth hanya untuk kasus reload otomatis
   useEffect(() => {
@@ -77,7 +76,9 @@ function App() {
     if (!currentUser) return
     if (
       currentScreen === 'admin-dashboard' ||
-      currentScreen === 'courier-dashboard'
+      currentScreen === 'courier-dashboard' ||
+      currentScreen === 'create-company' ||
+      currentScreen === 'join-company'
     )
       return
     if (!users || users.length === 0) return
@@ -165,18 +166,15 @@ function App() {
       | 'courier-dashboard',
   ) => {
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
-      setIsNavigating(true)
       const freshUser = await window.spark.kv.get<User | null>('current-user')
 
       if (!freshUser || !freshUser.companyId || !freshUser.role) {
         toast.error('Data perusahaan tidak lengkap')
-        setIsNavigating(false)
         return
       }
 
       setCurrentUser(freshUser)
       setCurrentScreen(screen)
-      setTimeout(() => setIsNavigating(false), 500)
       return
     }
 
@@ -199,8 +197,7 @@ function App() {
   const handleCompanyCreated = async (companyId: string) => {
     console.log('=== handleCompanyCreated called with companyId:', companyId)
     
-    // Wait a bit to ensure KV is fully written
-    await new Promise(resolve => setTimeout(resolve, 150))
+    await new Promise(resolve => setTimeout(resolve, 200))
     
     const freshUser = await window.spark.kv.get<User | null>('current-user')
     const freshUsers = await window.spark.kv.get<User[]>('users')
@@ -210,6 +207,8 @@ function App() {
     console.log('handleCompanyCreated - Fresh companies count:', freshCompanies?.length)
 
     if (freshUser) {
+      setCurrentUser(freshUser)
+      
       const membership = freshUser.companies?.find(m => m.companyId === companyId)
       
       if (membership && membership.role === 'admin') {
@@ -221,8 +220,6 @@ function App() {
         setCurrentScreen('admin-dashboard')
         return
       }
-      
-      setCurrentUser(freshUser)
     }
     
     if (freshUsers) setUsers(freshUsers)
@@ -323,12 +320,6 @@ function App() {
 
         case 'home-dashboard':
         default:
-          // Only render HomeDashboard if not currently navigating
-          if (isNavigating) {
-            return <div className="min-h-screen bg-background flex items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          }
           return (
             <HomeDashboard
               user={currentUser}
