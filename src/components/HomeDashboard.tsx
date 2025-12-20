@@ -45,11 +45,6 @@ export default function HomeDashboard({
         const storedCompanies =
           (await window.spark.kv.get<Company[]>('companies')) || []
         setCompanies(storedCompanies)
-
-        console.log('Loaded companies from KV:', storedCompanies.length)
-        console.log('Companies:', storedCompanies)
-        console.log('Loaded current user from props:', user.email)
-        console.log('Current user companies:', user.companies)
       } catch (error) {
         console.error('Error loading data in HomeDashboard:', error)
         toast.error('Gagal memuat data dashboard')
@@ -59,7 +54,7 @@ export default function HomeDashboard({
     }
 
     loadData()
-  }, [refreshKey, setCompanies, user.email, user.companies])
+  }, [refreshKey, setCompanies])
 
   // 2. Hitung membership user terhadap companies
   const {
@@ -77,20 +72,12 @@ export default function HomeDashboard({
       companiesById.has(m.companyId),
     )
 
-    console.log('HomeDashboard render:', {
-      companiesLoaded: !loading,
-      activeUserEmail: user.email,
-      activeUserHasMemberships: hasMemberships ? 1 : 0,
-      activeUserMemberships: memberships,
-      userCompaniesFound: validMemberships.length,
-    })
-
     return {
       activeUserMemberships: validMemberships,
       activeUserHasMemberships: hasMemberships,
       userCompaniesFound: validMemberships.length,
     }
-  }, [companies, user.companies, user.email, loading])
+  }, [companies, user.companies])
 
   const handleCreateCompany = () => {
     onNavigate('create-company')
@@ -109,10 +96,6 @@ export default function HomeDashboard({
   }
 
   const handleCompanyClick = async (companyId: string, role: 'admin' | 'courier' | 'customer') => {
-    console.log('=== Handling company click ===')
-    console.log('Company ID:', companyId)
-    console.log('Role:', role)
-
     try {
       const company = (companies || []).find(c => c.id === companyId)
       
@@ -121,8 +104,6 @@ export default function HomeDashboard({
         return
       }
 
-      console.log('Company found:', company.name)
-
       const currentUser = await window.spark.kv.get<User>('current-user')
       
       if (!currentUser) {
@@ -130,29 +111,17 @@ export default function HomeDashboard({
         return
       }
 
-      console.log('Current user:', currentUser.email)
-
       const updatedUser = { ...currentUser, companyId, role }
       await window.spark.kv.set('current-user', updatedUser)
-      console.log('User saved to KV with companyId:', companyId, 'and role:', role)
 
       const allUsers = (await window.spark.kv.get<User[]>('users')) || []
       const updatedUsers = allUsers.map(u =>
         u.id === currentUser.id ? updatedUser : u
       )
       await window.spark.kv.set('users', updatedUsers)
-      console.log('Users array updated in KV')
 
-      const verifyUser = await window.spark.kv.get<User>('current-user')
-      console.log('Verification - User in KV has companyId:', verifyUser?.companyId, 'and role:', verifyUser?.role)
-
-      console.log('=== Navigating to dashboard ===')
       const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
-      console.log('Target screen:', targetScreen)
-      console.log('Calling onNavigate...')
-      
       onNavigate(targetScreen)
-      console.log('onNavigate called successfully')
       
     } catch (error) {
       console.error('Error handling company click:', error)
@@ -212,15 +181,7 @@ export default function HomeDashboard({
               return (
                 <button
                   key={company.id}
-                  onClick={() => {
-                    console.log('Company button clicked:', {
-                      name: company.name,
-                      id: company.id,
-                      role: membership.role,
-                      allCompanies: companies,
-                    })
-                    handleCompanyClick(company.id, membership.role)
-                  }}
+                  onClick={() => handleCompanyClick(company.id, membership.role)}
                   className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
                 >
                   <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />

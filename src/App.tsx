@@ -16,6 +16,7 @@ import CourierDashboard from './components/courier/CourierDashboard'
 import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
 import { Toaster } from './components/ui/sonner'
+import { toast } from 'sonner'
 
 import { auth } from './lib/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
@@ -42,15 +43,11 @@ function App() {
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
-  const [isNavigating, setIsNavigating] = useState(false)
 
   // 1. Dengarkan Firebase Auth hanya untuk kasus reload otomatis
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, fbUser => {
-      console.log('onAuthStateChanged:', fbUser?.email)
-
       if (!fbUser) {
-        // Tidak ada sesi Firebase → kosongkan user
         setCurrentUser(null)
         return
       }
@@ -66,7 +63,6 @@ function App() {
 
       setCurrentUser(userFromAuth)
 
-      // Kalau posisi awal masih di splash/login, arahkan ke home-dashboard
       setCurrentScreen(prev =>
         prev === 'splash' || prev === 'login' ? 'home-dashboard' : prev,
       )
@@ -140,7 +136,6 @@ function App() {
 
   // 4. Sign Out: Firebase + bersihkan KV + ke LOGIN (bukan splash)
   const handleLogout = async () => {
-    console.log('=== handleLogout called ===')
     try {
       await signOut(auth)
     } catch (e) {
@@ -153,7 +148,7 @@ function App() {
       }
 
       setCurrentUser(null)
-      setCurrentScreen('login') // setelah sign out → login page
+      setCurrentScreen('login')
     }
   }
 
@@ -168,37 +163,16 @@ function App() {
       | 'admin-dashboard'
       | 'courier-dashboard',
   ) => {
-    console.log('=== handleNavigateFromHome called ===')
-    console.log('Target screen:', screen)
-    console.log('Current screen:', currentScreen)
-
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
-      console.log('Direct navigation to', screen)
-      
-      setIsNavigating(true)
-      
       const freshUser = await window.spark.kv.get<User | null>('current-user')
-      console.log('Loaded fresh user from KV before navigation:', freshUser?.email, 'companyId:', freshUser?.companyId, 'role:', freshUser?.role)
 
-      if (!freshUser) {
-        console.error('No user found in KV')
-        setIsNavigating(false)
+      if (!freshUser || !freshUser.companyId || !freshUser.role) {
+        toast.error('Data perusahaan tidak lengkap')
         return
       }
 
-      if (!freshUser.companyId || !freshUser.role) {
-        console.error('User does not have companyId or role')
-        setIsNavigating(false)
-        return
-      }
-
-      await setCurrentUser(freshUser)
-      
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
+      setCurrentUser(freshUser)
       setCurrentScreen(screen)
-      setIsNavigating(false)
-      console.log('Screen set to:', screen)
       return
     }
 
@@ -248,26 +222,7 @@ function App() {
   }
 
   const renderScreen = () => {
-    console.log('=== renderScreen called ===')
-    console.log('Current screen:', currentScreen)
-    console.log('Current user:', currentUser?.email)
-    console.log('User companyId:', currentUser?.companyId)
-    console.log('User role:', currentUser?.role)
-    console.log('Is navigating:', isNavigating)
-
-    if (isNavigating) {
-      return (
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-            <p className="text-slate-600">Membuka dashboard...</p>
-          </div>
-        </div>
-      )
-    }
-
     if (currentUser && currentScreen === 'admin-dashboard') {
-      console.log('Rendering AdminDashboard')
       return (
         <AdminDashboard
           user={currentUser}
@@ -281,7 +236,6 @@ function App() {
     }
 
     if (currentUser && currentScreen === 'courier-dashboard') {
-      console.log('Rendering CourierDashboard')
       return (
         <CourierDashboard
           user={currentUser}
@@ -294,7 +248,6 @@ function App() {
       )
     }
 
-    // Jika SUDAH login dan screen lain → HomeDashboard atau screen spesifik
     if (currentUser) {
       // Handle screen lainnya yang butuh login
       switch (currentScreen) {
