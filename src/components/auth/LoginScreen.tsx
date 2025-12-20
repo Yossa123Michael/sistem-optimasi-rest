@@ -63,6 +63,17 @@ export default function LoginScreen({
     toast.info('Segera hadir')
   }
 
+  const handleGuestLogin = () => {
+    const guestUser: User = {
+      id: 'guest-' + Date.now(),
+      email: 'guest@routeoptima.com',
+      password: '',
+      name: 'Guest User',
+    }
+    toast.success('Masuk sebagai tamu')
+    onLoginSuccess(guestUser)
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary/50 p-4">
       <Card className="w-full max-w-md shadow-xl">
@@ -122,6 +133,16 @@ export default function LoginScreen({
               onClick={handlePhoneClick}
             >
               Login dengan Nomor HP (Segera Hadir)
+            </Button>
+
+            <Button
+              type="button"
+              className="w-full"
+              size="lg"
+              variant="secondary"
+              onClick={handleGuestLogin}
+            >
+              Masuk sebagai Tamu (Testing)
             </Button>
           </div>
 
