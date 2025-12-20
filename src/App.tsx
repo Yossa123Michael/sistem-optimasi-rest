@@ -201,8 +201,6 @@ function App() {
     const freshUsers = await window.spark.kv.get<User[]>('users')
 
     if (freshUser) {
-      setCurrentUser(freshUser)
-      
       const membership = freshUser.companies?.find(m => m.companyId === companyId)
       
       if (membership && membership.role === 'admin') {
@@ -213,10 +211,14 @@ function App() {
         setCurrentScreen('admin-dashboard')
         return
       }
+      
+      setCurrentUser(freshUser)
     }
     
     if (freshUsers) setUsers(freshUsers)
 
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
     setHomeRefreshKey(k => k + 1)
     setCurrentScreen('home-dashboard')
   }
