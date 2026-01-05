@@ -155,79 +155,66 @@ function App() {
   }
 
   const handleNavigateFromHome = async (
-    screen:
-      | 'home'
-      | 'companies'
-      | 'track-package'
-      | 'create-company'
-      | 'join-company'
-      | 'customer-mode'
-      | 'admin-dashboard'
-      | 'courier-dashboard',
-  ) => {
-    if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
-      const freshUser = await window.spark.kv.get<User | null>('current-user')
+  screen:
+    | 'home'
+    | 'companies'
+    | 'track-package'
+    | 'create-company'
+    | 'join-company'
+    | 'customer-mode'
+    | 'admin-dashboard'
+    | 'courier-dashboard',
+) => {
+  console.log('handleNavigateFromHome called with:', screen)
+  console.log('currentUser before navigate:', currentUser)
 
-      if (!freshUser || !freshUser.companyId || !freshUser.role) {
-        toast.error('Data perusahaan tidak lengkap')
-        return
-      }
-
-      setCurrentUser(freshUser)
-      setCurrentScreen(screen)
-      return
-    }
-
-    if (screen === 'home') {
-      setHomeRefreshKey(k => k + 1)
-      setCurrentScreen('home-dashboard')
-    } else if (screen === 'companies') {
-      setCurrentScreen('company-list')
-    } else if (screen === 'track-package') {
-      setCurrentScreen('track-package')
-    } else if (screen === 'create-company') {
-      setCurrentScreen('create-company')
-    } else if (screen === 'join-company') {
-      setCurrentScreen('join-company')
-    } else if (screen === 'customer-mode') {
-      setCurrentScreen('customer-dashboard')
-    }
+  if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
+    // DI APP KITA TIDAK CEK companyId/role LAGI,
+    // karena sudah di-set di HomeDashboard.handleCompanyClick
+    setCurrentScreen(screen)
+    return
   }
 
-  const handleCompanyCreated = async (companyId: string) => {
-    console.log('=== handleCompanyCreated called with companyId:', companyId)
-    
-    await new Promise(resolve => setTimeout(resolve, 200))
-    
-    const freshUser = await window.spark.kv.get<User | null>('current-user')
-    const freshUsers = await window.spark.kv.get<User[]>('users')
-    const freshCompanies = await window.spark.kv.get<Company[]>('companies')
-
-    console.log('handleCompanyCreated - Fresh user memberships:', freshUser?.companies?.length)
-    console.log('handleCompanyCreated - Fresh companies count:', freshCompanies?.length)
-
-    if (freshUser) {
-      setCurrentUser(freshUser)
-      
-      const membership = freshUser.companies?.find(m => m.companyId === companyId)
-      
-      if (membership && membership.role === 'admin') {
-        const userWithCompany = { ...freshUser, companyId, role: 'admin' as const }
-        await window.spark.kv.set('current-user', userWithCompany)
-        setCurrentUser(userWithCompany)
-        
-        console.log('handleCompanyCreated - Navigating to admin-dashboard')
-        setCurrentScreen('admin-dashboard')
-        return
-      }
-    }
-    
-    if (freshUsers) setUsers(freshUsers)
-
-    console.log('handleCompanyCreated - Incrementing refreshKey and going to home-dashboard')
+  if (screen === 'home') {
     setHomeRefreshKey(k => k + 1)
     setCurrentScreen('home-dashboard')
+  } else if (screen === 'companies') {
+    setCurrentScreen('company-list')
+  } else if (screen === 'track-package') {
+    setCurrentScreen('track-package')
+  } else if (screen === 'create-company') {
+    setCurrentScreen('create-company')
+  } else if (screen === 'join-company') {
+    setCurrentScreen('join-company')
+  } else if (screen === 'customer-mode') {
+    setCurrentScreen('customer-dashboard')
   }
+}
+
+  const handleCompanyCreated = async (companyId: string) => {
+  console.log('=== handleCompanyCreated called with companyId:', companyId)
+
+  if (!currentUser) {
+    console.warn('handleCompanyCreated: no currentUser, skip membership update')
+  } else {
+    const newMembership = {
+      companyId,
+      role: 'admin' as const,
+      joinedAt: new Date().toISOString(),
+    }
+
+    const updatedUser: User = {
+      ...currentUser,
+      companies: [...(currentUser.companies || []), newMembership],
+    }
+
+    console.log('Updated user memberships:', updatedUser.companies)
+    setCurrentUser(updatedUser)
+  }
+
+  setHomeRefreshKey(k => k + 1)
+  setCurrentScreen('home-dashboard')
+}
 
   const handleCompanyJoined = (companyId: string, role: UserRole) => {
     setCurrentUser(prev => (prev ? { ...prev, companyId, role } : null))
@@ -248,31 +235,21 @@ function App() {
   }
 
   const renderScreen = () => {
-    if (currentUser && currentScreen === 'admin-dashboard') {
-      return (
-        <AdminDashboard
-          user={currentUser}
-          onLogout={handleLogout}
-          onBackToHome={() => {
-            setHomeRefreshKey(k => k + 1)
-            setCurrentScreen('home-dashboard')
-          }}
-        />
-      )
-    }
 
-    if (currentUser && currentScreen === 'courier-dashboard') {
-      return (
-        <CourierDashboard
-          user={currentUser}
-          onLogout={handleLogout}
-          onBackToHome={() => {
-            setHomeRefreshKey(k => k + 1)
-            setCurrentScreen('home-dashboard')
-          }}
-        />
-      )
-    }
+    if (currentUser && currentScreen === 'admin-dashboard') {
+  return (
+    <AdminDashboard
+      user={currentUser}
+      companyId={currentUser.companyId!}
+      role={currentUser.role || 'admin'}
+      onLogout={handleLogout}
+      onBackToHome={() => {
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+    />
+  )
+}
 
     if (currentUser) {
       // Handle screen lainnya yang butuh login
@@ -326,6 +303,7 @@ function App() {
               onLogout={handleLogout}
               onNavigate={handleNavigateFromHome}
               refreshKey={homeRefreshKey}
+              onUserUpdate={setCurrentUser}   // ⬅️ tambahkan ini
             />
           )
       }

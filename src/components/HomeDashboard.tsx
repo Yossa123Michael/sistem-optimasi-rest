@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from 'react'
-import { Company, User, UserCompanyMembership } from '@/lib/types'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import {
   Building2,
   PackageSearch,
@@ -9,6 +9,7 @@ import {
   Users,
   ArrowRight,
 } from 'lucide-react'
+import { User, Company, UserCompanyMembership } from '@/lib/types'
 
 interface HomeDashboardProps {
   user: User
@@ -25,6 +26,7 @@ interface HomeDashboardProps {
       | 'courier-dashboard',
   ) => void
   refreshKey: number
+  onUserUpdate?: (user: User) => void
 }
 
 export default function HomeDashboard({
@@ -32,48 +34,68 @@ export default function HomeDashboard({
   onLogout,
   onNavigate,
   refreshKey,
+  onUserUpdate,
 }: HomeDashboardProps) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<User>(user)
 
+  // Sinkronkan user lokal dengan user dari App
   useEffect(() => {
     setCurrentUser(user)
   }, [user])
 
+  // Ambil companies dari Firestore + (opsional) current-user dari KV
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true)
-        const storedCompanies =
-          (await window.spark.kv.get<Company[]>('companies')) || []
-        const storedUser = await window.spark.kv.get<User>('current-user')
-        
-        console.log('HomeDashboard loadData - Companies:', storedCompanies?.length)
-        console.log('HomeDashboard loadData - User memberships:', storedUser?.companies?.length)
-        
-        setCompanies(storedCompanies)
-        if (storedUser) {
-          setCurrentUser(storedUser)
+
+        const snap = await getDocs(collection(db, 'companies'))
+        const loadedCompanies =
+          snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Company) })) ||
+          []
+
+        console.log(
+          'HomeDashboard loadData - Companies from Firestore:',
+          loadedCompanies.length,
+        )
+
+        setCompanies(loadedCompanies)
+
+        // Opsional: coba baca current-user dari KV, tapi jangan bikin app crash
+        try {
+          // @ts-expect-error spark hanya ada di Codespaces
+          const storedUser = await window.spark?.kv?.get<User>('current-user')
+          if (storedUser) {
+            setCurrentUser(storedUser)
+            onUserUpdate?.(storedUser)
+          }
+        } catch (err) {
+          console.log(
+            'Gagal baca current-user dari KV, pakai user dari state saja',
+          )
         }
       } catch (error) {
         console.error('Error loading data in HomeDashboard:', error)
         toast.error('Gagal memuat data dashboard')
+        setCompanies([])
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [refreshKey])
+  }, [refreshKey, onUserUpdate])
 
-  // 2. Hitung membership user terhadap companies
+  // Hitung membership user
   const {
     activeUserMemberships,
     activeUserHasMemberships,
     userCompaniesFound,
   } = useMemo(() => {
-    const memberships = (currentUser.companies || []) as UserCompanyMembership[]
+    const memberships = (currentUser.companies ||
+      []) as UserCompanyMembership[]
     const hasMemberships = memberships.length > 0
 
     const companiesById = new Map<string, Company>()
@@ -83,9 +105,18 @@ export default function HomeDashboard({
       companiesById.has(m.companyId),
     )
 
-    console.log('HomeDashboard useMemo - Current user memberships:', memberships.length)
-    console.log('HomeDashboard useMemo - Available companies:', companies?.length)
-    console.log('HomeDashboard useMemo - Valid memberships to show:', validMemberships.length)
+    console.log(
+      'HomeDashboard useMemo - Current user memberships:',
+      memberships.length,
+    )
+    console.log(
+      'HomeDashboard useMemo - Available companies:',
+      companies?.length,
+    )
+    console.log(
+      'HomeDashboard useMemo - Valid memberships to show:',
+      validMemberships.length,
+    )
 
     return {
       activeUserMemberships: validMemberships,
@@ -110,35 +141,41 @@ export default function HomeDashboard({
     onNavigate('customer-mode')
   }
 
-  const handleCompanyClick = async (companyId: string, role: 'admin' | 'courier' | 'customer') => {
+  const handleCompanyClick = async (
+    companyId: string,
+    role: 'admin' | 'courier' | 'customer',
+  ) => {
     try {
       const company = (companies || []).find(c => c.id === companyId)
-      
+
       if (!company) {
         toast.error('Perusahaan tidak ditemukan')
         return
       }
 
-      const currentUserFromKV = await window.spark.kv.get<User>('current-user')
-      
-      if (!currentUserFromKV) {
+      if (!currentUser) {
         toast.error('User tidak ditemukan')
         return
       }
 
-      const updatedUser = { ...currentUserFromKV, companyId, role }
-      await window.spark.kv.set('current-user', updatedUser)
+      const updatedUser: User = {
+        ...currentUser,
+        companyId,
+        role,
+      }
 
-      const allUsers = (await window.spark.kv.get<User[]>('users')) || []
-      const updatedUsers = allUsers.map(u =>
-        u.id === currentUserFromKV.id ? updatedUser : u
-      )
-      await window.spark.kv.set('users', updatedUsers)
+      console.log('handleCompanyClick - updatedUser:', updatedUser)
+      setCurrentUser(updatedUser)
+      onUserUpdate?.(updatedUser)
 
-      const targetScreen = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
-      
+      const targetScreen =
+        role === 'admin'
+          ? 'admin-dashboard'
+          : role === 'courier'
+          ? 'courier-dashboard'
+          : 'home-dashboard'
+
       onNavigate(targetScreen)
-      
     } catch (error) {
       console.error('Error handling company click:', error)
       toast.error('Gagal membuka perusahaan')
@@ -185,7 +222,8 @@ export default function HomeDashboard({
           <div className="p-6 border-b border-slate-200">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-semibold">
-                {currentUser.name?.[0]?.toUpperCase() || currentUser.email[0].toUpperCase()}
+                {currentUser.name?.[0]?.toUpperCase() ||
+                  currentUser.email[0].toUpperCase()}
               </div>
               <div>
                 <div className="text-sm text-slate-500">Akun</div>
@@ -207,20 +245,34 @@ export default function HomeDashboard({
 
             {/* Company List - Tampilkan semua perusahaan user */}
             {(() => {
-              console.log('Rendering company sidebar - memberships:', activeUserMemberships.length)
+              console.log(
+                'Rendering company sidebar - memberships:',
+                activeUserMemberships.length,
+              )
               return activeUserMemberships.map(membership => {
-                const company = (companies || []).find(c => c.id === membership.companyId)
-                console.log('Membership:', membership.companyId, 'Company found:', company?.name)
+                const company = (companies || []).find(
+                  c => c.id === membership.companyId,
+                )
+                console.log(
+                  'Membership:',
+                  membership.companyId,
+                  'Company found:',
+                  company?.name,
+                )
                 if (!company) return null
 
                 return (
                   <button
                     key={company.id}
-                    onClick={() => handleCompanyClick(company.id, membership.role)}
+                    onClick={() =>
+                      handleCompanyClick(company.id, membership.role)
+                    }
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
                   >
                     <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                    <span className="truncate font-medium">{company.name}</span>
+                    <span className="truncate font-medium">
+                      {company.name}
+                    </span>
                   </button>
                 )
               })
@@ -252,7 +304,8 @@ export default function HomeDashboard({
             <header className="mb-10">
               <p className="text-sm text-slate-500 mb-1">
                 Halo,{' '}
-                <span className="font-semibold text-slate-800">
+                <span className="font-semibold text-slate-8
+00">
                   {user.name || user.email}
                 </span>
               </p>
@@ -284,7 +337,7 @@ export default function HomeDashboard({
                   </p>
                 </div>
                 <button
-                  onClick={() => onNavigate('create-company')}
+                  onClick={handleCreateCompany}
                   className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700"
                 >
                   Mulai Buat
@@ -326,7 +379,9 @@ export default function HomeDashboard({
                     <Truck className="h-5 w-5 text-amber-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900">Mode Customer</h3>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Mode Customer
+                    </h3>
                     <p className="text-slate-500">
                       Lacak dan kelola pesanan Anda sebagai customer.
                     </p>
