@@ -27,7 +27,8 @@ export default function InputDataView({
 }: InputDataViewProps) {
   const [step, setStep] = useState<Step>(1)
 
-  // Local editable copies
+  console.log('InputDataView render, step =', step)
+
   const [localCouriers, setLocalCouriers] = useState<Courier[]>(
     couriers.filter(c => c.companyId === company.id),
   )
@@ -54,7 +55,7 @@ export default function InputDataView({
       capacity: 40,
       active: true,
       companyId: company.id,
-      userId: '', // nanti diisi setelah owner approve sebagai kurir
+      userId: '',
     }
     setLocalCouriers(prev => [...prev, newCourier])
   }
@@ -86,12 +87,13 @@ export default function InputDataView({
   }
 
   const handleSaveCouriersAndNext = () => {
+    console.log('handleSaveCouriersAndNext called', localCouriers)
+
     if (!localCouriers.length) {
       toast.error('Tambahkan minimal satu kurir terlebih dahulu')
       return
     }
 
-    // semua capacity >= 0
     const invalid = localCouriers.some(c => c.capacity <= 0)
     if (invalid) {
       toast.error('Kapasitas semua kurir harus lebih dari 0')
@@ -100,6 +102,7 @@ export default function InputDataView({
 
     onSetCouriers(localCouriers)
     toast.success('Data kurir disimpan')
+
     setStep(2)
   }
 

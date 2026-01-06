@@ -27,6 +27,7 @@ interface HomeDashboardProps {
   ) => void
   refreshKey: number
   onUserUpdate?: (user: User) => void
+  onCompaniesLoaded?: (companies: Company[]) => void
 }
 
 export default function HomeDashboard({
@@ -35,96 +36,76 @@ export default function HomeDashboard({
   onNavigate,
   refreshKey,
   onUserUpdate,
+  onCompaniesLoaded,
 }: HomeDashboardProps) {
   const [companies, setCompanies] = useState<Company[]>([])
-  const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<User>(user)
+  const [loading, setLoading] = useState<boolean>(true)
 
-  // Sinkronkan user lokal dengan user dari App
-  useEffect(() => {
-    setCurrentUser(user)
-  }, [user])
+  // ====== LOAD DATA PERUSAHAAN DARI FIRESTORE ======
+  const loadData = async () => {
+    try {
+      setLoading(true)
 
-  // Ambil companies dari Firestore + (opsional) current-user dari KV
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true)
+      const snapshot = await getDocs(collection(db, 'companies'))
 
-        const snap = await getDocs(collection(db, 'companies'))
-        const loadedCompanies =
-          snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Company) })) ||
-          []
+      const companiesFromFirestore: Company[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Company),
+      }))
 
-        console.log(
-          'HomeDashboard loadData - Companies from Firestore:',
-          loadedCompanies.length,
-        )
+      console.log(
+        'HomeDashboard loadData - Companies from Firestore:',
+        companiesFromFirestore.length,
+      )
 
-        setCompanies(loadedCompanies)
+      setCompanies(companiesFromFirestore)
 
-        // Opsional: coba baca current-user dari KV, tapi jangan bikin app crash
-        try {
-          // @ts-expect-error spark hanya ada di Codespaces
-          const storedUser = await window.spark?.kv?.get<User>('current-user')
-          if (storedUser) {
-            setCurrentUser(storedUser)
-            onUserUpdate?.(storedUser)
-          }
-        } catch (err) {
-          console.log(
-            'Gagal baca current-user dari KV, pakai user dari state saja',
-          )
-        }
-      } catch (error) {
-        console.error('Error loading data in HomeDashboard:', error)
-        toast.error('Gagal memuat data dashboard')
-        setCompanies([])
-      } finally {
-        setLoading(false)
+      // kirim ke App supaya AdminDashboard bisa pakai
+      if (onCompaniesLoaded) {
+        onCompaniesLoaded(companiesFromFirestore)
       }
+    } catch (err) {
+      console.error('Error loading data in HomeDashboard:', err)
+      toast.error('Gagal memuat data perusahaan')
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadData()
-  }, [refreshKey, onUserUpdate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
-  // Hitung membership user
-  const {
-    activeUserMemberships,
-    activeUserHasMemberships,
-    userCompaniesFound,
-  } = useMemo(() => {
-    const memberships = (currentUser.companies ||
-      []) as UserCompanyMembership[]
-    const hasMemberships = memberships.length > 0
+  // ====== MEMBERSHIP USER & PERUSAHAAN YANG VALID ======
+  const memberships: UserCompanyMembership[] = user.companies || []
 
-    const companiesById = new Map<string, Company>()
-    ;(companies || []).forEach(c => companiesById.set(c.id, c))
-
-    const validMemberships = memberships.filter(m =>
-      companiesById.has(m.companyId),
-    )
-
+  const activeUserMemberships = useMemo(() => {
     console.log(
       'HomeDashboard useMemo - Current user memberships:',
       memberships.length,
     )
     console.log(
       'HomeDashboard useMemo - Available companies:',
-      companies?.length,
+      companies.length,
     )
+
+    const valid = memberships.filter(m =>
+      companies.some(c => c.id === m.companyId),
+    )
+
     console.log(
       'HomeDashboard useMemo - Valid memberships to show:',
-      validMemberships.length,
+      valid.length,
     )
 
-    return {
-      activeUserMemberships: validMemberships,
-      activeUserHasMemberships: hasMemberships,
-      userCompaniesFound: validMemberships.length,
-    }
-  }, [companies, currentUser.companies])
+    return valid
+  }, [memberships, companies])
 
+  const activeUserHasMemberships = activeUserMemberships.length > 0
+  const userCompaniesFound = activeUserMemberships.length
+
+  // ====== HANDLER NAVIGASI ======
   const handleCreateCompany = () => {
     onNavigate('create-company')
   }
@@ -146,26 +127,20 @@ export default function HomeDashboard({
     role: 'admin' | 'courier' | 'customer',
   ) => {
     try {
-      const company = (companies || []).find(c => c.id === companyId)
+      const company = companies.find(c => c.id === companyId)
 
       if (!company) {
         toast.error('Perusahaan tidak ditemukan')
         return
       }
 
-      if (!currentUser) {
-        toast.error('User tidak ditemukan')
-        return
-      }
-
       const updatedUser: User = {
-        ...currentUser,
+        ...user,
         companyId,
         role,
       }
 
       console.log('handleCompanyClick - updatedUser:', updatedUser)
-      setCurrentUser(updatedUser)
       onUserUpdate?.(updatedUser)
 
       const targetScreen =
@@ -210,8 +185,8 @@ export default function HomeDashboard({
   }
 
   console.log('=== HomeDashboard RENDER ===')
-  console.log('Current user memberships:', currentUser.companies?.length)
-  console.log('Companies available:', companies?.length)
+  console.log('Current user memberships:', memberships.length)
+  console.log('Companies available:', companies.length)
   console.log('Active memberships to display:', activeUserMemberships.length)
 
   return (
@@ -222,13 +197,13 @@ export default function HomeDashboard({
           <div className="p-6 border-b border-slate-200">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-semibold">
-                {currentUser.name?.[0]?.toUpperCase() ||
-                  currentUser.email[0].toUpperCase()}
+                {user.name?.[0]?.toUpperCase() ||
+                  user.email[0].toUpperCase()}
               </div>
               <div>
                 <div className="text-sm text-slate-500">Akun</div>
                 <div className="font-semibold text-slate-900">
-                  {currentUser.name || currentUser.email}
+                  {user.name || user.email}
                 </div>
               </div>
             </div>
@@ -250,7 +225,7 @@ export default function HomeDashboard({
                 activeUserMemberships.length,
               )
               return activeUserMemberships.map(membership => {
-                const company = (companies || []).find(
+                const company = companies.find(
                   c => c.id === membership.companyId,
                 )
                 console.log(
@@ -304,8 +279,7 @@ export default function HomeDashboard({
             <header className="mb-10">
               <p className="text-sm text-slate-500 mb-1">
                 Halo,{' '}
-                <span className="font-semibold text-slate-8
-00">
+                <span className="font-semibold text-slate-800">
                   {user.name || user.email}
                 </span>
               </p>
