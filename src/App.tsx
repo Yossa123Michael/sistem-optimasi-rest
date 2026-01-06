@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { User, UserRole, Company } from './lib/types'
+import { User, UserRole, Company, RouteOptimization } from './lib/types'
 import SplashScreen from './components/auth/SplashScreen'
 import LoginScreen from './components/auth/LoginScreen'
 import RegisterScreen from './components/auth/RegisterScreen'
@@ -43,6 +43,10 @@ function App() {
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
+  const [employeeRequests, setEmployeeRequests] = useState<EmployeeRequest[]>([])
+  const [couriers, setCouriers] = useState<Courier[]>([])
+  const [packages, setPackages] = useState<Package[]>([])
+  const [routes, setRoutes] = useState<RouteOptimization[]>([])
 
   // 1. Dengarkan Firebase Auth hanya untuk kasus reload otomatis
   useEffect(() => {
@@ -241,12 +245,20 @@ function App() {
     <AdminDashboard
       user={currentUser}
       companyId={currentUser.companyId!}
-      role={currentUser.role || 'admin'}
       onLogout={handleLogout}
       onBackToHome={() => {
         setHomeRefreshKey(k => k + 1)
         setCurrentScreen('home-dashboard')
       }}
+      couriers={couriers}
+      packages={packages}
+      onSetCouriers={setCouriers}
+      onSetPackages={setPackages}
+      employeeRequests={employeeRequests}
+      onUpdateRequestStatus={handleUpdateRequestStatus}
+      onApproveRequest={handleApproveRequest}
+      routes={routes}
+      onOptimizeRoutes={handleOptimizeRoutes}
     />
   )
 }
@@ -378,6 +390,99 @@ function App() {
         return null
     }
   }
+
+  const handleCreateEmployeeRequest = (
+  companyId: string,
+  requestedRole?: UserRole,
+) => {
+  if (!currentUser) return
+
+  const newReq: EmployeeRequest = {
+    id: crypto.randomUUID(), // sementara, nanti ganti dengan Firestore doc id
+    userId: currentUser.id,
+    userName: currentUser.name || '',
+    userEmail: currentUser.email,
+    companyId,
+    status: 'pending',
+    requestedRole,
+  }
+
+  setEmployeeRequests(prev => [...prev, newReq])
+}
+
+const handleUpdateRequestStatus = (id: string, status: EmployeeRequest['status']) => {
+  setEmployeeRequests(prev =>
+    prev.map(r => (r.id === id ? { ...r, status } : r)),
+  )
+}
+
+const handleApproveRequest = (req: EmployeeRequest, role: Exclude<UserRole, 'customer'>) => {
+  // 1. tandai approved
+  handleUpdateRequestStatus(req.id, 'approved')
+
+  // 2. tambahkan membership ke user (di currentUser / daftar users)
+  if (currentUser && currentUser.id === req.userId) {
+    const membership: UserCompanyMembership = {
+      companyId: req.companyId,
+      role,
+      joinedAt: new Date().toISOString(),
+    }
+
+    setCurrentUser({
+      ...currentUser,
+      role, // role utama bisa diset, atau tetap biarkan dan pakai membership
+      companies: [...(currentUser.companies || []), membership],
+    })
+  }
+
+  // 3. jika role = 'courier', buat entri Courier di state couriers
+  if (role === 'courier') {
+    const newCourier: Courier = {
+      id: crypto.randomUUID(),
+      name: req.userName || req.userEmail,
+      capacity: 40, // default; nanti bisa diubah lewat input data admin
+      active: true,
+      companyId: req.companyId,
+      userId: req.userId,
+    }
+    setCouriers(prev => [...prev, newCourier])
+  }
+}
+
+const handleOptimizeRoutes = (companyId: string) => {
+  // filter kurir dan paket untuk perusahaan ini
+  const companyCouriers = couriers.filter(c => c.companyId === companyId)
+  const companyPackages = packages.filter(p => p.companyId === companyId)
+
+  // group paket per courierId (sementara: paket yang belum punya courierId dianggap belum dialokasikan)
+  const routesForCompany: RouteOptimization[] = companyCouriers.map(courier => {
+    const pkgs = companyPackages.filter(p => p.courierId === courier.id)
+
+    // urutan sederhana: sort by latitude lalu longitude
+    const ordered = [...pkgs].sort((a, b) => {
+      if (a.latitude === b.latitude) return a.longitude - b.longitude
+      return a.latitude - b.latitude
+    })
+
+    const routeCoords: [number, number][] = ordered.map(p => [
+      p.latitude,
+      p.longitude,
+    ])
+
+    // jarak total dummy (nanti bisa diganti hitung Haversine)
+    const totalDistance = routeCoords.length
+
+    return {
+      courierId: courier.id,
+      courierName: courier.name,
+      packages: ordered,
+      totalDistance,
+      route: routeCoords,
+    }
+  })
+
+  setRoutes(routesForCompany)
+}
 
   return (
     <>

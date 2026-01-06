@@ -1,116 +1,57 @@
-import { Card, CardContent } from '@/components/ui/card'
-import { useKV } from '@github/spark/hooks'
-import { User, Package, Courier, Company } from '@/lib/types'
-import { Package as PackageIcon, MapPin, CheckCircle, Clock } from '@phosphor-icons/react'
+import { User, Package } from '@/lib/types'
 
 interface CourierHomeViewProps {
   user: User
+  packages: Package[]
+  total: number
+  completed: number
+  remaining: number
 }
 
-export default function CourierHomeView({ user }: CourierHomeViewProps) {
-  const userName = user.name || user.email.split('@')[0]
-  const [packages] = useKV<Package[]>('packages', [])
-  const [couriers] = useKV<Courier[]>('couriers', [])
-  const [companies] = useKV<Company[]>('companies', [])
-
-  const userCompany = companies?.find(c => c.id === user.companyId)
-  
-  if (!userCompany) {
-    return (
-      <div className="p-4 md:p-8 pt-20 lg:pt-8">
-        <div className="max-w-6xl mx-auto">
-          <Card className="border-destructive/50">
-            <CardContent className="p-8 text-center">
-              <h2 className="text-xl font-medium mb-2 text-destructive">Perusahaan Tidak Ditemukan</h2>
-              <p className="text-muted-foreground">
-                Perusahaan ini sudah dihapus atau tidak tersedia lagi.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
-  const courierProfile = couriers?.find(c => c.userId === user.id)
-  
-  const assignedPackages = packages?.filter(p => p.courierId === user.id) || []
-  const pendingPackages = assignedPackages.filter(p => p.status === 'pending').length
-  const inTransitPackages = assignedPackages.filter(p => p.status === 'in-transit').length
-  const deliveredPackages = assignedPackages.filter(p => p.status === 'delivered').length
-
+export default function CourierHomeView({
+  user,
+  packages,
+  total,
+  completed,
+  remaining,
+}: CourierHomeViewProps) {
+  // nanti kamu bisa hitung center peta dari packages
   return (
     <div className="p-4 md:p-8 pt-20 lg:pt-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-medium mb-2">Dashboard Kurir</h1>
-          <p className="text-lg text-muted-foreground">Selamat datang, {userName}</p>
-          {userCompany && (
-            <p className="text-sm text-muted-foreground mt-1">Perusahaan: {userCompany.name}</p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Paket Tertunda</p>
-                  <p className="text-3xl font-bold">{pendingPackages}</p>
-                </div>
-                <Clock className="text-muted-foreground" size={40} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Sedang Dikirim</p>
-                  <p className="text-3xl font-bold">{inTransitPackages}</p>
-                </div>
-                <MapPin className="text-accent" size={40} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Terkirim</p>
-                  <p className="text-3xl font-bold">{deliveredPackages}</p>
-                </div>
-                <CheckCircle className="text-green-600" size={40} />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardContent className="p-8">
-            <h2 className="text-xl font-medium mb-4">Informasi Kurir</h2>
-            <div className="space-y-2 text-muted-foreground">
-              <p>• Total Paket Ditugaskan: <span className="font-medium text-foreground">{assignedPackages.length}</span></p>
-              {courierProfile && (
-                <>
-                  <p>• Kapasitas: <span className="font-medium text-foreground">{courierProfile.capacity} paket</span></p>
-                  <p>• Status: <span className="font-medium text-foreground">{courierProfile.active ? 'Aktif' : 'Tidak Aktif'}</span></p>
-                </>
-              )}
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header dengan statistik */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Halo,{' '}
+              <span className="font-semibold">{user.name || user.email}</span>
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-right">
+            <div>
+              <p className="text-xs text-muted-foreground">Paket hari ini</p>
+              <p className="text-2xl font-semibold">{total}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <p className="text-xs text-muted-foreground">Paket Tersisa</p>
+              <p className="text-2xl font-semibold">{remaining}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Paket Terselesaikan
+              </p>
+              <p className="text-2xl font-semibold">{completed}</p>
+            </div>
+          </div>
+        </div>
 
-        {assignedPackages.length === 0 && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <PackageIcon className="mx-auto mb-4 text-muted-foreground" size={48} />
-              <p className="text-lg text-muted-foreground">Belum ada paket yang ditugaskan</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Peta dan mark lokasi pengiriman paket */}
+        <div className="rounded-xl border bg-card p-4 h-[400px] flex items-center justify-center">
+          {/* Nanti ganti dengan MapView */}
+          <p className="text-sm text-muted-foreground">
+            Peta dan mark lokasi pengiriman paket
+          </p>
+        </div>
       </div>
     </div>
   )

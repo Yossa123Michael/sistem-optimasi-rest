@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react'
-import { doc, getDoc } from 'firebase/firestore'
+import { useEffect, useState } from 'react'
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  DocumentData,
+} from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { toast } from 'sonner'
-import { User, Company } from '@/lib/types'
+import { User, Package, Courier } from '@/lib/types'
 import CourierSidebar from './CourierSidebar'
 import CourierHomeView from './CourierHomeView'
 import CourierPackageListView from './CourierPackageListView'
@@ -23,47 +29,134 @@ export default function CourierDashboard({
   onBackToHome,
 }: CourierDashboardProps) {
   const [currentView, setCurrentView] = useState<CourierView>('home')
-  const [company, setCompany] = useState<Company | null>(null)
-  const [isReady, setIsReady] = useState(false)
+  const [courier, setCourier] = useState<Courier | null>(null)
+  const [packages, setPackages] = useState<Package[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const init = async () => {
-      if (!user.companyId) {
-        console.log('CourierDashboard: User does not have companyId, waiting...')
-        setIsReady(false)
-        return
-      }
-
+    const loadData = async () => {
       try {
-        const ref = doc(db, 'companies', user.companyId)
-        const snap = await getDoc(ref)
+        setLoading(true)
 
-        if (!snap.exists()) {
-          console.log('CourierDashboard: Company does not exist')
-          toast.error('Perusahaan tidak ditemukan')
-          if (onBackToHome) onBackToHome()
+        if (!user.companyId) {
+          console.log('CourierDashboard: user has no companyId')
+          toast.error('Perusahaan tidak ditemukan untuk akun kurir ini')
+          setCourier(null)
+          setPackages([])
           return
         }
 
-        setCompany({ id: snap.id, ...(snap.data() as Company) })
-        console.log('CourierDashboard: Ready to render')
-        setIsReady(true)
+        // 1. Cari dokumen courier untuk user & perusahaan ini
+        const couriersRef = collection(db, 'couriers')
+        const courierQuery = query(
+          couriersRef,
+          where('userId', '==', user.id),
+          where('companyId', '==', user.companyId),
+        )
+        const courierSnap = await getDocs(courierQuery)
+
+        if (courierSnap.empty) {
+          console.log(
+            'CourierDashboard: courier not found for user',
+            user.id,
+            'company',
+            user.companyId,
+          )
+          toast.error('Data kurir tidak ditemukan untuk perusahaan ini')
+          setCourier(null)
+          setPackages([])
+          return
+        }
+
+        const courierDoc = courierSnap.docs[0]
+        const courierData = {
+          id: courierDoc.id,
+          ...(courierDoc.data() as Courier),
+        }
+        setCourier(courierData)
+
+        // 2. Ambil paket untuk courier ini
+        const packagesRef = collection(db, 'packages')
+        const packagesQuery = query(
+          packagesRef,
+          where('companyId', '==', user.companyId),
+          where('courierId', '==', courierDoc.id),
+        )
+        const packagesSnap = await getDocs(packagesQuery)
+
+        const loadedPackages: Package[] =
+          packagesSnap.docs.map(d => ({
+            id: d.id,
+            ...(d.data() as DocumentData),
+          })) || []
+
+        setPackages(loadedPackages)
+        console.log(
+          'CourierDashboard: loaded packages for courier:',
+          loadedPackages.length,
+        )
       } catch (err) {
-        console.error('CourierDashboard: error loading company', err)
-        toast.error('Gagal memuat data perusahaan')
-        if (onBackToHome) onBackToHome()
+        console.error('CourierDashboard: error loading data', err)
+        toast.error('Gagal memuat data kurir dan paket')
+        setCourier(null)
+        setPackages([])
+      } finally {
+        setLoading(false)
       }
     }
 
-    init()
-  }, [user.companyId, onBackToHome])
+    loadData()
+  }, [user.id, user.companyId])
 
-  if (!isReady) {
+  const total = packages.length
+  const completed = packages.filter(p => p.status === 'delivered').length
+  const remaining = total - completed
+
+  const handleUpdateStatus = (id: string, newStatus: Package['status']) => {
+    // Untuk sekarang, update hanya di state lokal.
+    // Nanti bisa kamu ubah jadi update ke Firestore (updateDoc).
+    const now = new Date().toISOString()
+    setPackages(prev =>
+      prev.map(p =>
+        p.id === id
+          ? {
+              ...p,
+              status: newStatus,
+              updatedAt: now,
+              deliveredAt:
+                newStatus === 'delivered' ? now : p.deliveredAt,
+            }
+          : p,
+      ),
+    )
+  }
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4" />
-          <p className="text-slate-600">Memuat dashboard...</p>
+          <p className="text-slate-600">Memuat dashboard kurir...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!courier) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Data kurir tidak ditemukan untuk akun ini.
+          </p>
+          {onBackToHome && (
+            <button
+              onClick={onBackToHome}
+              className="inline-flex items-center px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90"
+            >
+              Kembali ke Home
+            </button>
+          )}
         </div>
       </div>
     )
@@ -72,15 +165,45 @@ export default function CourierDashboard({
   const renderView = () => {
     switch (currentView) {
       case 'home':
-        return <CourierHomeView user={user} company={company!} />
+        return (
+          <CourierHomeView
+            user={user}
+            packages={packages}
+            total={total}
+            completed={completed}
+            remaining={remaining}
+          />
+        )
       case 'package-list':
-        return <CourierPackageListView user={user} company={company!} />
+        return (
+          <CourierPackageListView
+            user={user}
+            packages={packages}
+            total={total}
+            completed={completed}
+            remaining={remaining}
+          />
+        )
       case 'recommendation':
-        return <CourierRecommendationView user={user} company={company!} />
+        return (
+          <CourierRecommendationView
+            user={user}
+            packages={packages}
+          />
+        )
       case 'update':
-        return <CourierUpdateView user={user} company={company!} />
+        return (
+          <CourierUpdateView
+            user={user}
+            packages={packages}
+            total={total}
+            completed={completed}
+            remaining={remaining}
+            onUpdateStatus={handleUpdateStatus}
+          />
+        )
       default:
-        return <CourierHomeView user={user} company={company!} />
+        return null
     }
   }
 
@@ -88,7 +211,6 @@ export default function CourierDashboard({
     <div className="flex min-h-screen bg-background">
       <CourierSidebar
         user={user}
-        company={company!}
         currentView={currentView}
         onViewChange={setCurrentView}
         onLogout={onLogout}

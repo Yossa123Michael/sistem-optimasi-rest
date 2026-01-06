@@ -1,3 +1,8 @@
+import { useState } from 'react'
+import { List } from '@phosphor-icons/react'
+import { useKV } from '@github/spark/hooks'
+import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -11,35 +16,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { List } from '@phosphor-icons/react'
-import { User, Company, Package, Courier } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useKV } from '@github/spark/hooks'
-import { toast } from 'sonner'
-import { useState } from 'react'
+import { User, Company, Package, Courier } from '@/lib/types'
 
-type AdminView =
-  | 'home'
-  | 'input-data'
-  | 'courier'
-  | 'courier-activation'
-  | 'monitoring'
-  | 'history'
+export type AdminView = 'overview' | 'input-data' | 'requests'
 
 interface AdminSidebarProps {
   user: User
+  company: Company
   currentView: AdminView
   onViewChange: (view: AdminView) => void
   onLogout: () => void
   onBackToHome?: () => void
+  isOwner: boolean
 }
 
 export default function AdminSidebar({
   user,
+  company,
   currentView,
   onViewChange,
   onLogout,
   onBackToHome,
+  isOwner,
 }: AdminSidebarProps) {
   const isMobile = useIsMobile()
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
@@ -49,21 +48,18 @@ export default function AdminSidebar({
   const [couriers, setCouriers] = useKV<Courier[]>('couriers', [])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
+  // --- data aktif: user + company ---
+
   const activeUser = currentUser || user
   const userName = activeUser.name || activeUser.email.split('@')[0]
 
-  const currentCompany = (companies || []).find(
-    c => c.id === activeUser.companyId,
-  )
-  const isOwner = currentCompany?.ownerId === activeUser.id
-  const companyExists = !!currentCompany
+  const companyExists = true
 
-  // Hanya ambil membership yang masih punya company di DB
   const userCompanies = (activeUser.companies || [])
     .map(m => {
-      const company = (companies || []).find(c => c.id === m.companyId)
-      return company
-        ? { ...company, role: m.role, joinedAt: m.joinedAt }
+      const comp = (companies || []).find(c => c.id === m.companyId)
+      return comp
+        ? { ...comp, role: m.role, joinedAt: m.joinedAt }
         : null
     })
     .filter((c): c is NonNullable<typeof c> => c !== null)
@@ -73,46 +69,47 @@ export default function AdminSidebar({
         new Date(b.joinedAt || 0).getTime(),
     )
 
+  // --- aksi hapus perusahaan (masih pakai KV) ---
+
   const handleDeleteCompany = () => {
-  if (!activeUser.companyId || !isOwner || !companyExists) return
+    if (!activeUser.companyId || !isOwner || !companyExists) return
 
-  const companyIdToDelete = activeUser.companyId
+    const companyIdToDelete = activeUser.companyId
 
-  setCompanies(prev => (prev || []).filter(c => c.id !== companyIdToDelete))
+    setCompanies(prev => (prev || []).filter(c => c.id !== companyIdToDelete))
 
-  setUsers(prev =>
-    (prev || []).map(u => ({
-      ...u,
-      companies: (u.companies || []).filter(
-        m => m.companyId !== companyIdToDelete,
-      ),
-      companyId: u.companyId === companyIdToDelete ? undefined : u.companyId,
-      role: u.companyId === companyIdToDelete ? undefined : u.role,
-    })),
-  )
+    setUsers(prev =>
+      (prev || []).map(u => ({
+        ...u,
+        companies: (u.companies || []).filter(
+          m => m.companyId !== companyIdToDelete,
+        ),
+        companyId: u.companyId === companyIdToDelete ? undefined : u.companyId,
+        role: u.companyId === companyIdToDelete ? undefined : u.role,
+      })),
+    )
 
-  setPackages(prev =>
-    (prev || []).filter(p => p.companyId !== companyIdToDelete),
-  )
+    setPackages(prev =>
+      (prev || []).filter(p => p.companyId !== companyIdToDelete),
+    )
 
-  setCouriers(prev =>
-    (prev || []).filter(c => c.companyId !== companyIdToDelete),
-  )
+    setCouriers(prev =>
+      (prev || []).filter(c => c.companyId !== companyIdToDelete),
+    )
 
-  // reset current user companyId & role juga – pastikan return User|null
-  setCurrentUser(prev => {
-    if (!prev) return null
-    if (prev.companyId !== companyIdToDelete) return prev
-    return { ...prev, companyId: undefined, role: undefined }
-  })
+    setCurrentUser(prev => {
+      if (!prev) return null
+      if (prev.companyId !== companyIdToDelete) return prev
+      return { ...prev, companyId: undefined, role: undefined }
+    })
 
-  toast.success('Perusahaan berhasil dihapus')
-  setShowDeleteDialog(false)
+    toast.success('Perusahaan berhasil dihapus')
+    setShowDeleteDialog(false)
 
-  if (onBackToHome) {
-    onBackToHome()
+    if (onBackToHome) onBackToHome()
   }
-}
+
+  // --- ganti perusahaan aktif (multi-company) ---
 
   const handleCompanyClick = (companyId: string, role: string) => {
     if (companyId === activeUser.companyId) return
@@ -131,16 +128,17 @@ export default function AdminSidebar({
     toast.success('Perusahaan aktif berhasil diubah')
   }
 
-  const menuItems = [
-    { id: 'home' as const, label: 'Home' },
-    { id: 'input-data' as const, label: 'Input Data Paket' },
-    { id: 'courier' as const, label: 'Kelola Kurir' },
-    { id: 'monitoring' as const, label: 'Monitoring' },
-    { id: 'history' as const, label: 'Riwayat' },
+  // --- menu di sidebar admin ---
+
+  const menuItems: { id: AdminView; label: string }[] = [
+    { id: 'overview', label: 'Home' },
+    { id: 'input-data', label: 'Input Data Paket' },
+    // permintaan karyawan difilter pakai isOwner di bawah
   ]
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-card border-r">
+      {/* Header user */}
       <div className="p-6 border-b flex flex-col items-center">
         <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Photo</p>
@@ -150,6 +148,7 @@ export default function AdminSidebar({
         </p>
       </div>
 
+      {/* Banner jika company di KV sudah tidak ada */}
       {!companyExists && (
         <div className="p-4 bg-destructive/10 border-b border-destructive/20">
           <p className="text-xs text-destructive text-center mb-2">
@@ -168,6 +167,7 @@ export default function AdminSidebar({
         </div>
       )}
 
+      {/* Menu utama */}
       <div className="flex-1 overflow-y-auto">
         <ScrollArea className="h-full">
           <nav className="p-4">
@@ -187,8 +187,26 @@ export default function AdminSidebar({
                   {item.label}
                 </Button>
               ))}
+
+              {/* Menu Permintaan hanya untuk owner */}
+              {isOwner && (
+                <Button
+                  key="requests"
+                  variant="ghost"
+                  className={
+                    currentView === 'requests'
+                      ? 'w-full justify-center bg-secondary text-foreground'
+                      : 'w-full justify-center text-foreground'
+                  }
+                  onClick={() => onViewChange('requests')}
+                  disabled={!companyExists}
+                >
+                  Permintaan Karyawan
+                </Button>
+              )}
             </div>
 
+            {/* daftar perusahaan lain */}
             {userCompanies.length > 1 && (
               <div className="border-t pt-4">
                 <p className="text-xs text-muted-foreground mb-2 px-2">
@@ -197,22 +215,23 @@ export default function AdminSidebar({
                 <div className="space-y-1">
                   {userCompanies
                     .filter(c => c.id !== activeUser.companyId)
-                    .map(company => (
+                    .map(comp => (
                       <Button
-                        key={company.id}
+                        key={comp.id}
                         variant="ghost"
                         className="w-full justify-center text-foreground text-sm"
                         onClick={() =>
-                          handleCompanyClick(company.id, company.role)
+                          handleCompanyClick(comp.id, comp.role as any)
                         }
                       >
-                        {company.name}
+                        {comp.name}
                       </Button>
                     ))}
                 </div>
               </div>
             )}
 
+            {/* Tombol hapus perusahaan hanya untuk owner & companyExists */}
             {isOwner && companyExists && (
               <div className="border-t pt-4 mt-4">
                 <Button
@@ -228,6 +247,7 @@ export default function AdminSidebar({
         </ScrollArea>
       </div>
 
+      {/* Footer: back & sign out */}
       <div className="p-4 space-y-2 border-t">
         {onBackToHome && companyExists && (
           <Button
@@ -249,6 +269,8 @@ export default function AdminSidebar({
     </div>
   )
 
+  // --- Render mobile vs desktop ---
+
   if (isMobile) {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
@@ -260,12 +282,16 @@ export default function AdminSidebar({
                 <List size={24} />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-48">
+            <SheetContent side="left" className="p-0 w-56">
               <SidebarContent />
             </SheetContent>
           </Sheet>
         </div>
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+
+        <AlertDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Hapus Perusahaan?</AlertDialogTitle>
@@ -294,6 +320,7 @@ export default function AdminSidebar({
       <aside className="fixed left-0 top-0 h-screen w-48 z-40">
         <SidebarContent />
       </aside>
+
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
