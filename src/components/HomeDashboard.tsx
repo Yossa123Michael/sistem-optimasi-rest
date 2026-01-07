@@ -9,7 +9,7 @@ import {
   Users,
   ArrowRight,
 } from 'lucide-react'
-import { User, Company, UserCompanyMembership } from '@/lib/types'
+import { User, Company } from '@/lib/types'
 
 interface HomeDashboardProps {
   user: User
@@ -60,7 +60,6 @@ export default function HomeDashboard({
 
       setCompanies(companiesFromFirestore)
 
-      // kirim ke App supaya AdminDashboard bisa pakai
       if (onCompaniesLoaded) {
         onCompaniesLoaded(companiesFromFirestore)
       }
@@ -77,33 +76,14 @@ export default function HomeDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
-  // ====== MEMBERSHIP USER & PERUSAHAAN YANG VALID ======
-  const memberships: UserCompanyMembership[] = user.companies || []
+  // ====== PERUSAHAAN YANG DIMILIKI USER (ownerId === user.id) ======
+  const ownedCompanies = useMemo(() => {
+    const list = companies.filter(c => c.ownerId === user.id)
+    console.log('HomeDashboard ownedCompanies:', list.map(c => c.name))
+    return list
+  }, [companies, user.id])
 
-  const activeUserMemberships = useMemo(() => {
-    console.log(
-      'HomeDashboard useMemo - Current user memberships:',
-      memberships.length,
-    )
-    console.log(
-      'HomeDashboard useMemo - Available companies:',
-      companies.length,
-    )
-
-    const valid = memberships.filter(m =>
-      companies.some(c => c.id === m.companyId),
-    )
-
-    console.log(
-      'HomeDashboard useMemo - Valid memberships to show:',
-      valid.length,
-    )
-
-    return valid
-  }, [memberships, companies])
-
-  const activeUserHasMemberships = activeUserMemberships.length > 0
-  const userCompaniesFound = activeUserMemberships.length
+  const ownedCount = ownedCompanies.length
 
   // ====== HANDLER NAVIGASI ======
   const handleCreateCompany = () => {
@@ -158,19 +138,23 @@ export default function HomeDashboard({
   }
 
   const handleOpenAdminDashboard = () => {
-    if (!activeUserHasMemberships) {
-      toast.error('Anda belum terdaftar di perusahaan mana pun sebagai admin.')
+    if (!ownedCompanies.length) {
+      toast.error('Anda belum memiliki perusahaan sebagai admin (owner).')
       return
     }
-    onNavigate('admin-dashboard')
+    // pakai perusahaan pertama sebagai default
+    const company = ownedCompanies[0]
+    handleCompanyClick(company.id, 'admin')
   }
 
   const handleOpenCourierDashboard = () => {
-    if (!activeUserHasMemberships) {
+    // untuk sementara: belum ada logika kurir, tetap pakai perusahaan pertama
+    if (!ownedCompanies.length) {
       toast.error('Anda belum terdaftar di perusahaan mana pun sebagai kurir.')
       return
     }
-    onNavigate('courier-dashboard')
+    const company = ownedCompanies[0]
+    handleCompanyClick(company.id, 'courier')
   }
 
   if (loading) {
@@ -185,9 +169,7 @@ export default function HomeDashboard({
   }
 
   console.log('=== HomeDashboard RENDER ===')
-  console.log('Current user memberships:', memberships.length)
-  console.log('Companies available:', companies.length)
-  console.log('Active memberships to display:', activeUserMemberships.length)
+  console.log('Owned companies:', ownedCompanies.length)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50">
@@ -218,40 +200,19 @@ export default function HomeDashboard({
               Home
             </button>
 
-            {/* Company List - Tampilkan semua perusahaan user */}
-            {(() => {
-              console.log(
-                'Rendering company sidebar - memberships:',
-                activeUserMemberships.length,
-              )
-              return activeUserMemberships.map(membership => {
-                const company = companies.find(
-                  c => c.id === membership.companyId,
-                )
-                console.log(
-                  'Membership:',
-                  membership.companyId,
-                  'Company found:',
-                  company?.name,
-                )
-                if (!company) return null
-
-                return (
-                  <button
-                    key={company.id}
-                    onClick={() =>
-                      handleCompanyClick(company.id, membership.role)
-                    }
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
-                  >
-                    <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                    <span className="truncate font-medium">
-                      {company.name}
-                    </span>
-                  </button>
-                )
-              })
-            })()}
+            {/* Company List - semua perusahaan yang dimiliki user */}
+            {ownedCompanies.map(company => (
+              <button
+                key={company.id}
+                onClick={() => handleCompanyClick(company.id, 'admin')}
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
+              >
+                <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                <span className="truncate font-medium">
+                  {company.name}
+                </span>
+              </button>
+            ))}
 
             <button
               onClick={handleTrackPackage}
@@ -272,7 +233,7 @@ export default function HomeDashboard({
           </div>
         </aside>
 
-        {/* Main content */}
+        {/* Main content (tetap sama seperti versi kamu, hanya pakai ownedCount) */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-6xl mx-auto py-10 px-8">
             {/* Header */}
@@ -383,7 +344,7 @@ export default function HomeDashboard({
                     bisnis dan manajer operasional.
                   </p>
                   <p className="text-xs text-slate-400">
-                    Membership yang terdeteksi: {userCompaniesFound}
+                    Perusahaan yang kamu miliki: {ownedCount}
                   </p>
                 </div>
                 <button
@@ -405,7 +366,7 @@ export default function HomeDashboard({
                     kelola rute harian Anda.
                   </p>
                   <p className="text-xs text-slate-400">
-                    Membership yang terdeteksi: {userCompaniesFound}
+                    Perusahaan yang kamu miliki: {ownedCount}
                   </p>
                 </div>
                 <button

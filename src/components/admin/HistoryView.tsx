@@ -1,77 +1,99 @@
-import { useKV } from '@github/spark/hooks'
+import { Company, Courier, Package } from '@/lib/types'
 import { Card } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { User, Package, Courier } from '@/lib/types'
+import { useMemo } from 'react'
 
 interface HistoryViewProps {
-  user: User
+  company: Company
+  couriers: Courier[]
+  packages: Package[]
+  onBackToHome: () => void
 }
 
-export default function HistoryView({ user }: HistoryViewProps) {
-  const [packages] = useKV<Package[]>('packages', [])
-  const [couriers] = useKV<Courier[]>('couriers', [])
+export default function HistoryView({
+  company,
+  couriers,
+  packages,
+  onBackToHome,
+}: HistoryViewProps) {
+  const delivered = useMemo(
+    () =>
+      packages
+        .filter(p => p.status === 'delivered')
+        .sort(
+          (a, b) =>
+            (b.deliveredAt ? Date.parse(b.deliveredAt as any) : 0) -
+            (a.deliveredAt ? Date.parse(a.deliveredAt as any) : 0),
+        ),
+    [packages],
+  )
 
-  const companyPackages = packages?.filter(
-    p => p.companyId === user.companyId && (p.status === 'delivered' || p.status === 'failed')
-  ) || []
-
-  const getCourierName = (courierId?: string) => {
-    if (!courierId) return '-'
-    const courier = couriers?.find(c => c.id === courierId)
-    return courier?.name || '-'
-  }
+  const withCourier = delivered.map(p => ({
+    ...p,
+    courierName:
+      couriers.find(c => c.id === p.courierId)?.name || 'Tidak diketahui',
+  }))
 
   return (
-    <div className="p-4 md:p-8 pt-20 lg:pt-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold mb-2">
-            History ({new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })})
-          </h1>
-          <p className="text-muted-foreground">Riwayat pengiriman paket</p>
+    <div className="p-6 md:p-10 w-full h-full">
+      <div className="max-w-6xl mx-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <button
+              onClick={onBackToHome}
+              className="text-xs text-muted-foreground hover:underline"
+            >
+              ← Kembali ke Home
+            </button>
+            <h1 className="text-xl font-semibold mt-2">
+              Riwayat Pengiriman
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Rekap paket yang sudah terkirim untuk perusahaan{' '}
+              <span className="font-medium">{company.name}</span>.
+            </p>
+          </div>
         </div>
 
-        <Card className="overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Paket</TableHead>
-                <TableHead>Kurir</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Waktu</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {companyPackages.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
-                    Belum ada riwayat pengiriman
-                  </TableCell>
-                </TableRow>
-              ) : (
-                companyPackages.map((pkg) => (
-                  <TableRow key={pkg.id}>
-                    <TableCell className="font-medium">{pkg.name}</TableCell>
-                    <TableCell>{getCourierName(pkg.courierId)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={pkg.status === 'delivered' ? 'default' : 'destructive'}
-                        className={pkg.status === 'delivered' ? 'bg-accent' : ''}
-                      >
-                        {pkg.status === 'delivered' ? 'Terkirim' : 'Gagal'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {pkg.deliveredAt
-                        ? new Date(pkg.deliveredAt).toLocaleString('id-ID')
-                        : new Date(pkg.updatedAt).toLocaleString('id-ID')}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <Card className="p-4 overflow-x-auto">
+          {withCourier.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Belum ada paket yang berstatus terkirim.
+            </p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b text-[11px] text-muted-foreground">
+                  <th className="py-2 pr-2 text-left">Tanggal</th>
+                  <th className="py-2 pr-2 text-left">Paket</th>
+                  <th className="py-2 pr-2 text-left">Penerima</th>
+                  <th className="py-2 pr-2 text-left">Kurir</th>
+                  <th className="py-2 pr-2 text-left">Lokasi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {withCourier.map(p => (
+                  <tr key={p.id} className="border-b last:border-0">
+                    <td className="py-2 pr-2 align-top">
+                      {p.deliveredAt
+                        ? new Date(p.deliveredAt as any).toLocaleString('id-ID', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })
+                        : '-'}
+                    </td>
+                    <td className="py-2 pr-2 align-top">{p.name}</td>
+                    <td className="py-2 pr-2 align-top">
+                      {p.recipientName}
+                    </td>
+                    <td className="py-2 pr-2 align-top">{p.courierName}</td>
+                    <td className="py-2 pr-2 align-top text-muted-foreground">
+                      {p.locationDetail}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Card>
       </div>
     </div>

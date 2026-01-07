@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
-import { User, UserRole, Company, RouteOptimization } from './lib/types'
+import { User, UserRole, Company, RouteOptimization, Courier, Package, EmployeeRequest, UserCompanyMembership } from './lib/types'
 import SplashScreen from './components/auth/SplashScreen'
 import LoginScreen from './components/auth/LoginScreen'
 import RegisterScreen from './components/auth/RegisterScreen'
@@ -20,14 +19,6 @@ import { Toaster } from './components/ui/sonner'
 import { auth } from './lib/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { toast } from 'sonner'
-
-// Tambah import tipe-tipe yang dipakai di bawah
-import type {
-  Courier,
-  Package,
-  EmployeeRequest,
-  UserCompanyMembership,
-} from './lib/types'
 
 type AppScreen =
   | 'splash'
@@ -59,29 +50,49 @@ function App() {
 
   // 1. Dengarkan Firebase Auth
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, fbUser => {
-      if (!fbUser) {
-        setCurrentUser(null)
-        return
+  const unsubscribe = onAuthStateChanged(auth, fbUser => {
+    if (!fbUser) {
+      setCurrentUser(null)
+      return
+    }
+
+    const baseInfo: Partial<User> = {
+      id: fbUser.uid,
+      email: fbUser.email || '',
+      password: '',
+      name:
+        fbUser.displayName ||
+        (fbUser.email ? fbUser.email.split('@')[0] : 'User'),
+    }
+
+    console.log('Auth callback prev user:', currentUser)
+    console.log('Auth callback baseInfo:', baseInfo)
+
+    setCurrentUser(prev => {
+      // Kalau sebelumnya sudah ada user dengan memberships, jangan hilangkan
+      if (prev && prev.id === fbUser.uid && prev.companies && prev.companies.length > 0) {
+        return {
+          ...prev,
+          ...baseInfo,
+          companies: prev.companies,
+        } as User
       }
 
-      const userFromAuth: User = {
-        id: fbUser.uid,
-        email: fbUser.email || '',
-        password: '',
-        name:
-          fbUser.displayName ||
-          (fbUser.email ? fbUser.email.split('@')[0] : 'User'),
-      }
-
-      setCurrentUser(userFromAuth)
-      setCurrentScreen(prev =>
-        prev === 'splash' || prev === 'login' ? 'home-dashboard' : prev,
-      )
+      // Kalau belum ada atau belum punya companies
+      return {
+        ...(prev || {}),
+        ...baseInfo,
+        companies: prev?.companies || [],
+      } as User
     })
 
-    return () => unsubscribe()
-  }, [])
+    setCurrentScreen(prev =>
+      prev === 'splash' || prev === 'login' ? 'home-dashboard' : prev,
+    )
+  })
+
+  return () => unsubscribe()
+}, [])
 
   // 2. Sinkronisasi membership user (kalau users sudah terisi)
   useEffect(() => {
@@ -244,7 +255,7 @@ function App() {
     else setCurrentScreen('home-dashboard')
   }
 
-  // ====== Employee Requests / Routes handlers (seperti yang sudah kamu punya) ======
+  // ===== Employee request handlers =====
 
   const handleCreateEmployeeRequest = (
     companyId: string,
@@ -338,10 +349,11 @@ function App() {
     setRoutes(routesForCompany)
   }
 
-  // ====== Render layar ======
+  // ===== Render screen =====
 
   const renderScreen = () => {
-    // AdminDashboard khusus
+    console.log('App currentUser in renderScreen:', currentUser)
+
     if (currentUser && currentScreen === 'admin-dashboard') {
       console.log('App render AdminDashboard, companies length:', companies.length)
       return (
@@ -426,9 +438,23 @@ function App() {
               onNavigate={handleNavigateFromHome}
               refreshKey={homeRefreshKey}
               onUserUpdate={setCurrentUser}
-              onCompaniesLoaded={setCompanies} // ⬅ ini yang menyambungkan ke AdminDashboard
+              onCompaniesLoaded={setCompanies}
             />
           )
+
+        case 'courier-dashboard':
+  return (
+    <CourierDashboard
+      user={currentUser}
+      onLogout={handleLogout}
+      onBackToHome={() => {
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+      onUpdatePackageStatus={handleUpdatePackageStatus}
+      allPackages={packages}
+    />
+  )
       }
     }
 
@@ -438,17 +464,22 @@ function App() {
         return <SplashScreen onStart={() => setCurrentScreen('login')} />
 
       case 'login':
-        return (
-          <LoginScreen
-            onLoginSuccess={user => {
-              setCurrentUser(user)
-              setCurrentScreen('home-dashboard')
-            }}
-            onForgotPassword={() => setCurrentScreen('forgot-password')}
-            onRegister={() => setCurrentScreen('register')}
-            onTrackPackage={() => setCurrentScreen('track-package')}
-          />
-        )
+  return (
+    <LoginScreen
+      onLoginSuccess={user => {
+        // user di sini sudah berisi id, email, name, dll dari login
+        setCurrentUser(prev => ({
+          ...(prev || {}),
+          ...user,
+          companies: prev?.companies || [], // jaga membership yang mungkin sudah ada
+        }))
+        setCurrentScreen('home-dashboard')
+      }}
+      onForgotPassword={() => setCurrentScreen('forgot-password')}
+      onRegister={() => setCurrentScreen('register')}
+      onTrackPackage={() => setCurrentScreen('track-package')}
+    />
+  )
 
       case 'register':
         return (
@@ -500,6 +531,27 @@ function App() {
         return null
     }
   }
+
+  const handleUpdatePackageStatus = (
+  packageId: string,
+  newStatus: Package['status'],
+) => {
+  const now = new Date().toISOString()
+
+  setPackages(prev =>
+    prev.map(p =>
+      p.id === packageId
+        ? {
+            ...p,
+            status: newStatus,
+            updatedAt: now,
+            deliveredAt:
+              newStatus === 'delivered' ? now : p.deliveredAt,
+          }
+        : p,
+    ),
+  )
+}
 
   return (
     <>

@@ -6,6 +6,8 @@ import AdminMap from './AdminMap'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import MonitoringView from './MonitoringView'
+import HistoryView from './HistoryView'
 import type { EmployeeRequest, UserRole } from '@/lib/types'
 
 interface AdminDashboardProps {
@@ -92,10 +94,34 @@ export default function AdminDashboard(props: AdminDashboardProps) {
         onBackToOverview={() => setView('overview')}
       />
     )
-  } else if (view === 'monitoring') {
+    } else if (view === 'monitoring') {
+    mainContent = (
+      <MonitoringView
+        company={company}
+        couriers={companyCouriers}
+        packages={companyPackages}
+        routes={routes}
+        onBackToHome={onBackToHome}
+        onOptimizeRoutes={onOptimizeRoutes}
+      />
+    )
+  } else if (view === 'history') {
+    mainContent = (
+      <HistoryView
+        company={company}
+        couriers={companyCouriers}
+        packages={companyPackages}
+        onBackToHome={onBackToHome}
+      />
+    )
+    } else if (view === 'requests') {
+    const companyRequests = employeeRequests.filter(
+      r => r.companyId === companyId,
+    )
+
     mainContent = (
       <div className="p-6 md:p-10 w-full h-full">
-        <div className="max-w-6xl mx-auto space-y-4 h-full flex flex-col">
+        <div className="max-w-5xl mx-auto space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <button
@@ -105,98 +131,71 @@ export default function AdminDashboard(props: AdminDashboardProps) {
                 ← Kembali ke Home
               </button>
               <h1 className="text-xl font-semibold mt-2">
-                Monitoring Pengiriman
+                Permintaan Bergabung ke Perusahaan
               </h1>
               <p className="text-xs text-muted-foreground">
-                Peta dan mark lokasi paket yang sudah di-set untuk perusahaan{' '}
-                <span className="font-medium">{company.name}</span>.
+                Owner dapat menyetujui atau menolak karyawan yang mendaftar ke perusahaan ini.
               </p>
             </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (!companyPackages.length) {
-                  toast.error('Belum ada paket untuk dioptimasi')
-                  return
-                }
-                onOptimizeRoutes(companyId)
-              }}
-            >
-              Optimasi Rute
-            </Button>
           </div>
 
-          <Card className="flex-1 p-0 overflow-hidden">
-            <AdminMap packages={companyPackages} />
-          </Card>
-        </div>
-      </div>
-    )
-  } else if (view === 'history') {
-    mainContent = (
-      <div className="p-6 md:p-10">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-xl font-semibold mb-2">History Pengiriman</h1>
-          <p className="text-sm text-muted-foreground">
-            Halaman ini bisa diisi riwayat pengiriman (belum diimplementasikan).
-          </p>
-        </div>
-      </div>
-    )
-  } else if (view === 'requests') {
-    const companyRequests = employeeRequests.filter(
-      r => r.companyId === companyId,
-    )
-
-    mainContent = (
-      <div className="p-6 md:p-10">
-        <div className="max-w-4xl mx-auto space-y-4">
-          <h1 className="text-xl font-semibold">
-            Permintaan Bergabung ke Perusahaan
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Owner dapat menyetujui atau menolak karyawan yang mendaftar ke perusahaan ini.
-          </p>
-
           {companyRequests.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Belum ada permintaan bergabung.
-            </p>
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">
+                Belum ada permintaan bergabung.
+              </p>
+            </Card>
           ) : (
             <Card className="p-4 space-y-3">
               {companyRequests.map(req => (
                 <div
                   key={req.id}
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b last:border-b-0 pb-2 last:pb-0"
+                  className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b last:border-0 pb-3 last:pb-0"
                 >
-                  <div>
+                  <div className="space-y-1">
                     <div className="text-sm font-medium">
                       {req.userName || req.userEmail}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Role diminta: {req.requestedRole || '-'} • Status:{' '}
-                      {req.status}
+                      Role diminta: {req.requestedRole || '-'}
                     </div>
-                  </div>
-                  {req.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          onUpdateRequestStatus(req.id, 'rejected')
+                    <div className="text-[11px]">
+                      Status:{' '}
+                      <span
+                        className={
+                          req.status === 'approved'
+                            ? 'text-emerald-600'
+                            : req.status === 'rejected'
+                            ? 'text-red-500'
+                            : 'text-amber-500'
                         }
                       >
-                        Tolak
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => onApproveRequest(req, 'courier')}
-                      >
-                        Setujui sebagai Kurir
-                      </Button>
+                        {req.status}
+                      </span>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    {req.status === 'pending' ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            onUpdateRequestStatus(req.id, 'rejected')
+                          }
+                        >
+                          Tolak
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => onApproveRequest(req, 'courier')}
+                        >
+                          Setujui sebagai Kurir
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </Card>
@@ -204,6 +203,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
         </div>
       </div>
     )
+
   } else {
     // overview
     mainContent = (
@@ -269,15 +269,18 @@ export default function AdminDashboard(props: AdminDashboardProps) {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-slate-50">
-      <AdminSidebar2
-        user={user}
-        company={company}
-        currentView={view}
-        onViewChange={handleViewChange}
-        onLogout={onLogout}
-      />
-      <main className="flex-1 overflow-hidden">{mainContent}</main>
-    </div>
-  )
+  <div className="flex h-screen w-screen bg-slate-50 overflow-hidden">
+    <AdminSidebar2
+      user={user}
+      company={company}
+      currentView={view}
+      onViewChange={handleViewChange}
+      onLogout={onLogout}
+    />
+    {/* area kanan bisa di-scroll */}
+    <main className="flex-1 h-screen overflow-y-auto">
+      {mainContent}
+    </main>
+  </div>
+)
 }

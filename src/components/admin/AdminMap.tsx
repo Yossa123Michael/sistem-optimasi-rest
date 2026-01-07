@@ -5,6 +5,7 @@ import { Package } from '@/lib/types'
 
 interface AdminMapProps {
   packages: Package[]
+  highlightPackageId?: string
 }
 
 const markerIcon = new L.Icon({
@@ -18,12 +19,11 @@ const markerIcon = new L.Icon({
   iconAnchor: [12, 41],
 })
 
-export default function AdminMap({ packages }: AdminMapProps) {
-  // jika belum ada paket, default center Jakarta
+export default function AdminMap({ packages, highlightPackageId }: AdminMapProps) {
   const defaultCenter: [number, number] = [-6.2, 106.816666]
 
   const firstWithLocation = packages.find(
-    p => typeof p.latitude === 'number' && typeof p.longitude === 'number'
+    p => typeof p.latitude === 'number' && typeof p.longitude === 'number',
   )
 
   const center: [number, number] =
@@ -62,6 +62,9 @@ export default function AdminMap({ packages }: AdminMapProps) {
                   <div>{pkg.recipientName}</div>
                   <div className="text-xs text-gray-500">
                     {pkg.locationDetail}
+                  </div>
+                  <div className="text-xs mt-1">
+                    Status: {pkg.status || 'pending'}
                   </div>
                 </div>
               </Popup>

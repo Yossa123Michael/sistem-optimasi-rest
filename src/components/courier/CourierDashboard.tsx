@@ -21,12 +21,16 @@ interface CourierDashboardProps {
   user: User
   onLogout: () => void
   onBackToHome?: () => void
+  onUpdatePackageStatus: (id: string, status: Package['status']) => void
+  allPackages: Package[]
 }
 
 export default function CourierDashboard({
   user,
   onLogout,
   onBackToHome,
+  onUpdatePackageStatus,
+  allPackages,
 }: CourierDashboardProps) {
   const [currentView, setCurrentView] = useState<CourierView>('home')
   const [courier, setCourier] = useState<Courier | null>(null)
@@ -113,24 +117,28 @@ export default function CourierDashboard({
   const remaining = total - completed
 
   const handleUpdateStatus = (id: string, newStatus: Package['status']) => {
-    // Untuk sekarang, update hanya di state lokal.
-    // Nanti bisa kamu ubah jadi update ke Firestore (updateDoc).
-    const now = new Date().toISOString()
-    setPackages(prev =>
-      prev.map(p =>
-        p.id === id
-          ? {
-              ...p,
-              status: newStatus,
-              updatedAt: now,
-              deliveredAt:
-                newStatus === 'delivered' ? now : p.deliveredAt,
-            }
-          : p,
-      ),
-    )
-  }
+  const now = new Date().toISOString()
 
+  // 1. Update lokal (supaya kurir langsung lihat perubahan)
+  setPackages(prev =>
+    prev.map(p =>
+      p.id === id
+        ? {
+            ...p,
+            status: newStatus,
+            updatedAt: now,
+            deliveredAt:
+              newStatus === 'delivered' ? now : p.deliveredAt,
+          }
+        : p,
+    ),
+  )
+
+  // 2. Beritahu App supaya state global packages ikut berubah
+  onUpdatePackageStatus(id, newStatus)
+
+  // 3. (Opsional) nanti bisa tambahkan update ke Firestore di sini
+}
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
