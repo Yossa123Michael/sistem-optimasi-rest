@@ -2,9 +2,8 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { List } from '@phosphor-icons/react'
-import { User, Company } from '@/lib/types'
+import { User } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useKV } from '@github/spark/hooks'
 import { toast } from 'sonner'
 
 type CourierView = 'home' | 'package-list' | 'recommendation' | 'update'
@@ -25,48 +24,14 @@ export default function CourierSidebar({
   onBackToHome,
 }: CourierSidebarProps) {
   const isMobile = useIsMobile()
-  const [companies] = useKV<Company[]>('companies', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [users, setUsers] = useKV<User[]>('users', [])
 
-  const activeUser = currentUser || user
+  // Saat ini kita tidak lagi menggunakan KV untuk companies / current-user.
+  // User & companyId sudah berasal dari Firebase (App.tsx).
+  const activeUser = user
   const userName = activeUser.name || activeUser.email.split('@')[0]
-  const currentCompany = (companies || []).find(
-    c => c.id === activeUser.companyId,
-  )
-  const companyExists = !!currentCompany
 
-  // Hanya perusahaan yang masih ada
-  const userCompanies = (activeUser.companies || [])
-    .map(m => {
-      const company = (companies || []).find(c => c.id === m.companyId)
-      return company
-        ? { ...company, role: m.role, joinedAt: m.joinedAt }
-        : null
-    })
-    .filter((c): c is NonNullable<typeof c> => c !== null)
-    .sort(
-      (a, b) =>
-        new Date(a.joinedAt || 0).getTime() -
-        new Date(b.joinedAt || 0).getTime(),
-    )
-
-  const handleCompanyClick = (companyId: string, role: string) => {
-    if (companyId === activeUser.companyId) return
-
-    setCurrentUser(prev => {
-      if (!prev) return null
-      return { ...prev, companyId, role: role as any }
-    })
-
-    setUsers(prev =>
-      (prev || []).map(u =>
-        u.id === activeUser.id ? { ...u, companyId, role: role as any } : u,
-      ),
-    )
-
-    toast.success('Perusahaan aktif berhasil diubah')
-  }
+  // Anggap perusahaan masih ada jika user punya companyId
+  const companyExists = !!activeUser.companyId
 
   const menuItems = [
     { id: 'home' as const, label: 'Home' },
@@ -89,7 +54,7 @@ export default function CourierSidebar({
       {!companyExists && (
         <div className="p-4 bg-destructive/10 border-b border-destructive/20">
           <p className="text-xs text-destructive text-center mb-2">
-            Perusahaan ini sudah dihapus
+            Perusahaan tidak ditemukan untuk akun ini
           </p>
 
           {onBackToHome && (
@@ -117,37 +82,18 @@ export default function CourierSidebar({
                       ? 'w-full justify-center bg-secondary text-foreground'
                       : 'w-full justify-center text-foreground'
                   }
-                  onClick={() => onViewChange(item.id)}
-                  disabled={!companyExists}
+                  onClick={() => {
+                    if (!companyExists) {
+                      toast.error('Perusahaan tidak ditemukan untuk akun ini')
+                      return
+                    }
+                    onViewChange(item.id)
+                  }}
                 >
                   {item.label}
                 </Button>
               ))}
             </div>
-
-            {userCompanies.length > 1 && (
-              <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2 px-2">
-                  Perusahaan Lainnya
-                </p>
-                <div className="space-y-1">
-                  {userCompanies
-                    .filter(c => c.id !== activeUser.companyId)
-                    .map(company => (
-                      <Button
-                        key={company.id}
-                        variant="ghost"
-                        className="w-full justify-center text-foreground text-sm"
-                        onClick={() =>
-                          handleCompanyClick(company.id, company.role)
-                        }
-                      >
-                        {company.name}
-                      </Button>
-                    ))}
-                </div>
-              </div>
-            )}
           </nav>
         </ScrollArea>
       </div>

@@ -5,6 +5,8 @@ import {
   query,
   where,
   DocumentData,
+  updateDoc,
+  doc,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { toast } from 'sonner'
@@ -30,7 +32,6 @@ export default function CourierDashboard({
   onLogout,
   onBackToHome,
   onUpdatePackageStatus,
-  allPackages,
 }: CourierDashboardProps) {
   const [currentView, setCurrentView] = useState<CourierView>('home')
   const [courier, setCourier] = useState<Courier | null>(null)
@@ -73,7 +74,7 @@ export default function CourierDashboard({
         }
 
         const courierDoc = courierSnap.docs[0]
-        const courierData = {
+        const courierData: Courier = {
           id: courierDoc.id,
           ...(courierDoc.data() as Courier),
         }
@@ -116,29 +117,43 @@ export default function CourierDashboard({
   const completed = packages.filter(p => p.status === 'delivered').length
   const remaining = total - completed
 
-  const handleUpdateStatus = (id: string, newStatus: Package['status']) => {
-  const now = new Date().toISOString()
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: Package['status'],
+  ) => {
+    const now = new Date().toISOString()
 
-  // 1. Update lokal (supaya kurir langsung lihat perubahan)
-  setPackages(prev =>
-    prev.map(p =>
-      p.id === id
-        ? {
-            ...p,
-            status: newStatus,
-            updatedAt: now,
-            deliveredAt:
-              newStatus === 'delivered' ? now : p.deliveredAt,
-          }
-        : p,
-    ),
-  )
+    // 1. Update lokal
+    setPackages(prev =>
+      prev.map(p =>
+        p.id === id
+          ? {
+              ...p,
+              status: newStatus,
+              updatedAt: now,
+              deliveredAt:
+                newStatus === 'delivered' ? now : p.deliveredAt,
+            }
+          : p,
+      ),
+    )
 
-  // 2. Beritahu App supaya state global packages ikut berubah
-  onUpdatePackageStatus(id, newStatus)
+    // 2. Beritahu App (state global)
+    onUpdatePackageStatus(id, newStatus)
 
-  // 3. (Opsional) nanti bisa tambahkan update ke Firestore di sini
-}
+    // 3. Update Firestore
+    try {
+      await updateDoc(doc(db, 'packages', id), {
+        status: newStatus,
+        updatedAt: now,
+        deliveredAt: newStatus === 'delivered' ? now : null,
+      })
+    } catch (err) {
+      console.error('Gagal update status paket di Firestore', err)
+      toast.error('Gagal menyimpan status paket ke server')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">

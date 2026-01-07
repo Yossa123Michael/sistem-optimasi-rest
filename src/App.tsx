@@ -20,6 +20,18 @@ import { auth } from './lib/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { toast } from 'sonner'
 
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+
 type AppScreen =
   | 'splash'
   | 'login'
@@ -93,6 +105,42 @@ function App() {
 
   return () => unsubscribe()
 }, [])
+
+  useEffect(() => {
+  const loadCompanyData = async () => {
+    if (!currentUser?.companyId) return
+
+    try {
+      const companyId = currentUser.companyId
+
+      // Couriers
+      const couriersSnap = await getDocs(
+        query(collection(db, 'couriers'), where('companyId', '==', companyId)),
+      )
+      const loadedCouriers: Courier[] = couriersSnap.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Courier),
+      }))
+
+      // Packages
+      const packagesSnap = await getDocs(
+        query(collection(db, 'packages'), where('companyId', '==', companyId)),
+      )
+      const loadedPackages: Package[] = packagesSnap.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Package),
+      }))
+
+      setCouriers(loadedCouriers)
+      setPackages(loadedPackages)
+    } catch (err) {
+      console.error('Failed to load company data from Firestore', err)
+      toast.error('Gagal memuat data kurir dan paket dari server')
+    }
+  }
+
+  loadCompanyData()
+}, [currentUser?.companyId])
 
   // 2. Sinkronisasi membership user (kalau users sudah terisi)
   useEffect(() => {
@@ -191,11 +239,26 @@ function App() {
     console.log('handleNavigateFromHome called with:', screen)
     console.log('currentUser before navigate:', currentUser)
 
-    if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
-      setCurrentScreen(screen)
-      return
-    }
+    if (screen === 'courier-dashboard') {
+  // Sementara: paksa set companyId & role untuk testing akun kurir
+  setCurrentUser(prev =>
+    prev
+      ? {
+          ...prev,
+          companyId: '1PWxUC2SafljdUJ3QmWb', // id Mooo
+          role: 'courier',
+        }
+      : prev,
+  )
+  setCurrentScreen('courier-dashboard')
+  return
+}
 
+if (screen === 'admin-dashboard') {
+  setCurrentScreen('admin-dashboard')
+  return
+}
+   
     if (screen === 'home') {
       setHomeRefreshKey(k => k + 1)
       setCurrentScreen('home-dashboard')
@@ -348,6 +411,38 @@ function App() {
 
     setRoutes(routesForCompany)
   }
+
+  const handleSaveCouriersAndNext = async () => {
+  // ... validasi seperti sekarang
+
+  try {
+    // 1. Hapus semua couriers existing utk company ini
+    const snap = await getDocs(
+      query(collection(db, 'couriers'), where('companyId', '==', company.id)),
+    )
+    const batchDeletes = snap.docs.map(d => deleteDoc(doc(db, 'couriers', d.id)))
+    await Promise.all(batchDeletes)
+
+    // 2. Tambah ulang semua dari localCouriers
+    const newCouriers: Courier[] = []
+    for (const c of localCouriers) {
+      const { id: _ignore, ...rest } = c
+      const ref = await addDoc(collection(db, 'couriers'), {
+        ...rest,
+        companyId: company.id,
+      })
+      newCouriers.push({ ...c, id: ref.id })
+    }
+
+    setLocalCouriers(newCouriers)
+    onSetCouriers(newCouriers)
+    toast.success('Data kurir disimpan di server')
+    setStep(2)
+  } catch (err) {
+    console.error('Gagal menyimpan data kurir ke Firestore', err)
+    toast.error('Gagal menyimpan data kurir')
+  }
+}
 
   // ===== Render screen =====
 

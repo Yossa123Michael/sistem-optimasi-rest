@@ -1,13 +1,20 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User, Company, UserRole } from '@/lib/types'
+import { User, Company, UserRole, UserCompanyMembership } from '@/lib/types'
 import RoleSelectionScreen from './RoleSelectionScreen'
+
+import { db } from '@/lib/firebase'
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore'
 
 interface JoinCompanyScreenProps {
   user: User
@@ -15,79 +22,91 @@ interface JoinCompanyScreenProps {
   onCompanyJoined: (companyId: string, role: UserRole) => void
 }
 
-export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: JoinCompanyScreenProps) {
+export default function JoinCompanyScreen({
+  user,
+  onBack,
+  onCompanyJoined,
+}: JoinCompanyScreenProps) {
   const [companyCode, setCompanyCode] = useState('')
-  const [companies] = useKV<Company[]>('companies', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [users, setUsers] = useKV<User[]>('users', [])
   const [showRoleSelection, setShowRoleSelection] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const handleJoinCompany = () => {
+  const handleJoinCompany = async () => {
     if (!companyCode.trim()) {
       toast.error('Masukan kode perusahaan')
       return
     }
 
-    const company = (companies || []).find(c => c.code.toUpperCase() === companyCode.toUpperCase())
+    try {
+      setLoading(true)
 
-    if (!company) {
-      toast.error('Kode salah')
-      return
+      const code = companyCode.trim().toUpperCase()
+
+      // Cari perusahaan berdasarkan field "code" di Firestore
+      const companiesRef = collection(db, 'companies')
+      const q = query(companiesRef, where('code', '==', code))
+      const snap = await getDocs(q)
+      console.log('JoinCompanyScreen query for code:', code)
+      console.log('JoinCompanyScreen snap empty?', snap.empty)
+      snap.forEach(d => {
+        console.log('Found company doc:', d.id, d.data())
+      })
+
+      if (snap.empty) {
+        toast.error('Kode salah')
+        return
+      }
+
+      const doc = snap.docs[0]
+      const data = doc.data()
+
+      const company: Company = {
+        id: doc.id,
+        name: (data as any).name ?? '',
+        ownerId: (data as any).ownerId ?? '',
+        code: (data as any).code ?? code,
+        createdAt: (data as any).createdAt,
+      }
+
+      // Cek apakah user sudah punya membership ke company ini
+      const alreadyJoined = (user.companies || []).some(
+        m => m.companyId === company.id,
+      )
+      if (alreadyJoined) {
+        toast.error('Anda sudah bergabung dengan perusahaan ini')
+        return
+      }
+
+      setSelectedCompany(company)
+      setShowRoleSelection(true)
+    } catch (err) {
+      console.error('JoinCompanyScreen: gagal mencari perusahaan', err)
+      toast.error('Terjadi kesalahan saat mencari perusahaan')
+    } finally {
+      setLoading(false)
     }
-
-    const alreadyJoined = (user.companies || []).some(m => m.companyId === company.id)
-    if (alreadyJoined) {
-      toast.error('Anda sudah bergabung dengan perusahaan ini')
-      return
-    }
-
-    setSelectedCompany(company)
-    setShowRoleSelection(true)
   }
 
   const handleRoleSelected = (role: UserRole) => {
-    if (selectedCompany) {
-      const existingCompanyIds = (companies || []).map(c => c.id)
-      
-      const newMembership = {
-        companyId: selectedCompany.id,
-        role: role,
-        joinedAt: new Date().toISOString()
-      }
+    if (!selectedCompany) return
 
-      setCurrentUser((prev) => {
-        if (!prev) return null
-        const cleanedCompanies = (prev.companies || []).filter(m => 
-          existingCompanyIds.includes(m.companyId)
-        )
-        return {
-          ...prev,
-          companies: [
-            ...cleanedCompanies,
-            newMembership
-          ]
-        }
-      })
-
-      setUsers((currentUsers) => 
-        (currentUsers || []).map((u) => {
-          if (u.id === user.id) {
-            const cleanedCompanies = (u.companies || []).filter(m => 
-              existingCompanyIds.includes(m.companyId)
-            )
-            return { 
-              ...u, 
-              companies: [...cleanedCompanies, newMembership]
-            }
-          }
-          return u
-        })
-      )
-
-      toast.success(`Bergabung dengan ${selectedCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
-      onCompanyJoined(selectedCompany.id, role)
+    const membership: UserCompanyMembership = {
+      companyId: selectedCompany.id,
+      role,
+      joinedAt: new Date().toISOString(),
     }
+
+    // Di sini kita tidak lagi update KV / users global.
+    // Membership akan disimpan di Firestore di alur berikutnya (misalnya lewat Admin atau request karyawan).
+    // Untuk saat ini, cukup update currentUser di App lewat onCompanyJoined.
+    toast.success(
+      `Bergabung dengan ${selectedCompany.name} sebagai ${
+        role === 'admin' ? 'Admin' : role === 'courier' ? 'Kurir' : role
+      }`,
+    )
+
+    onCompanyJoined(selectedCompany.id, role)
   }
 
   const handleBackFromRoleSelection = () => {
@@ -127,13 +146,18 @@ export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: Joi
               id="company-code"
               placeholder="Masukkan kode perusahaan"
               value={companyCode}
-              onChange={(e) => setCompanyCode(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoinCompany()}
+              onChange={e => setCompanyCode(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === 'Enter' && !loading && handleJoinCompany()}
               className="font-mono"
+              disabled={loading}
             />
           </div>
-          <Button onClick={handleJoinCompany} className="w-full">
-            Gabung
+          <Button
+            onClick={handleJoinCompany}
+            className="w-full"
+            disabled={loading}
+          >
+            {loading ? 'Mencari...' : 'Gabung'}
           </Button>
         </CardContent>
       </Card>

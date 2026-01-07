@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -7,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { User } from '@/lib/types'
-import { generateId, validateEmail, hashPassword } from '@/lib/auth'
+import { auth } from '@/lib/firebase'
+import { createUserWithEmailAndPassword } from 'firebase/auth'
 
 interface RegisterScreenProps {
   onRegisterSuccess: (user: User) => void
@@ -17,43 +17,49 @@ interface RegisterScreenProps {
 export default function RegisterScreen({ onRegisterSuccess, onLogin }: RegisterScreenProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [users, setUsers] = useKV<User[]>('users', [])
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  if (!email) {
+    toast.error('Masukan email')
+    return
+  }
 
-    if (!email) {
-      toast.error('Masukan email')
-      return
-    }
+  if (!password) {
+    toast.error('Masukan password')
+    return
+  }
 
-    if (!password) {
-      toast.error('Masukan password')
-      return
-    }
+  // Validasi format email sederhana
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    toast.error('Format email tidak valid')
+    return
+  }
 
-    if (!validateEmail(email)) {
-      toast.error('Format email tidak valid')
-      return
-    }
-
-    const existingUser = users?.find(u => u.email === email)
-    if (existingUser) {
-      toast.error('Email sudah terdaftar')
-      return
-    }
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password)
+    const fbUser = cred.user
 
     const newUser: User = {
-      id: generateId(),
-      email,
-      password: hashPassword(password),
-      name: email.split('@')[0]
+      id: fbUser.uid,
+      email: fbUser.email || email,
+      password: '', // kita tidak simpan password di client
+      name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'User'),
     }
 
-    setUsers((currentUsers) => [...(currentUsers || []), newUser])
     toast.success('Registrasi berhasil')
     onRegisterSuccess(newUser)
+  } catch (err: any) {
+    console.error('Register error:', err)
+    if (err.code === 'auth/email-already-in-use') {
+      toast.error('Email sudah terdaftar')
+    } else if (err.code === 'auth/weak-password') {
+      toast.error('Password terlalu lemah (minimal 6 karakter)')
+    } else {
+      toast.error('Gagal registrasi, coba lagi')
+    }
   }
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary/50 p-4">

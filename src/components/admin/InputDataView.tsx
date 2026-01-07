@@ -6,6 +6,17 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  addDoc,
+  deleteDoc,
+  doc,
+} from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+
 interface InputDataViewProps {
   company: Company
   couriers: Courier[]
@@ -86,7 +97,7 @@ export default function InputDataView({
     setLocalCouriers(prev => prev.filter(c => c.id !== id))
   }
 
-  const handleSaveCouriersAndNext = () => {
+  const handleSaveCouriersAndNext = async () => {
     console.log('handleSaveCouriersAndNext called', localCouriers)
 
     if (!localCouriers.length) {
@@ -100,10 +111,44 @@ export default function InputDataView({
       return
     }
 
-    onSetCouriers(localCouriers)
-    toast.success('Data kurir disimpan')
+    try {
+      // Hapus semua couriers Firestore untuk perusahaan ini
+      const snap = await getDocs(
+        query(
+          collection(db, 'couriers'),
+          where('companyId', '==', company.id),
+        ),
+      )
 
-    setStep(2)
+      const deletePromises = snap.docs.map(d =>
+        deleteDoc(doc(db, 'couriers', d.id)),
+      )
+      await Promise.all(deletePromises)
+
+      // Tambah ulang dari localCouriers
+      const newCouriers: Courier[] = []
+      for (const c of localCouriers) {
+        const { id: _ignore, ...rest } = c
+        const ref = await addDoc(collection(db, 'couriers'), {
+          ...rest,
+          companyId: company.id,
+        })
+        newCouriers.push({ ...c, id: ref.id })
+      }
+
+      setLocalCouriers(newCouriers)
+      onSetCouriers(prev => {
+        // Ganti semua couriers untuk company ini dengan yang baru
+        const other = couriers.filter(c => c.companyId !== company.id)
+        return [...other, ...newCouriers]
+      })
+
+      toast.success('Data kurir disimpan')
+      setStep(2)
+    } catch (err) {
+      console.error('Gagal menyimpan data kurir ke Firestore', err)
+      toast.error('Gagal menyimpan data kurir ke server')
+    }
   }
 
   // ===== STEP 2: PAKET =====
@@ -156,29 +201,71 @@ export default function InputDataView({
     setLocalPackages(prev => prev.filter(p => p.id !== id))
   }
 
-  const handleSavePackages = () => {
-    if (!localPackages.length) {
-      toast.error('Tambahkan minimal satu paket terlebih dahulu')
-      return
-    }
-
-    const invalid = localPackages.some(
-      p =>
-        !p.name ||
-        !p.recipientName ||
-        !p.locationDetail ||
-        !p.recipientPhone,
-    )
-    if (invalid) {
-      toast.error(
-        'Isi nama paket, nama penerima, no HP, dan lokasi detail untuk semua paket',
-      )
-      return
-    }
-
-    onSetPackages(localPackages)
-    toast.success('Data paket disimpan')
+  const handleSavePackages = async () => {
+  if (!localPackages.length) {
+    toast.error('Tambahkan minimal satu paket terlebih dahulu')
+    return
   }
+
+  const invalid = localPackages.some(
+    p =>
+      !p.name ||
+      !p.recipientName ||
+      !p.locationDetail ||
+      !p.recipientPhone,
+  )
+  if (invalid) {
+    toast.error(
+      'Isi nama paket, nama penerima, no HP, dan lokasi detail untuk semua paket',
+    )
+    return
+  }
+
+  try {
+    // Hapus semua packages Firestore untuk perusahaan ini
+    const snap = await getDocs(
+      query(
+        collection(db, 'packages'),
+        where('companyId', '==', company.id),
+      ),
+    )
+
+    const deletePromises = snap.docs.map(d =>
+      deleteDoc(doc(db, 'packages', d.id)),
+    )
+    await Promise.all(deletePromises)
+
+    // Tambah ulang dari localPackages
+    const now = new Date().toISOString()
+    const newPackages: Package[] = []
+    for (const p of localPackages) {
+      const { id: _ignore, ...rest } = p
+
+      const payload: any = {
+        ...rest,
+        companyId: company.id,
+        updatedAt: now,
+      }
+      // Firestore tidak menerima undefined
+      if (payload.courierId === undefined) delete payload.courierId
+      if (payload.deliveredAt === undefined) delete payload.deliveredAt
+
+      const ref = await addDoc(collection(db, 'packages'), payload)
+      newPackages.push({ ...p, id: ref.id, updatedAt: now })
+    }
+
+    setLocalPackages(newPackages)
+    onSetPackages(prev => {
+      const other = packages.filter(p => p.companyId !== company.id)
+      return [...other, ...newPackages]
+    })
+
+    toast.success('Data paket disimpan')
+  } catch (err) {
+    console.error('Gagal menyimpan data paket ke Firestore', err)
+    toast.error('Gagal menyimpan data paket ke server')
+  }
+}
 
   // ===== RENDER =====
 
