@@ -1,4 +1,5 @@
 import { User, Package } from '@/lib/types'
+import AdminMap from '@/components/admin/AdminMap'
 
 interface CourierRecommendationViewProps {
   user: User
@@ -16,19 +17,37 @@ export default function CourierRecommendationView({
       ? 'Belum ada paket untuk direkomendasikan'
       : ordered.map(p => p.name).join(' -> ')
 
+    const packagesWithLocation = (packages || []).filter(
+    p =>
+      typeof p.latitude === 'number' &&
+      typeof p.longitude === 'number' &&
+      (p.latitude !== 0 || p.longitude !== 0),
+  )
+
   return (
     <div className="p-4 md:p-8 pt-20 lg:pt-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="rounded-xl border bg-card p-4">
-          <h2 className="font-semibold mb-2">Rekomendasi Pengantaran</h2>
-          <p className="text-sm text-muted-foreground">{textRoute}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">
+              Rekomendasi Pengantaran
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Urutan paket yang direkomendasikan untuk hari ini
+            </p>
+          </div>
         </div>
 
-        <div className="rounded-xl border bg-card p-4 h-[400px] flex items-center justify-center">
-          {/* nanti MapView dengan urutan marker */}
-          <p className="text-sm text-muted-foreground">
-            Peta dan mark urutan lokasi
-          </p>
+        <div className="rounded-xl border bg-card p-0 h-[400px] overflow-hidden">
+          {packagesWithLocation.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <p className="text-sm text-muted-foreground">
+                Belum ada paket dengan lokasi untuk ditampilkan di peta.
+              </p>
+            </div>
+          ) : (
+            <AdminMap packages={packagesWithLocation} />
+          )}
         </div>
       </div>
     </div>

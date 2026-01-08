@@ -20,7 +20,7 @@ export default function CompanySelectionScreen({ user, onCompanySet }: CompanySe
   const [showJoinDialog, setShowJoinDialog] = useState(false)
   const [companyName, setCompanyName] = useState('')
   const [companyCode, setCompanyCode] = useState('')
-  const [companies, setCompanies] = useKV<Company[]>('companies', [])
+  const [companies, setCompanies] = useState<Company[]>([])
 
   const handleCreateCompany = () => {
     if (!companyName.trim()) {

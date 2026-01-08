@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,12 +10,15 @@ import MapView from '@/components/maps/MapView'
 
 interface TrackPackageScreenProps {
   onBack: () => void
+  packages: Package[]      // ⬅ data paket dikirim dari App.tsx, bukan KV
 }
 
-export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) {
+export default function TrackPackageScreen({
+  onBack,
+  packages,
+}: TrackPackageScreenProps) {
   const [trackingNumber, setTrackingNumber] = useState('')
   const [foundPackage, setFoundPackage] = useState<Package | null>(null)
-  const [packages] = useKV<Package[]>('packages', [])
 
   const handleTrack = () => {
     if (!trackingNumber.trim()) {
@@ -24,7 +26,9 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
       return
     }
 
-    const pkg = packages?.find(p => p.trackingNumber === trackingNumber.toUpperCase())
+    const pkg = (packages || []).find(
+      p => p.trackingNumber === trackingNumber.toUpperCase(),
+    )
 
     if (!pkg) {
       toast.error('Nomor resi salah')
@@ -45,21 +49,46 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
 
   const getStatusTimeline = (pkg: Package) => {
     const timeline = [
-      { status: 'Paket diterima seller', completed: true, timestamp: pkg.createdAt },
-      { status: 'Paket di warehouse', completed: pkg.status !== 'pending', timestamp: pkg.updatedAt },
-      { status: 'Paket dalam pengiriman', completed: pkg.status === 'in-transit' || pkg.status === 'delivered', timestamp: pkg.updatedAt },
-      { status: 'Paket sampai tujuan', completed: pkg.status === 'delivered', timestamp: pkg.deliveredAt || '' }
+      {
+        status: 'Paket diterima seller',
+        completed: true,
+        timestamp: pkg.createdAt,
+      },
+      {
+        status: 'Paket di warehouse',
+        completed: pkg.status !== 'pending',
+        timestamp: pkg.updatedAt,
+      },
+      {
+        status: 'Paket dalam pengiriman',
+        completed:
+          pkg.status === 'in-transit' ||
+          pkg.status === 'in-progress' ||
+          pkg.status === 'ongoing' ||
+          pkg.status === 'delivered',
+        timestamp: pkg.updatedAt,
+      },
+      {
+        status: 'Paket sampai tujuan',
+        completed: pkg.status === 'delivered',
+        timestamp: pkg.deliveredAt || '',
+      },
     ]
     return timeline
   }
 
+  // === Tampilan detail paket ketika sudah ditemukan ===
   if (foundPackage) {
     const timeline = getStatusTimeline(foundPackage)
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-secondary/50 p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          <Button onClick={() => setFoundPackage(null)} variant="ghost" className="mb-4">
+          <Button
+            onClick={() => setFoundPackage(null)}
+            variant="ghost"
+            className="mb-4"
+          >
             <ArrowLeft size={20} className="mr-2" />
             Kembali
           </Button>
@@ -67,23 +96,44 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
           <Card className="shadow-xl">
             <CardHeader>
               <CardTitle className="text-2xl">Status Pengiriman</CardTitle>
-              <p className="text-muted-foreground font-mono">{foundPackage.trackingNumber}</p>
+              <p className="text-muted-foreground font-mono">
+                {foundPackage.trackingNumber}
+              </p>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 {timeline.map((item, index) => (
                   <div key={index} className="flex gap-4">
                     <div className="flex flex-col items-center">
-                      <div className={`rounded-full p-2 ${item.completed ? 'bg-accent' : 'bg-muted'}`}>
-                        {item.completed && <Check size={20} className="text-accent-foreground" />}
+                      <div
+                        className={`rounded-full p-2 ${
+                          item.completed ? 'bg-accent' : 'bg-muted'
+                        }`}
+                      >
+                        {item.completed && (
+                          <Check
+                            size={20}
+                            className="text-accent-foreground"
+                          />
+                        )}
                         {!item.completed && <div className="w-5 h-5" />}
                       </div>
                       {index < timeline.length - 1 && (
-                        <div className={`w-0.5 h-16 ${item.completed ? 'bg-accent' : 'bg-muted'}`} />
+                        <div
+                          className={`w-0.5 h-16 ${
+                            item.completed ? 'bg-accent' : 'bg-muted'
+                          }`}
+                        />
                       )}
                     </div>
                     <div className="flex-1 pb-8">
-                      <p className={`font-medium ${item.completed ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      <p
+                        className={`font-medium ${
+                          item.completed
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
                         {item.status}
                       </p>
                       {item.timestamp && (
@@ -98,20 +148,35 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
 
               <div>
                 <h3 className="font-semibold mb-4">Lokasi Paket</h3>
-                <MapView
-                  center={[foundPackage.latitude, foundPackage.longitude]}
-                  markers={[
-                    {
-                      position: [foundPackage.latitude, foundPackage.longitude],
-                      label: foundPackage.name,
-                      color: '#10B981'
-                    }
-                  ]}
-                  className="h-[400px] w-full rounded-lg overflow-hidden"
-                />
+                {typeof foundPackage.latitude === 'number' &&
+                typeof foundPackage.longitude === 'number' ? (
+                  <MapView
+                    center={[foundPackage.latitude, foundPackage.longitude]}
+                    markers={[
+                      {
+                        position: [
+                          foundPackage.latitude,
+                          foundPackage.longitude,
+                        ],
+                        label: foundPackage.name,
+                        color: '#10B981',
+                      },
+                    ]}
+                    className="h-[400px] w-full rounded-lg overflow-hidden"
+                  />
+                ) : (
+                  <div className="h-[400px] w-full rounded-lg border flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">
+                      Paket ini belum memiliki koordinat lokasi.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <Button onClick={() => setFoundPackage(null)} className="w-full">
+              <Button
+                onClick={() => setFoundPackage(null)}
+                className="w-full"
+              >
                 Cek Paket Lain
               </Button>
             </CardContent>
@@ -121,13 +186,18 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
     )
   }
 
+  // === Tampilan form input nomor resi ===
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary/50 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center pb-4">
           <div className="flex justify-center mb-4">
             <div className="bg-accent rounded-2xl p-4">
-              <PackageIcon size={48} weight="duotone" className="text-accent-foreground" />
+              <PackageIcon
+                size={48}
+                weight="duotone"
+                className="text-accent-foreground"
+              />
             </div>
           </div>
           <CardTitle className="text-3xl font-semibold">Cek Paket</CardTitle>
@@ -143,7 +213,9 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
                 id="tracking"
                 placeholder="Masukkan nomor resi"
                 value={trackingNumber}
-                onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
+                onChange={e =>
+                  setTrackingNumber(e.target.value.toUpperCase())
+                }
                 className="font-mono"
               />
             </div>
@@ -157,10 +229,12 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
             <button
               onClick={onBack}
               className="text-primary hover:underline font-medium text-sm"
-            >Kembali ke Home</button>
+            >
+              Kembali ke Home
+            </button>
           </div>
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

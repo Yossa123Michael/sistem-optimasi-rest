@@ -12,8 +12,8 @@ interface CourierActivationViewProps {
 }
 
 export default function CourierActivationView({ user, onBack }: CourierActivationViewProps) {
-  const [couriers, setCouriers] = useKV<Courier[]>('couriers', [])
-  const [packages] = useKV<Package[]>('packages', [])
+  const [couriers, setCouriers] = useState<Courier[]>([])
+  const [packages, setPackages] = useState<Package[]>([])
 
   const companyCouriers = couriers?.filter(c => c.companyId === user.companyId) || []
   const companyPackages = packages?.filter(p => p.companyId === user.companyId) || []

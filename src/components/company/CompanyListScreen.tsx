@@ -15,7 +15,7 @@ interface CompanyListScreenProps {
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
   const [companies] = useKV<Company[]>('companies', [])
   const [users, setUsers] = useKV<User[]>('users', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
 
   const existingCompanyIds = (companies || []).map(c => c.id)
   const userCompanyIds = (user.companies || [])

@@ -1,4 +1,5 @@
 import { User, Package } from '@/lib/types'
+import AdminMap from '@/components/admin/AdminMap'
 
 interface CourierHomeViewProps {
   user: User
@@ -15,7 +16,14 @@ export default function CourierHomeView({
   completed,
   remaining,
 }: CourierHomeViewProps) {
-  // nanti kamu bisa hitung center peta dari packages
+  // Filter hanya paket yang punya koordinat valid
+  const packagesWithLocation = (packages || []).filter(
+    p =>
+      typeof p.latitude === 'number' &&
+      typeof p.longitude === 'number' &&
+      (p.latitude !== 0 || p.longitude !== 0),
+  )
+
   return (
     <div className="p-4 md:p-8 pt-20 lg:pt-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -24,7 +32,9 @@ export default function CourierHomeView({
           <div>
             <p className="text-sm text-muted-foreground">
               Halo,{' '}
-              <span className="font-semibold">{user.name || user.email}</span>
+              <span className="font-semibold">
+                {user.name || user.email}
+              </span>
             </p>
           </div>
           <div className="grid grid-cols-3 gap-4 text-right">
@@ -46,11 +56,19 @@ export default function CourierHomeView({
         </div>
 
         {/* Peta dan mark lokasi pengiriman paket */}
-        <div className="rounded-xl border bg-card p-4 h-[400px] flex items-center justify-center">
-          {/* Nanti ganti dengan MapView */}
-          <p className="text-sm text-muted-foreground">
-            Peta dan mark lokasi pengiriman paket
-          </p>
+        <div className="rounded-xl border bg-card p-0 h-[400px] overflow-hidden">
+          {packagesWithLocation.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <p className="text-sm text-muted-foreground">
+                Belum ada paket dengan lokasi untuk ditampilkan di peta.
+              </p>
+            </div>
+          ) : (
+            <AdminMap
+              packages={packagesWithLocation}
+              // highlightPackageId opsional – bisa diisi paket yang sedang dipilih nanti
+            />
+          )}
         </div>
       </div>
     </div>

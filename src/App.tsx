@@ -521,6 +521,7 @@ if (screen === 'admin-dashboard') {
           return (
             <TrackPackageScreen
               onBack={() => setCurrentScreen('home-dashboard')}
+              packages={packages}
             />
           )
 
@@ -615,12 +616,6 @@ if (screen === 'admin-dashboard') {
           />
         )
 
-      case 'track-package':
-        return (
-          <TrackPackageScreen
-            onBack={() => setCurrentScreen('login')}
-          />
-        )
 
       default:
         return null
