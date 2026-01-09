@@ -86,15 +86,16 @@ export default function JoinCompanyScreen({
   const handleRoleSelected = (role: UserRole) => {
     if (!selectedCompany) return
 
-    onRequestJoin(selectedCompany.id, role)
-
     toast.success(
-      `Permintaan bergabung ke ${selectedCompany.name} sebagai ${
+      `Bergabung dengan ${selectedCompany.name} sebagai ${
         role === 'admin' ? 'Admin' : role === 'courier' ? 'Kurir' : role
-      } telah dikirim. Tunggu persetujuan owner.`,
+      }`,
     )
 
-    onBack()
+    // kirim ke App -> akan buat EmployeeRequest di state App
+    onRequestJoin(selectedCompany.id, role)
+
+    onBack() // kembali ke home-dashboard
   }
 
   const handleBackFromRoleSelection = () => {

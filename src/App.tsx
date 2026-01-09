@@ -120,33 +120,46 @@ function App() {
         const snap = await getDoc(userRef)
 
         if (snap.exists()) {
-          const data = snap.data() as Partial<User>
-          const companies = (data.companies || []) as UserCompanyMembership[]
+  const data = snap.data() as Partial<User>
+  const companies = (data.companies || []) as UserCompanyMembership[]
 
-          const loadedUser: User = {
-            ...(baseInfo as User),
-            ...data,
-            companies,
-          }
+  const loadedUser: User = {
+    // `id` ambil dari Firebase user saja
+    id: fbUser.uid,
+    // `baseInfo` tanpa id (kita sudah set di atas)
+    email: baseInfo.email || '',
+    password: '',
+    name: baseInfo.name || '',
+    // field lain dari Firestore kecuali id/companies
+    ...(() => {
+      const { id: _ignoreId, companies: _ignoreCompanies, ...rest } =
+        data as any
+      return rest
+    })(),
+    companies,
+  }
 
-          console.log('Loaded user from Firestore:', loadedUser)
-          setCurrentUser(loadedUser)
+  console.log('Loaded user from Firestore:', loadedUser)
+  setCurrentUser(loadedUser)
         } else {
-          const newUser: User = {
-            ...(baseInfo as User),
-            companies: [],
-          }
+  const newUser: User = {
+    id: fbUser.uid,
+    email: baseInfo.email || '',
+    password: '',
+    name: baseInfo.name || '',
+    companies: [],
+  }
 
-          await setDoc(userRef, {
-            id: newUser.id,
-            email: newUser.email,
-            name: newUser.name,
-            companies: newUser.companies,
-          })
+  await setDoc(userRef, {
+    id: newUser.id,
+    email: newUser.email,
+    name: newUser.name,
+    companies: newUser.companies,
+  })
 
-          console.log('Created new user in Firestore:', newUser)
-          setCurrentUser(newUser)
-        }
+  console.log('Created new user in Firestore:', newUser)
+  setCurrentUser(newUser)
+}
 
         setCurrentScreen(prev =>
           prev === 'splash' || prev === 'login'
@@ -358,71 +371,70 @@ function App() {
   // ===== 7. Employee request handlers =====
 
   const handleCreateEmployeeRequest = (
-    companyId: string,
-    requestedRole?: UserRole,
-  ) => {
-    if (!currentUser) return
+  companyId: string,
+  requestedRole?: UserRole,
+) => {
+  if (!currentUser) return
 
-    const newReq: EmployeeRequest = {
+  const newReq: EmployeeRequest = {
+    id: crypto.randomUUID(),
+    userId: currentUser.id,
+    userName: currentUser.name || '',
+    userEmail: currentUser.email,
+    companyId,
+    status: 'pending',
+    requestedRole,
+  }
+
+  console.log('Created employee request:', newReq)
+  setEmployeeRequests(prev => [...prev, newReq])
+}
+
+const handleUpdateRequestStatus = (
+  id: string,
+  status: EmployeeRequest['status'],
+) => {
+  setEmployeeRequests(prev =>
+    prev.map(r => (r.id === id ? { ...r, status } : r)),
+  )
+}
+
+const handleApproveRequest = (
+  req: EmployeeRequest,
+  role: Exclude<UserRole, 'customer'>,
+) => {
+  handleUpdateRequestStatus(req.id, 'approved')
+
+  // kalau user yang sedang login adalah yang disetujui
+  if (currentUser && currentUser.id === req.userId) {
+    const membership: UserCompanyMembership = {
+      companyId: req.companyId,
+      role,
+      joinedAt: new Date().toISOString(),
+    }
+
+    const updated: User = {
+      ...currentUser,
+      role,
+      companies: [...(currentUser.companies || []), membership],
+    }
+
+    setCurrentUser(updated)
+    saveUserToFirestore(updated)
+  }
+
+  if (role === 'courier') {
+    const newCourier: Courier = {
       id: crypto.randomUUID(),
-      userId: currentUser.id,
-      userName: currentUser.name || '',
-      userEmail: currentUser.email,
-      companyId,
-      status: 'pending',
-      requestedRole,
+      name: req.userName || req.userEmail,
+      capacity: 40,
+      active: true,
+      companyId: req.companyId,
+      userId: req.userId,
     }
-
-    console.log('Created employee request:', newReq)
-
-    setEmployeeRequests(prev => [...prev, newReq])
+    setCouriers(prev => [...prev, newCourier])
   }
-
-  const handleUpdateRequestStatus = (
-    id: string,
-    status: EmployeeRequest['status'],
-  ) => {
-    setEmployeeRequests(prev =>
-      prev.map(r => (r.id === id ? { ...r, status } : r)),
-    )
-  }
-
-  const handleApproveRequest = (
-    req: EmployeeRequest,
-    role: Exclude<UserRole, 'customer'>,
-  ) => {
-    handleUpdateRequestStatus(req.id, 'approved')
-
-    // Jika user yang sedang login adalah yang disetujui, update membership lokal + Firestore
-    if (currentUser && currentUser.id === req.userId) {
-      const membership: UserCompanyMembership = {
-        companyId: req.companyId,
-        role,
-        joinedAt: new Date().toISOString(),
-      }
-
-      const updated: User = {
-        ...currentUser,
-        role,
-        companies: [...(currentUser.companies || []), membership],
-      }
-
-      setCurrentUser(updated)
-      saveUserToFirestore(updated)
-    }
-
-    if (role === 'courier') {
-      const newCourier: Courier = {
-        id: crypto.randomUUID(),
-        name: req.userName || req.userEmail,
-        capacity: 40,
-        active: true,
-        companyId: req.companyId,
-        userId: req.userId,
-      }
-      setCouriers(prev => [...prev, newCourier])
-    }
-  }
+}
 
   // ===== 8. Optimasi rute =====
   const handleOptimizeRoutes = (companyId: string) => {
@@ -485,32 +497,28 @@ function App() {
 
     // Admin dashboard (owner / admin)
     if (currentUser && currentScreen === 'admin-dashboard') {
-      console.log(
-        'App render AdminDashboard, companies length:',
-        companies.length,
-      )
-      return (
-        <AdminDashboard
-          user={currentUser}
-          companyId={currentUser.companyId!}
-          onLogout={handleLogout}
-          onBackToHome={() => {
-            setHomeRefreshKey(k => k + 1)
-            setCurrentScreen('home-dashboard')
-          }}
-          couriers={couriers}
-          packages={packages}
-          onSetCouriers={setCouriers}
-          onSetPackages={setPackages}
-          employeeRequests={employeeRequests}
-          onUpdateRequestStatus={handleUpdateRequestStatus}
-          onApproveRequest={handleApproveRequest}
-          routes={routes}
-          onOptimizeRoutes={handleOptimizeRoutes}
-          companiesFromFirestore={companies}
-        />
-      )
-    }
+  return (
+    <AdminDashboard
+      user={currentUser}
+      companyId={currentUser.companyId!}
+      onLogout={handleLogout}
+      onBackToHome={() => {
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+      couriers={couriers}
+      packages={packages}
+      onSetCouriers={setCouriers}
+      onSetPackages={setPackages}
+      employeeRequests={employeeRequests}
+      onUpdateRequestStatus={handleUpdateRequestStatus}
+      onApproveRequest={handleApproveRequest}
+      routes={routes}
+      onOptimizeRoutes={handleOptimizeRoutes}
+      companiesFromFirestore={companies}
+    />
+  )
+}
 
     // User sudah login tetapi bukan admin-dashboard
     if (currentUser) {
@@ -528,18 +536,18 @@ function App() {
           )
 
         case 'join-company':
-          return (
-            <JoinCompanyScreen
-              user={currentUser}
-              onBack={() => {
-                setHomeRefreshKey(k => k + 1)
-                setCurrentScreen('home-dashboard')
-              }}
-              onRequestJoin={(companyId, role) => {
-                handleCreateEmployeeRequest(companyId, role)
-              }}
-            />
-          )
+  return (
+    <JoinCompanyScreen
+      user={currentUser}
+      onBack={() => {
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+      onRequestJoin={(companyId, role) => {
+        handleCreateEmployeeRequest(companyId, role)
+      }}
+    />
+  )
 
         case 'company-list':
           return (
