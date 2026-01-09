@@ -10,7 +10,7 @@ import MapView from '@/components/maps/MapView'
 
 interface TrackPackageScreenProps {
   onBack: () => void
-  packages: Package[]      // ⬅ data paket dikirim dari App.tsx, bukan KV
+  packages: Package[]
 }
 
 export default function TrackPackageScreen({

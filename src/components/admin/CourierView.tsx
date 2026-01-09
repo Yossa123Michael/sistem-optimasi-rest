@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,8 +17,8 @@ export default function CourierView({ user, onActivate }: CourierViewProps) {
   const [capacity, setCapacity] = useState('')
   const [errors, setErrors] = useState<Set<string>>(new Set())
   
-  const [couriers, setCouriers] = useKV<Courier[]>('couriers', [])
-  const [packages] = useKV<Package[]>('packages', [])
+  const [couriers, setCouriers] = useState<Courier[]>([])
+  const [packages] = useState<Package[]>([])
 
   const companyCouriers = couriers?.filter(c => c.companyId === user.companyId) || []
   const companyPackages = packages?.filter(p => p.companyId === user.companyId) || []

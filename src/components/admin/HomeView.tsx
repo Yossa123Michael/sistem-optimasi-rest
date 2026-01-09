@@ -1,5 +1,4 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { useKV } from '@github/spark/hooks'
 import { User, Package, Courier, Company } from '@/lib/types'
 import { Package as PackageIcon, Truck, Clock, CheckCircle } from '@phosphor-icons/react'
 
@@ -9,9 +8,9 @@ interface HomeViewProps {
 
 export default function HomeView({ user }: HomeViewProps) {
   const userName = user.name || user.email.split('@')[0]
-  const [packages] = useKV<Package[]>('packages', [])
-  const [couriers] = useKV<Courier[]>('couriers', [])
-  const [companies] = useKV<Company[]>('companies', [])
+  const [packages] = useState<Package[]>([])
+  const [couriers] = useState<Courier[]>([])
+  const [companies] = useState<Company[]>([])
 
   const userCompany = companies?.find(c => c.id === user.companyId)
   

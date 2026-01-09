@@ -71,10 +71,18 @@ export default function HomeDashboard({
     }
   }
 
-  useEffect(() => {
+    useEffect(() => {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
+
+  // Perusahaan tempat user menjadi anggota (bukan owner)
+  const memberCompanies = useMemo(() => {
+    const ids = new Set((user.companies || []).map(m => m.companyId))
+    const result = companies.filter(c => ids.has(c.id))
+    console.log('HomeDashboard memberCompanies:', result.map(c => c.name))
+    return result
+  }, [companies, user.companies])
 
   // ====== PERUSAHAAN YANG DIMILIKI USER (ownerId === user.id) ======
   const ownedCompanies = useMemo(() => {
@@ -191,7 +199,7 @@ export default function HomeDashboard({
             </div>
           </div>
 
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                    <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             <button
               onClick={() => onNavigate('home')}
               className="w-full text-left px-3 py-2 rounded-lg bg-slate-100 text-slate-900 font-medium flex items-center gap-2"
@@ -213,6 +221,27 @@ export default function HomeDashboard({
                 </span>
               </button>
             ))}
+
+            {/* Perusahaan tempat user bekerja (courier/admin non-owner) */}
+            {memberCompanies.length > 0 && (
+              <>
+                <div className="mt-4 mb-1 text-xs text-slate-400 px-3">
+                  Perusahaan tempat kamu bekerja
+                </div>
+                {memberCompanies.map(company => (
+                  <button
+                    key={company.id}
+                    onClick={() => handleCompanyClick(company.id, 'courier')}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 flex items-center gap-2 transition-colors"
+                  >
+                    <Building2 className="h-4 w-4 text-sky-600 flex-shrink-0" />
+                    <span className="truncate font-medium">
+                      {company.name}
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
 
             <button
               onClick={handleTrackPackage}

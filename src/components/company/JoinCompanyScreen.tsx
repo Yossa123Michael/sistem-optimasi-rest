@@ -5,27 +5,22 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User, Company, UserRole, UserCompanyMembership } from '@/lib/types'
+import { User, Company, UserRole } from '@/lib/types'
 import RoleSelectionScreen from './RoleSelectionScreen'
 
 import { db } from '@/lib/firebase'
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 
 interface JoinCompanyScreenProps {
   user: User
   onBack: () => void
-  onCompanyJoined: (companyId: string, role: UserRole) => void
+  onRequestJoin: (companyId: string, role: UserRole) => void
 }
 
 export default function JoinCompanyScreen({
   user,
   onBack,
-  onCompanyJoined,
+  onRequestJoin,
 }: JoinCompanyScreenProps) {
   const [companyCode, setCompanyCode] = useState('')
   const [showRoleSelection, setShowRoleSelection] = useState(false)
@@ -43,10 +38,10 @@ export default function JoinCompanyScreen({
 
       const code = companyCode.trim().toUpperCase()
 
-      // Cari perusahaan berdasarkan field "code" di Firestore
       const companiesRef = collection(db, 'companies')
       const q = query(companiesRef, where('code', '==', code))
       const snap = await getDocs(q)
+
       console.log('JoinCompanyScreen query for code:', code)
       console.log('JoinCompanyScreen snap empty?', snap.empty)
       snap.forEach(d => {
@@ -58,11 +53,11 @@ export default function JoinCompanyScreen({
         return
       }
 
-      const doc = snap.docs[0]
-      const data = doc.data()
+      const docSnap = snap.docs[0]
+      const data = docSnap.data()
 
       const company: Company = {
-        id: doc.id,
+        id: docSnap.id,
         name: (data as any).name ?? '',
         ownerId: (data as any).ownerId ?? '',
         code: (data as any).code ?? code,
@@ -91,22 +86,15 @@ export default function JoinCompanyScreen({
   const handleRoleSelected = (role: UserRole) => {
     if (!selectedCompany) return
 
-    const membership: UserCompanyMembership = {
-      companyId: selectedCompany.id,
-      role,
-      joinedAt: new Date().toISOString(),
-    }
+    onRequestJoin(selectedCompany.id, role)
 
-    // Di sini kita tidak lagi update KV / users global.
-    // Membership akan disimpan di Firestore di alur berikutnya (misalnya lewat Admin atau request karyawan).
-    // Untuk saat ini, cukup update currentUser di App lewat onCompanyJoined.
     toast.success(
-      `Bergabung dengan ${selectedCompany.name} sebagai ${
+      `Permintaan bergabung ke ${selectedCompany.name} sebagai ${
         role === 'admin' ? 'Admin' : role === 'courier' ? 'Kurir' : role
-      }`,
+      } telah dikirim. Tunggu persetujuan owner.`,
     )
 
-    onCompanyJoined(selectedCompany.id, role)
+    onBack()
   }
 
   const handleBackFromRoleSelection = () => {
@@ -147,7 +135,9 @@ export default function JoinCompanyScreen({
               placeholder="Masukkan kode perusahaan"
               value={companyCode}
               onChange={e => setCompanyCode(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === 'Enter' && !loading && handleJoinCompany()}
+              onKeyDown={e =>
+                e.key === 'Enter' && !loading && handleJoinCompany()
+              }
               className="font-mono"
               disabled={loading}
             />

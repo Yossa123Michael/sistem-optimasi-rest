@@ -48,14 +48,13 @@ export default function InputDataView({
   )
 
   const totalCourierCapacity = useMemo(
-    () => localCouriers.reduce((sum, c) => sum + (c.capacity || 0), 0),
-    [localCouriers],
-  )
-
-  const totalPackageWeight = useMemo(
-    () => localPackages.reduce((sum, p) => sum + (p.weight || 0), 0),
-    [localPackages],
-  )
+  () =>
+    localCouriers.reduce(
+      (sum, c) => sum + (Number(c.capacity) || 0),
+      0,
+    ),
+  [localCouriers],
+)
 
   // ===== STEP 1: KURIR =====
 

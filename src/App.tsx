@@ -1,19 +1,32 @@
 import { useState, useEffect } from 'react'
-import { User, UserRole, Company, RouteOptimization, Courier, Package, EmployeeRequest, UserCompanyMembership } from './lib/types'
+import {
+  User,
+  UserRole,
+  Company,
+  RouteOptimization,
+  Courier,
+  Package,
+  EmployeeRequest,
+  UserCompanyMembership,
+} from './lib/types'
+
 import SplashScreen from './components/auth/SplashScreen'
 import LoginScreen from './components/auth/LoginScreen'
 import RegisterScreen from './components/auth/RegisterScreen'
 import ForgotPasswordScreen from './components/auth/ForgotPasswordScreen'
 import RoleSelectionScreen from './components/auth/RoleSelectionScreen'
+
 import CompanySelectionScreen from './components/company/CompanySelectionScreen'
 import HomeDashboard from './components/HomeDashboard'
 import CreateCompanyScreen from './components/company/CreateCompanyScreen'
 import JoinCompanyScreen from './components/company/JoinCompanyScreen'
 import CompanyListScreen from './components/company/CompanyListScreen'
+
 import AdminDashboard from './components/admin/AdminDashboard'
 import CourierDashboard from './components/courier/CourierDashboard'
 import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
+
 import { Toaster } from './components/ui/sonner'
 
 import { auth } from './lib/firebase'
@@ -23,10 +36,11 @@ import { toast } from 'sonner'
 import {
   collection,
   addDoc,
-  updateDoc,
   deleteDoc,
   doc,
   getDocs,
+  getDoc,
+  setDoc,
   query,
   where,
 } from 'firebase/firestore'
@@ -60,89 +74,138 @@ function App() {
   const [packages, setPackages] = useState<Package[]>([])
   const [routes, setRoutes] = useState<RouteOptimization[]>([])
 
-  // 1. Dengarkan Firebase Auth
-  useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, fbUser => {
-    if (!fbUser) {
-      setCurrentUser(null)
-      return
-    }
-
-    const baseInfo: Partial<User> = {
-      id: fbUser.uid,
-      email: fbUser.email || '',
-      password: '',
-      name:
-        fbUser.displayName ||
-        (fbUser.email ? fbUser.email.split('@')[0] : 'User'),
-    }
-
-    console.log('Auth callback prev user:', currentUser)
-    console.log('Auth callback baseInfo:', baseInfo)
-
-    setCurrentUser(prev => {
-      // Kalau sebelumnya sudah ada user dengan memberships, jangan hilangkan
-      if (prev && prev.id === fbUser.uid && prev.companies && prev.companies.length > 0) {
-        return {
-          ...prev,
-          ...baseInfo,
-          companies: prev.companies,
-        } as User
-      }
-
-      // Kalau belum ada atau belum punya companies
-      return {
-        ...(prev || {}),
-        ...baseInfo,
-        companies: prev?.companies || [],
-      } as User
-    })
-
-    setCurrentScreen(prev =>
-      prev === 'splash' || prev === 'login' ? 'home-dashboard' : prev,
-    )
-  })
-
-  return () => unsubscribe()
-}, [])
-
-  useEffect(() => {
-  const loadCompanyData = async () => {
-    if (!currentUser?.companyId) return
-
+  // ===== Helper: simpan user ke Firestore (koleksi "users") =====
+  const saveUserToFirestore = async (user: User) => {
     try {
-      const companyId = currentUser.companyId
-
-      // Couriers
-      const couriersSnap = await getDocs(
-        query(collection(db, 'couriers'), where('companyId', '==', companyId)),
+      const userRef = doc(db, 'users', user.id)
+      await setDoc(
+        userRef,
+        {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          companies: user.companies || [],
+        },
+        { merge: true },
       )
-      const loadedCouriers: Courier[] = couriersSnap.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Courier),
-      }))
-
-      // Packages
-      const packagesSnap = await getDocs(
-        query(collection(db, 'packages'), where('companyId', '==', companyId)),
-      )
-      const loadedPackages: Package[] = packagesSnap.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Package),
-      }))
-
-      setCouriers(loadedCouriers)
-      setPackages(loadedPackages)
+      console.log('Saved user to Firestore:', user)
     } catch (err) {
-      console.error('Failed to load company data from Firestore', err)
-      toast.error('Gagal memuat data kurir dan paket dari server')
+      console.error('Failed to save user to Firestore', err)
+      toast.error('Gagal menyimpan data user')
     }
   }
 
-  loadCompanyData()
-}, [currentUser?.companyId])
+  // ===== 1. Dengarkan Firebase Auth dan muat user dari Firestore =====
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async fbUser => {
+      if (!fbUser) {
+        setCurrentUser(null)
+        setCurrentScreen('login')
+        return
+      }
 
-  // 2. Sinkronisasi membership user (kalau users sudah terisi)
+      const baseInfo: Partial<User> = {
+        id: fbUser.uid,
+        email: fbUser.email || '',
+        password: '',
+        name:
+          fbUser.displayName ||
+          (fbUser.email ? fbUser.email.split('@')[0] : 'User'),
+      }
+
+      console.log('Auth callback baseInfo:', baseInfo)
+
+      try {
+        const userRef = doc(db, 'users', fbUser.uid)
+        const snap = await getDoc(userRef)
+
+        if (snap.exists()) {
+          const data = snap.data() as Partial<User>
+          const companies = (data.companies || []) as UserCompanyMembership[]
+
+          const loadedUser: User = {
+            ...(baseInfo as User),
+            ...data,
+            companies,
+          }
+
+          console.log('Loaded user from Firestore:', loadedUser)
+          setCurrentUser(loadedUser)
+        } else {
+          const newUser: User = {
+            ...(baseInfo as User),
+            companies: [],
+          }
+
+          await setDoc(userRef, {
+            id: newUser.id,
+            email: newUser.email,
+            name: newUser.name,
+            companies: newUser.companies,
+          })
+
+          console.log('Created new user in Firestore:', newUser)
+          setCurrentUser(newUser)
+        }
+
+        setCurrentScreen(prev =>
+          prev === 'splash' || prev === 'login'
+            ? 'home-dashboard'
+            : prev,
+        )
+      } catch (err) {
+        console.error('Failed to load user from Firestore', err)
+        toast.error('Gagal memuat data user')
+
+        setCurrentUser(prev => ({
+          ...(prev || ({} as User)),
+          ...(baseInfo as User),
+          companies: prev?.companies || [],
+        }))
+
+        setCurrentScreen('home-dashboard')
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // ===== 1b. Muat data couriers & packages untuk company aktif =====
+  useEffect(() => {
+    const loadCompanyData = async () => {
+      if (!currentUser?.companyId) return
+
+      try {
+        const companyId = currentUser.companyId
+
+        const couriersSnap = await getDocs(
+          query(collection(db, 'couriers'), where('companyId', '==', companyId)),
+        )
+        const loadedCouriers: Courier[] = couriersSnap.docs.map(doc => ({
+          id: doc.id,
+          ...(doc.data() as Courier),
+        }))
+
+        const packagesSnap = await getDocs(
+          query(collection(db, 'packages'), where('companyId', '==', companyId)),
+        )
+        const loadedPackages: Package[] = packagesSnap.docs.map(doc => ({
+          id: doc.id,
+          ...(doc.data() as Package),
+        }))
+
+        setCouriers(loadedCouriers)
+        setPackages(loadedPackages)
+      } catch (err) {
+        console.error('Failed to load company data from Firestore', err)
+        toast.error('Gagal memuat data kurir dan paket dari server')
+      }
+    }
+
+    loadCompanyData()
+  }, [currentUser?.companyId])
+
+  // ===== 2. Sinkronisasi membership user dari state "users" (opsional) =====
   useEffect(() => {
     if (!currentUser) return
     if (
@@ -166,7 +229,7 @@ function App() {
     }
   }, [users, currentUser?.id, currentScreen])
 
-  // 3. Cleanup membership ke perusahaan yang sudah dihapus
+  // ===== 3. Cleanup membership ke perusahaan yang sudah dihapus =====
   useEffect(() => {
     const ids = (companies || []).map(c => c.id)
     if (!ids.length) return
@@ -207,24 +270,19 @@ function App() {
     }
   }, [companies, users, currentUser])
 
-  // 4. Logout
+  // ===== 4. Logout =====
   const handleLogout = async () => {
     try {
       await signOut(auth)
-    } catch (e) {
-      console.error('Error while signing out from Firebase:', e)
-    } finally {
-      try {
-        await window.spark.kv.set('current-user', null)
-      } catch (e) {
-        console.warn('Failed to clear KV current-user:', e)
-      }
-
       setCurrentUser(null)
       setCurrentScreen('login')
+    } catch (e) {
+      console.error('Logout error:', e)
+      toast.error('Gagal logout, coba lagi')
     }
   }
 
+  // ===== 5. Navigasi dari HomeDashboard =====
   const handleNavigateFromHome = async (
     screen:
       | 'home'
@@ -239,26 +297,6 @@ function App() {
     console.log('handleNavigateFromHome called with:', screen)
     console.log('currentUser before navigate:', currentUser)
 
-    if (screen === 'courier-dashboard') {
-  // Sementara: paksa set companyId & role untuk testing akun kurir
-  setCurrentUser(prev =>
-    prev
-      ? {
-          ...prev,
-          companyId: '1PWxUC2SafljdUJ3QmWb', // id Mooo
-          role: 'courier',
-        }
-      : prev,
-  )
-  setCurrentScreen('courier-dashboard')
-  return
-}
-
-if (screen === 'admin-dashboard') {
-  setCurrentScreen('admin-dashboard')
-  return
-}
-   
     if (screen === 'home') {
       setHomeRefreshKey(k => k + 1)
       setCurrentScreen('home-dashboard')
@@ -272,18 +310,25 @@ if (screen === 'admin-dashboard') {
       setCurrentScreen('join-company')
     } else if (screen === 'customer-mode') {
       setCurrentScreen('customer-dashboard')
+    } else if (screen === 'admin-dashboard') {
+      setCurrentScreen('admin-dashboard')
+    } else if (screen === 'courier-dashboard') {
+      setCurrentScreen('courier-dashboard')
     }
   }
 
+  // ===== 6. Company created oleh owner =====
   const handleCompanyCreated = async (companyId: string) => {
     console.log('=== handleCompanyCreated called with companyId:', companyId)
 
     if (!currentUser) {
-      console.warn('handleCompanyCreated: no currentUser, skip membership update')
+      console.warn(
+        'handleCompanyCreated: no currentUser, skip membership update',
+      )
     } else {
-      const newMembership = {
+      const newMembership: UserCompanyMembership = {
         companyId,
-        role: 'admin' as const,
+        role: 'admin',
         joinedAt: new Date().toISOString(),
       }
 
@@ -294,20 +339,12 @@ if (screen === 'admin-dashboard') {
 
       console.log('Updated user memberships:', updatedUser.companies)
       setCurrentUser(updatedUser)
+      // NOTE: bisa juga saveUserToFirestore(updatedUser) kalau ingin langsung simpan
+      saveUserToFirestore(updatedUser)
     }
 
     setHomeRefreshKey(k => k + 1)
     setCurrentScreen('home-dashboard')
-  }
-
-  const handleCompanyJoined = (companyId: string, role: UserRole) => {
-    setCurrentUser(prev => (prev ? { ...prev, companyId, role } : null))
-    setHomeRefreshKey(k => k + 1)
-    setTimeout(() => {
-      if (role === 'admin') setCurrentScreen('admin-dashboard')
-      else if (role === 'courier') setCurrentScreen('courier-dashboard')
-      else setCurrentScreen('home-dashboard')
-    }, 100)
   }
 
   const handleCompanySelected = (companyId: string) => {
@@ -318,7 +355,7 @@ if (screen === 'admin-dashboard') {
     else setCurrentScreen('home-dashboard')
   }
 
-  // ===== Employee request handlers =====
+  // ===== 7. Employee request handlers =====
 
   const handleCreateEmployeeRequest = (
     companyId: string,
@@ -335,6 +372,8 @@ if (screen === 'admin-dashboard') {
       status: 'pending',
       requestedRole,
     }
+
+    console.log('Created employee request:', newReq)
 
     setEmployeeRequests(prev => [...prev, newReq])
   }
@@ -354,6 +393,7 @@ if (screen === 'admin-dashboard') {
   ) => {
     handleUpdateRequestStatus(req.id, 'approved')
 
+    // Jika user yang sedang login adalah yang disetujui, update membership lokal + Firestore
     if (currentUser && currentUser.id === req.userId) {
       const membership: UserCompanyMembership = {
         companyId: req.companyId,
@@ -361,11 +401,14 @@ if (screen === 'admin-dashboard') {
         joinedAt: new Date().toISOString(),
       }
 
-      setCurrentUser({
+      const updated: User = {
         ...currentUser,
         role,
         companies: [...(currentUser.companies || []), membership],
-      })
+      }
+
+      setCurrentUser(updated)
+      saveUserToFirestore(updated)
     }
 
     if (role === 'courier') {
@@ -381,76 +424,71 @@ if (screen === 'admin-dashboard') {
     }
   }
 
+  // ===== 8. Optimasi rute =====
   const handleOptimizeRoutes = (companyId: string) => {
     const companyCouriers = couriers.filter(c => c.companyId === companyId)
     const companyPackages = packages.filter(p => p.companyId === companyId)
 
-    const routesForCompany: RouteOptimization[] = companyCouriers.map(courier => {
-      const pkgs = companyPackages.filter(p => p.courierId === courier.id)
+    const routesForCompany: RouteOptimization[] = companyCouriers.map(
+      courier => {
+        const pkgs = companyPackages.filter(p => p.courierId === courier.id)
 
-      const ordered = [...pkgs].sort((a, b) => {
-        if (a.latitude === b.latitude) return a.longitude - b.longitude
-        return a.latitude - b.latitude
-      })
+        const ordered = [...pkgs].sort((a, b) => {
+          if (a.latitude === b.latitude) return a.longitude - b.longitude
+          return a.latitude - b.latitude
+        })
 
-      const routeCoords: [number, number][] = ordered.map(p => [
-        p.latitude,
-        p.longitude,
-      ])
+        const routeCoords: [number, number][] = ordered.map(p => [
+          p.latitude,
+          p.longitude,
+        ])
 
-      const totalDistance = routeCoords.length
+        const totalDistance = routeCoords.length
 
-      return {
-        courierId: courier.id,
-        courierName: courier.name,
-        packages: ordered,
-        totalDistance,
-        route: routeCoords,
-      }
-    })
+        return {
+          courierId: courier.id,
+          courierName: courier.name,
+          packages: ordered,
+          totalDistance,
+          route: routeCoords,
+        }
+      },
+    )
 
     setRoutes(routesForCompany)
   }
 
-  const handleSaveCouriersAndNext = async () => {
-  // ... validasi seperti sekarang
+  const handleUpdatePackageStatus = (
+    packageId: string,
+    newStatus: Package['status'],
+  ) => {
+    const now = new Date().toISOString()
 
-  try {
-    // 1. Hapus semua couriers existing utk company ini
-    const snap = await getDocs(
-      query(collection(db, 'couriers'), where('companyId', '==', company.id)),
+    setPackages(prev =>
+      prev.map(p =>
+        p.id === packageId
+          ? {
+              ...p,
+              status: newStatus,
+              updatedAt: now,
+              deliveredAt:
+                newStatus === 'delivered' ? now : p.deliveredAt,
+            }
+          : p,
+      ),
     )
-    const batchDeletes = snap.docs.map(d => deleteDoc(doc(db, 'couriers', d.id)))
-    await Promise.all(batchDeletes)
-
-    // 2. Tambah ulang semua dari localCouriers
-    const newCouriers: Courier[] = []
-    for (const c of localCouriers) {
-      const { id: _ignore, ...rest } = c
-      const ref = await addDoc(collection(db, 'couriers'), {
-        ...rest,
-        companyId: company.id,
-      })
-      newCouriers.push({ ...c, id: ref.id })
-    }
-
-    setLocalCouriers(newCouriers)
-    onSetCouriers(newCouriers)
-    toast.success('Data kurir disimpan di server')
-    setStep(2)
-  } catch (err) {
-    console.error('Gagal menyimpan data kurir ke Firestore', err)
-    toast.error('Gagal menyimpan data kurir')
   }
-}
 
-  // ===== Render screen =====
-
+  // ===== 9. Render screen utama =====
   const renderScreen = () => {
     console.log('App currentUser in renderScreen:', currentUser)
 
+    // Admin dashboard (owner / admin)
     if (currentUser && currentScreen === 'admin-dashboard') {
-      console.log('App render AdminDashboard, companies length:', companies.length)
+      console.log(
+        'App render AdminDashboard, companies length:',
+        companies.length,
+      )
       return (
         <AdminDashboard
           user={currentUser}
@@ -474,6 +512,7 @@ if (screen === 'admin-dashboard') {
       )
     }
 
+    // User sudah login tetapi bukan admin-dashboard
     if (currentUser) {
       switch (currentScreen) {
         case 'create-company':
@@ -496,7 +535,9 @@ if (screen === 'admin-dashboard') {
                 setHomeRefreshKey(k => k + 1)
                 setCurrentScreen('home-dashboard')
               }}
-              onCompanyJoined={handleCompanyJoined}
+              onRequestJoin={(companyId, role) => {
+                handleCreateEmployeeRequest(companyId, role)
+              }}
             />
           )
 
@@ -525,6 +566,20 @@ if (screen === 'admin-dashboard') {
             />
           )
 
+        case 'courier-dashboard':
+          return (
+            <CourierDashboard
+              user={currentUser}
+              onLogout={handleLogout}
+              onBackToHome={() => {
+                setHomeRefreshKey(k => k + 1)
+                setCurrentScreen('home-dashboard')
+              }}
+              onUpdatePackageStatus={handleUpdatePackageStatus}
+              allPackages={packages}
+            />
+          )
+
         case 'home-dashboard':
         default:
           return (
@@ -537,45 +592,30 @@ if (screen === 'admin-dashboard') {
               onCompaniesLoaded={setCompanies}
             />
           )
-
-        case 'courier-dashboard':
-  return (
-    <CourierDashboard
-      user={currentUser}
-      onLogout={handleLogout}
-      onBackToHome={() => {
-        setHomeRefreshKey(k => k + 1)
-        setCurrentScreen('home-dashboard')
-      }}
-      onUpdatePackageStatus={handleUpdatePackageStatus}
-      allPackages={packages}
-    />
-  )
       }
     }
 
-    // BELUM login
+    // ===== Belum login =====
     switch (currentScreen) {
       case 'splash':
         return <SplashScreen onStart={() => setCurrentScreen('login')} />
 
       case 'login':
-  return (
-    <LoginScreen
-      onLoginSuccess={user => {
-        // user di sini sudah berisi id, email, name, dll dari login
-        setCurrentUser(prev => ({
-          ...(prev || {}),
-          ...user,
-          companies: prev?.companies || [], // jaga membership yang mungkin sudah ada
-        }))
-        setCurrentScreen('home-dashboard')
-      }}
-      onForgotPassword={() => setCurrentScreen('forgot-password')}
-      onRegister={() => setCurrentScreen('register')}
-      onTrackPackage={() => setCurrentScreen('track-package')}
-    />
-  )
+        return (
+          <LoginScreen
+            onLoginSuccess={user => {
+              setCurrentUser(prev => ({
+                ...(prev || ({} as User)),
+                ...user,
+                companies: prev?.companies || [],
+              }))
+              setCurrentScreen('home-dashboard')
+            }}
+            onForgotPassword={() => setCurrentScreen('forgot-password')}
+            onRegister={() => setCurrentScreen('register')}
+            onTrackPackage={() => setCurrentScreen('track-package')}
+          />
+        )
 
       case 'register':
         return (
@@ -616,32 +656,10 @@ if (screen === 'admin-dashboard') {
           />
         )
 
-
       default:
         return null
     }
   }
-
-  const handleUpdatePackageStatus = (
-  packageId: string,
-  newStatus: Package['status'],
-) => {
-  const now = new Date().toISOString()
-
-  setPackages(prev =>
-    prev.map(p =>
-      p.id === packageId
-        ? {
-            ...p,
-            status: newStatus,
-            updatedAt: now,
-            deliveredAt:
-              newStatus === 'delivered' ? now : p.deliveredAt,
-          }
-        : p,
-    ),
-  )
-}
 
   return (
     <>

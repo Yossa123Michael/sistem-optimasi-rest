@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Buildings, Copy } from '@phosphor-icons/react'
@@ -13,8 +12,8 @@ interface CompanyListScreenProps {
 }
 
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
-  const [companies] = useKV<Company[]>('companies', [])
-  const [users, setUsers] = useKV<User[]>('users', [])
+  const [companies] = useState<Company[]>([])
+  const [users, setUsers] = useState<User | null>(null)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
 
   const existingCompanyIds = (companies || []).map(c => c.id)
