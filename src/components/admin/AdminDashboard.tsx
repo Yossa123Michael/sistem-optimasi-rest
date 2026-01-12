@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
-import { User, Company } from '@/lib/types'
+import { useEffect, useState } from 'react'
+import { User } from '@/lib/types'
 import AdminSidebar from './AdminSidebar'
 import HomeView from './HomeView'
 import InputDataView from './InputDataView'
@@ -9,7 +8,13 @@ import CourierActivationView from './CourierActivationView'
 import MonitoringView from './MonitoringView'
 import HistoryView from './HistoryView'
 
-type AdminView = 'home' | 'input-data' | 'courier' | 'courier-activation' | 'monitoring' | 'history'
+type AdminView =
+  | 'home'
+  | 'input-data'
+  | 'courier'
+  | 'courier-activation'
+  | 'monitoring'
+  | 'history'
 
 interface AdminDashboardProps {
   user: User
@@ -19,37 +24,21 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState<AdminView>('home')
-  const [companies] = useKV<Company[]>('companies', [])
 
-  // HANYA redirect kalau data benar‑benar tidak valid
   useEffect(() => {
-    console.log('[AdminDashboard] effect check company/role', {
-      userEmail: user.email,
-      companyId: user.companyId,
-      role: user.role,
-      totalCompanies: companies?.length,
-    })
-
-    // kalau user belum punya companyId atau bukan admin, balikin ke home
+    // validasi minimal: harus admin dan punya companyId
     if (!user.companyId || user.role !== 'admin') {
-      console.warn('[AdminDashboard] invalid state, going back to home-dashboard')
-      if (onBackToHome) onBackToHome()
-      return
+      onBackToHome?.()
     }
-
-    const companyExists = (companies || []).some(c => c.id === user.companyId)
-    if (!companyExists) {
-      console.warn('[AdminDashboard] company not found, going back to home-dashboard')
-      if (onBackToHome) onBackToHome()
-    }
-  }, [user.companyId, user.role, companies, onBackToHome])
+  }, [user.companyId, user.role, onBackToHome])
 
   const renderView = () => {
     switch (currentView) {
       case 'home':
         return <HomeView user={user} />
       case 'input-data':
-        return <InputDataView user={user} />
+        // kalau komponen InputDataView Anda butuh props lain, nanti kita sesuaikan.
+        return <InputDataView user={user as any} />
       case 'courier':
         return <CourierView user={user} onActivate={() => setCurrentView('courier-activation')} />
       case 'courier-activation':
@@ -72,9 +61,7 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
         onLogout={onLogout}
         onBackToHome={onBackToHome}
       />
-      <main className="flex-1 lg:ml-48">
-        {renderView()}
-      </main>
+      <main className="flex-1 lg:ml-48">{renderView()}</main>
     </div>
   )
 }

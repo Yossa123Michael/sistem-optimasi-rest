@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import {
+  addDoc,
   collection,
   getDocs,
   query,
@@ -13,6 +14,7 @@ import {
   doc,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { addMembershipToUserFirestore } from '@/lib/membership'
 
 interface EmployeeRequestsViewProps {
   company: Company
@@ -92,27 +94,61 @@ export default function EmployeeRequestsView({
   }
 
   const handleApprove = async (
-    req: EmployeeRequest,
-    role: Exclude<UserRole, 'customer'>,
-  ) => {
-    if (!isOwner) return
-    try {
-      await updateDoc(doc(db, 'employeeRequests', req.id), {
-        status: 'approved',
-        requestedRole: role,
-      })
+  req: EmployeeRequest,
+  role: Exclude<UserRole, 'customer'>,
+) => {
+  if (!isOwner) return
+  try {
+    // 1) set approved di Firestore
+    await updateDoc(doc(db, 'employeeRequests', req.id), {
+      status: 'approved',
+      requestedRole: role,
+    })
 
-      onApproveAsRole(req, role)
+    // 2) update membership user pelamar di Firestore
+    const membership = {
+      companyId: company.id,
+      role,
+      joinedAt: new Date().toISOString(),
+    } as const
 
-      toast.success(
-        `Permintaan disetujui sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`,
+    // import helper
+    // (lihat import section di bawah)
+    await addMembershipToUserFirestore(req.userId, membership)
+
+    // 3) kalau courier, ensure couriers doc ada
+    if (role === 'courier') {
+      const existingSnap = await getDocs(
+        query(
+          collection(db, 'couriers'),
+          where('userId', '==', req.userId),
+          where('companyId', '==', company.id),
+        ),
       )
-      loadRequests()
-    } catch (e) {
-      console.error('Failed to approve request', e)
-      toast.error('Gagal menyetujui permintaan')
+
+      if (existingSnap.empty) {
+        await addDoc(collection(db, 'couriers'), {
+          name: req.userName || req.userEmail || 'Kurir',
+          capacity: 40,
+          active: true,
+          companyId: company.id,
+          userId: req.userId,
+        })
+      }
     }
+
+    // 4) optional: sync state lama (biar UI Anda yang lain tidak rusak)
+    onApproveAsRole(req, role)
+
+    toast.success(
+      `Permintaan disetujui sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`,
+    )
+    loadRequests()
+  } catch (e) {
+    console.error('Failed to approve request', e)
+    toast.error('Gagal menyetujui permintaan')
   }
+}
 
   if (!isOwner) {
     return (
