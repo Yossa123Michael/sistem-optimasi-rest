@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useState } from 'react'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Buildings, Copy } from '@phosphor-icons/react'
@@ -13,9 +14,8 @@ interface CompanyListScreenProps {
 }
 
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
-  const [companies] = useKV<Company[]>('companies', [])
-  const [users, setUsers] = useKV<User[]>('users', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loadingCompanies, setLoadingCompanies] = useState(true)
 
   const existingCompanyIds = (companies || []).map(c => c.id)
   const userCompanyIds = (user.companies || [])
@@ -44,6 +44,18 @@ export default function CompanyListScreen({ user, onBack, onSelectCompany }: Com
             companies: cleanedCompanies
           }
         })
+
+        const load = async () => {
+    try {
+      setLoadingCompanies(true)
+      const snap = await getDocs(collection(db, 'companies'))
+      setCompanies(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+    } finally {
+      setLoadingCompanies(false)
+    }
+  }
+  load()
+}, []) 
 
         setUsers((prevUsers) => 
           (prevUsers || []).map(u => {

@@ -26,7 +26,7 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
   const [currentView, setCurrentView] = useState<AdminView>('home')
 
   useEffect(() => {
-    // validasi minimal: harus admin dan punya companyId
+    // validasi minimal (jangan cek KV)
     if (!user.companyId || user.role !== 'admin') {
       onBackToHome?.()
     }
@@ -37,7 +37,6 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
       case 'home':
         return <HomeView user={user} />
       case 'input-data':
-        // kalau komponen InputDataView Anda butuh props lain, nanti kita sesuaikan.
         return <InputDataView user={user as any} />
       case 'courier':
         return <CourierView user={user} onActivate={() => setCurrentView('courier-activation')} />

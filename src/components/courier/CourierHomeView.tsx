@@ -1,5 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useState } from 'react'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { User, Package, Courier, Company } from '@/lib/types'
 import { Package as PackageIcon, MapPin, CheckCircle, Clock } from '@phosphor-icons/react'
 
@@ -9,9 +11,8 @@ interface CourierHomeViewProps {
 
 export default function CourierHomeView({ user }: CourierHomeViewProps) {
   const userName = user.name || user.email.split('@')[0]
-  const [packages] = useKV<Package[]>('packages', [])
-  const [couriers] = useKV<Courier[]>('couriers', [])
-  const [companies] = useKV<Company[]>('companies', [])
+  const [companies, setCompanies] = useState<Company[]>([])
+const [loadingCompanies, setLoadingCompanies] = useState(true)
 
   const userCompany = companies?.find(c => c.id === user.companyId)
   

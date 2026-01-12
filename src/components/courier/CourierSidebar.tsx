@@ -4,7 +4,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { List } from '@phosphor-icons/react'
 import { User, Company } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useState } from 'react'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 
 type CourierView = 'home' | 'package-list' | 'recommendation' | 'update'
 
@@ -18,10 +20,9 @@ interface CourierSidebarProps {
 
 export default function CourierSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: CourierSidebarProps) {
   const isMobile = useIsMobile()
-  const [companies] = useKV<Company[]>('companies', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [users, setUsers] = useKV<User[]>('users', [])
-  
+  const [companies, setCompanies] = useState<Company[]>([])
+const [loadingCompanies, setLoadingCompanies] = useState(true)
+
   const activeUser = currentUser || user
   const userName = activeUser.name || activeUser.email.split('@')[0]
   const currentCompany = (companies || []).find(c => c.id === activeUser.companyId)

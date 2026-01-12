@@ -3,7 +3,9 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { List } from '@phosphor-icons/react'
 import { User, Company } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useState } from 'react'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 
 type CustomerView = 'home' | 'orders' | 'track'
 
@@ -16,7 +18,7 @@ interface CustomerSidebarProps {
 
 export default function CustomerSidebar({ user, currentView, onViewChange, onLogout }: CustomerSidebarProps) {
   const isMobile = useIsMobile()
-  const [companies] = useKV<Company[]>('companies', [])
+  const [companies, setCompanies] = useState<Company[]>([])
 
   const userCompanies = (user.companies || [])
     .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())
