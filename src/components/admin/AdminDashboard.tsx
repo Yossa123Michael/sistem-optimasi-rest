@@ -20,18 +20,29 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState<AdminView>('home')
   const [companies] = useKV<Company[]>('companies', [])
-  
+
+  // HANYA redirect kalau data benar‑benar tidak valid
   useEffect(() => {
-    if (!user.companyId) {
+    console.log('[AdminDashboard] effect check company/role', {
+      userEmail: user.email,
+      companyId: user.companyId,
+      role: user.role,
+      totalCompanies: companies?.length,
+    })
+
+    // kalau user belum punya companyId atau bukan admin, balikin ke home
+    if (!user.companyId || user.role !== 'admin') {
+      console.warn('[AdminDashboard] invalid state, going back to home-dashboard')
       if (onBackToHome) onBackToHome()
       return
     }
-    
+
     const companyExists = (companies || []).some(c => c.id === user.companyId)
-    if (!companyExists && onBackToHome) {
-      onBackToHome()
+    if (!companyExists) {
+      console.warn('[AdminDashboard] company not found, going back to home-dashboard')
+      if (onBackToHome) onBackToHome()
     }
-  }, [user.companyId, companies, onBackToHome])
+  }, [user.companyId, user.role, companies, onBackToHome])
 
   const renderView = () => {
     switch (currentView) {

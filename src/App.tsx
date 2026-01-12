@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { User, UserRole, Company } from './lib/types'
 import SplashScreen from './components/auth/SplashScreen'
@@ -17,6 +17,8 @@ import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
 import { Toaster } from './components/ui/sonner'
 import { toast } from 'sonner'
+import { osrmRoute } from '@/lib/osrm'
+import { osrmRoute } from '@/firebase/firestore'
 
 type AppScreen = 
   | 'splash'
@@ -40,18 +42,11 @@ function App() {
   const [users, setUsers] = useKV<User[]>('users', [])
   const [companies, setCompanies] = useKV<Company[]>('companies', [])
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
-  const navigationLockRef = useRef(false)
-  const targetScreenRef = useRef<AppScreen>('splash')
 
   useEffect(() => {
     const syncUserData = async () => {
       if (!currentUser) return
-      
-      if (navigationLockRef.current) {
-        console.log('Navigation locked, skipping user data sync')
-        return
-      }
-      
+
       if (currentScreen === 'admin-dashboard' || currentScreen === 'courier-dashboard') {
         const freshUser = await window.spark.kv.get<User | null>('current-user')
         if (freshUser && freshUser.id === currentUser.id) {
@@ -61,14 +56,14 @@ function App() {
         }
         return
       }
-      
+
       if (currentScreen === 'login' || currentScreen === 'splash' || currentScreen === 'register' || 
           currentScreen === 'customer-dashboard') {
         return
       }
-      
+
       if (!users) return
-      
+
       const updatedUser = users.find(u => u.id === currentUser.id)
       if (updatedUser && JSON.stringify(updatedUser.companies) !== JSON.stringify(currentUser.companies)) {
         setCurrentUser(updatedUser)
@@ -84,10 +79,7 @@ function App() {
     }
 
     const existingCompanyIds = (companies || []).map(c => c.id)
-    
-    if (existingCompanyIds.length === 0) {
-      return
-    }
+    if (existingCompanyIds.length === 0) return
     
     if (users && users.length > 0 && currentUser) {
       const needsCleanup = users.some(u => 
@@ -129,100 +121,64 @@ function App() {
       currentUser: currentUser?.email, 
       companyId: currentUser?.companyId, 
       role: currentUser?.role,
-      navigationLocked: navigationLockRef.current
     })
-    
-    if (navigationLockRef.current) {
-      console.log('Navigation is locked, skipping auto-redirect')
-      return
-    }
-    
-    if (currentScreen === 'create-company' || 
-        currentScreen === 'join-company' || 
-        currentScreen === 'admin-dashboard' || 
-        currentScreen === 'courier-dashboard' || 
-        currentScreen === 'customer-dashboard' || 
-        currentScreen === 'track-package' || 
-        currentScreen === 'company-list' ||
-        currentScreen === 'forgot-password') {
-      console.log('Skipping useEffect - already on target screen:', currentScreen)
-      targetScreenRef.current = currentScreen
+
+    if (currentUser && (currentScreen === 'login' || currentScreen === 'register' || currentScreen === 'splash')) {
+      console.log('User logged in, redirecting to home-dashboard')
+      setCurrentScreen('home-dashboard')
       return
     }
 
-    if (currentUser) {
-      if (currentScreen === 'login' || currentScreen === 'register' || currentScreen === 'splash') {
-        console.log('User logged in, redirecting to home-dashboard')
-        targetScreenRef.current = 'home-dashboard'
-        setCurrentScreen('home-dashboard')
-        return
-      }
+    if (!currentUser && currentScreen === 'splash') {
+      setCurrentScreen('login')
     }
-    
-    targetScreenRef.current = currentScreen
   }, [currentScreen, currentUser?.email])
 
   const handleLogout = () => {
     setCurrentUser(null)
-    targetScreenRef.current = 'splash'
     setCurrentScreen('splash')
   }
 
-  const handleNavigateFromHome = async (screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard') => {
+  const handleNavigateFromHome = async (
+    screen: 'home' | 'companies' | 'track-package' | 'create-company' | 'join-company' | 'customer-mode' | 'admin-dashboard' | 'courier-dashboard'
+  ) => {
     console.log('=== handleNavigateFromHome called ===')
     console.log('Target screen:', screen)
     console.log('Current screen:', currentScreen)
     
     if (screen === 'admin-dashboard' || screen === 'courier-dashboard') {
       console.log(`Direct navigation to ${screen}`)
-      navigationLockRef.current = true
-      targetScreenRef.current = screen
-      
+
       const freshUser = await window.spark.kv.get<User | null>('current-user')
-      if (freshUser) {
-        console.log('Loaded fresh user from KV before navigation:', freshUser.email, 'companyId:', freshUser.companyId, 'role:', freshUser.role)
-        
-        if (!freshUser.companyId || !freshUser.role) {
-          console.error('User does not have companyId or role, cannot navigate to dashboard')
-          navigationLockRef.current = false
-          targetScreenRef.current = 'home-dashboard'
-          return
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 50))
-        
-        setCurrentUser(freshUser)
-        setCurrentScreen(screen)
-        
-        setTimeout(() => {
-          navigationLockRef.current = false
-        }, 3000)
-      } else {
+      if (!freshUser) {
         console.error('No user found in KV')
-        navigationLockRef.current = false
-        targetScreenRef.current = 'home-dashboard'
+        toast.error('Sesi pengguna tidak ditemukan')
+        return
       }
+
+      if (!freshUser.companyId || !freshUser.role) {
+        console.error('User does not have companyId or role, cannot navigate to dashboard')
+        toast.error('Perusahaan atau peran belum terpilih')
+        return
+      }
+
+      setCurrentUser(freshUser)
+      setCurrentScreen(screen)
       return
     }
     
     if (screen === 'home') {
-      targetScreenRef.current = 'home-dashboard'
       setHomeRefreshKey(prev => prev + 1)
       setCurrentScreen('home-dashboard')
     } else if (screen === 'companies') {
-      targetScreenRef.current = 'company-list'
       setCurrentScreen('company-list')
     } else if (screen === 'track-package') {
-      targetScreenRef.current = 'track-package'
       setCurrentScreen('track-package')
     } else if (screen === 'create-company') {
-      targetScreenRef.current = 'create-company'
       setCurrentScreen('create-company')
     } else if (screen === 'join-company') {
-      targetScreenRef.current = 'join-company'
       setCurrentScreen('join-company')
     } else if (screen === 'customer-mode') {
-      targetScreenRef.current = 'customer-dashboard'
       setCurrentScreen('customer-dashboard')
     }
   }
@@ -261,7 +217,6 @@ function App() {
     await new Promise(resolve => setTimeout(resolve, 100))
     
     console.log('Navigating back to home-dashboard to show new company')
-    targetScreenRef.current = 'home-dashboard'
     setCurrentScreen('home-dashboard')
   }
 
@@ -274,13 +229,10 @@ function App() {
     setHomeRefreshKey(prev => prev + 1)
     setTimeout(() => {
       if (role === 'admin') {
-        targetScreenRef.current = 'admin-dashboard'
         setCurrentScreen('admin-dashboard')
       } else if (role === 'courier') {
-        targetScreenRef.current = 'courier-dashboard'
         setCurrentScreen('courier-dashboard')
       } else {
-        targetScreenRef.current = 'home-dashboard'
         setCurrentScreen('home-dashboard')
       }
     }, 100)
@@ -289,35 +241,26 @@ function App() {
   const handleCompanySelected = (companyId: string) => {
     setCurrentUser((prev) => prev ? { ...prev, companyId } : null)
     if (currentUser?.role === 'admin') {
-      targetScreenRef.current = 'admin-dashboard'
       setCurrentScreen('admin-dashboard')
     } else if (currentUser?.role === 'courier') {
-      targetScreenRef.current = 'courier-dashboard'
       setCurrentScreen('courier-dashboard')
     } else {
-      targetScreenRef.current = 'home-dashboard'
       setCurrentScreen('home-dashboard')
     }
   }
 
   const renderScreen = () => {
-    const screenToRender = navigationLockRef.current ? targetScreenRef.current : currentScreen
-    
     console.log('=== renderScreen called ===')
     console.log('Current screen:', currentScreen)
-    console.log('Target screen (ref):', targetScreenRef.current)
-    console.log('Navigation locked:', navigationLockRef.current)
-    console.log('Screen to render:', screenToRender)
     console.log('Current user:', currentUser?.email)
     console.log('User companyId:', currentUser?.companyId)
     console.log('User role:', currentUser?.role)
     
-    switch (screenToRender) {
+    switch (currentScreen) {
       case 'splash':
         return (
           <SplashScreen
             onStart={() => {
-              targetScreenRef.current = 'login'
               setCurrentScreen('login')
             }}
           />
@@ -329,15 +272,12 @@ function App() {
               setCurrentUser(user)
             }}
             onForgotPassword={() => {
-              targetScreenRef.current = 'forgot-password'
               setCurrentScreen('forgot-password')
             }}
             onRegister={() => {
-              targetScreenRef.current = 'register'
               setCurrentScreen('register')
             }}
             onTrackPackage={() => {
-              targetScreenRef.current = 'track-package'
               setCurrentScreen('track-package')
             }}
           />
@@ -349,7 +289,6 @@ function App() {
               setCurrentUser(user)
             }}
             onLogin={() => {
-              targetScreenRef.current = 'login'
               setCurrentScreen('login')
             }}
           />
@@ -358,11 +297,9 @@ function App() {
         return (
           <ForgotPasswordScreen
             onBack={() => {
-              targetScreenRef.current = 'login'
               setCurrentScreen('login')
             }}
             onRegister={() => {
-              targetScreenRef.current = 'register'
               setCurrentScreen('register')
             }}
           />
@@ -401,13 +338,8 @@ function App() {
             user={currentUser!}
             onBack={() => {
               console.log('=== Going back from create-company to home ===')
-              setHomeRefreshKey(prev => {
-                const newKey = prev + 1
-                console.log('Setting homeRefreshKey to:', newKey)
-                return newKey
-              })
+              setHomeRefreshKey(prev => prev + 1)
               setTimeout(() => {
-                targetScreenRef.current = 'home-dashboard'
                 setCurrentScreen('home-dashboard')
               }, 100)
             }}
@@ -420,7 +352,6 @@ function App() {
             user={currentUser!}
             onBack={() => {
               setHomeRefreshKey(prev => prev + 1)
-              targetScreenRef.current = 'home-dashboard'
               setCurrentScreen('home-dashboard')
             }}
             onCompanyJoined={handleCompanyJoined}
@@ -432,7 +363,6 @@ function App() {
             user={currentUser!}
             onBack={() => {
               setHomeRefreshKey(prev => prev + 1)
-              targetScreenRef.current = 'home-dashboard'
               setCurrentScreen('home-dashboard')
             }}
             onSelectCompany={handleCompanySelected}
@@ -444,8 +374,8 @@ function App() {
             user={currentUser!}
             onLogout={handleLogout}
             onBackToHome={() => {
+              console.log('[App] onBackToHome from AdminDashboard')
               setHomeRefreshKey(prev => prev + 1)
-              targetScreenRef.current = 'home-dashboard'
               setCurrentScreen('home-dashboard')
             }}
           />
@@ -457,7 +387,6 @@ function App() {
             onLogout={handleLogout}
             onBackToHome={() => {
               setHomeRefreshKey(prev => prev + 1)
-              targetScreenRef.current = 'home-dashboard'
               setCurrentScreen('home-dashboard')
             }}
           />
@@ -473,7 +402,6 @@ function App() {
         return (
           <TrackPackageScreen
             onBack={() => {
-              targetScreenRef.current = currentUser ? 'home-dashboard' : 'login'
               setCurrentScreen(currentUser ? 'home-dashboard' : 'login')
             }}
           />
@@ -485,7 +413,7 @@ function App() {
 
   return (
     <>
-      {currentScreen && renderScreen()}
+      {renderScreen()}
       <Toaster position="top-right" />
     </>
   )

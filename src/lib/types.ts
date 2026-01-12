@@ -22,6 +22,9 @@ export interface Company {
   code: string
   ownerId: string
   createdAt: string
+
+  // NEW: lokasi kantor dipilih oleh owner
+  officeLocation?: { lat: number; lng: number }
 }
 
 export interface Package {

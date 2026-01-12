@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -7,7 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { User, Company } from '@/lib/types'
-import { generateId, generateCode } from '@/lib/auth'
+import { generateCode } from '@/lib/auth'
+import { db } from '@/lib/firebase'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
 
 interface CreateCompanyScreenProps {
   user: User
@@ -15,104 +18,90 @@ interface CreateCompanyScreenProps {
   onCompanyCreated: (companyId: string) => void
 }
 
-export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: CreateCompanyScreenProps) {
+function OfficePicker({
+  onPick,
+}: {
+  onPick: (lat: number, lng: number) => void
+}) {
+  useMapEvents({
+    click(e) {
+      onPick(e.latlng.lat, e.latlng.lng)
+    },
+  })
+  return null
+}
+
+export default function CreateCompanyScreen({
+  user,
+  onBack,
+  onCompanyCreated,
+}: CreateCompanyScreenProps) {
   const [companyName, setCompanyName] = useState('')
-  const [companies, setCompanies] = useKV<Company[]>('companies', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [users, setUsers] = useKV<User[]>('users', [])
+  const [loading, setLoading] = useState(false)
+  const [officeLocation, setOfficeLocation] = useState<{
+    lat: number
+    lng: number
+  } | null>(null)
+
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
+    lat: -6.2088,
+    lng: 106.8456,
+  })
+
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setMapCenter({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        })
+      },
+      () => {
+        // ignore, pakai default
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }, [])
 
   const handleCreateCompany = async () => {
     if (!companyName.trim()) {
       toast.error('Masukan nama perusahaan')
       return
     }
-
-    console.log('Creating company:', companyName)
-
-    const newCompany: Company = {
-      id: generateId(),
-      name: companyName.trim(),
-      code: generateCode(),
-      ownerId: user.id,
-      createdAt: new Date().toISOString()
+    if (!officeLocation) {
+      toast.error('Pilih lokasi kantor pada peta')
+      return
     }
-
-    console.log('New company object:', newCompany)
-
-    const newMembership = {
-      companyId: newCompany.id,
-      role: 'admin' as const,
-      joinedAt: new Date().toISOString()
-    }
-
-    console.log('New membership:', newMembership)
 
     try {
-      const existingCompanies = await window.spark.kv.get<Company[]>('companies') || []
-      const updatedCompanies = [...existingCompanies, newCompany]
-      await window.spark.kv.set('companies', updatedCompanies)
-      console.log('Companies saved to KV:', updatedCompanies.length)
-
-      const existingCurrentUser = await window.spark.kv.get<User | null>('current-user')
-      if (!existingCurrentUser) {
-        toast.error('Sesi pengguna tidak ditemukan')
-        return
+      setLoading(true)
+      const newCompanyData: Omit<Company, 'id'> = {
+        name: companyName.trim(),
+        code: generateCode(),
+        ownerId: user.id,
+        createdAt: new Date().toISOString(),
+        officeLocation: {
+          lat: officeLocation.lat,
+          lng: officeLocation.lng,
+        },
       }
-      
-      const updatedCurrentUser = {
-        ...existingCurrentUser,
-        companies: [...(existingCurrentUser.companies || []), newMembership]
-      }
-      await window.spark.kv.set('current-user', updatedCurrentUser)
-      console.log('Current user updated in KV with companies:', updatedCurrentUser.companies)
 
-      const existingUsers = await window.spark.kv.get<User[]>('users') || []
-      const updatedUsers = existingUsers.map((u) => {
-        if (u.id === user.id) {
-          return { 
-            ...u, 
-            companies: [...(u.companies || []), newMembership]
-          }
-        }
-        return u
+      const docRef = await addDoc(collection(db, 'companies'), {
+        ...newCompanyData,
+        createdAt: serverTimestamp(),
       })
-      await window.spark.kv.set('users', updatedUsers)
-      console.log('Users array updated in KV')
 
-      setCompanies(updatedCompanies)
-      setCurrentUser(updatedCurrentUser)
-      setUsers(updatedUsers)
+      const newCompanyId = docRef.id
+      console.log('New company created in Firestore with id:', newCompanyId)
 
-      await new Promise(resolve => setTimeout(resolve, 200))
-
-      const verifyCompanies = await window.spark.kv.get<Company[]>('companies')
-      const verifyCurrentUser = await window.spark.kv.get<User | null>('current-user')
-      const verifyUsers = await window.spark.kv.get<User[]>('users')
-      
-      console.log('=== POST-CREATION VERIFICATION ===')
-      console.log('Verified companies in KV:', verifyCompanies)
-      console.log('Verified current user in KV:', verifyCurrentUser)
-      console.log('Current user companies:', verifyCurrentUser?.companies)
-      console.log('User in users array:', verifyUsers?.find(u => u.id === user.id))
-      
-      const companyExists = verifyCompanies?.some(c => c.id === newCompany.id)
-      const userHasMembership = verifyCurrentUser?.companies?.some(m => m.companyId === newCompany.id)
-      
-      console.log('Company exists in KV:', companyExists)
-      console.log('User has membership in KV:', userHasMembership)
-
-      if (!companyExists || !userHasMembership) {
-        console.error('!!! DATA NOT PROPERLY SAVED !!!')
-        toast.error('Terjadi kesalahan. Silakan coba lagi.')
-        return
-      }
-
-      toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
-      console.log('Calling onCompanyCreated with ID:', newCompany.id)
-      onCompanyCreated(newCompany.id)
+      toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompanyData.code}`)
+      onCompanyCreated(newCompanyId)
     } catch (error) {
-      console.error('Error creating company:', error)
-      toast.error('Terjadi kesalahan saat membuat perusahaan')
+      console.error('Error creating company in Firestore:', error)
+      toast.error('Terjadi kesalahan saat membuat perusahaan di database')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -131,6 +120,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
           </Button>
           <CardTitle className="text-2xl">Buat Perusahaan Baru</CardTitle>
         </CardHeader>
+
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="company-name">Nama Perusahaan</Label>
@@ -138,12 +128,52 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
               id="company-name"
               placeholder="Masukkan nama perusahaan"
               value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateCompany()}
+              onChange={e => setCompanyName(e.target.value)}
+              onKeyDown={e =>
+                e.key === 'Enter' && !loading && handleCreateCompany()
+              }
             />
           </div>
-          <Button onClick={handleCreateCompany} className="w-full">
-            Buat Perusahaan
+
+          <div className="space-y-2">
+            <Label>Lokasi Kantor (klik pada peta)</Label>
+
+            <div className="h-64 w-full overflow-hidden rounded-lg border">
+              <MapContainer
+                center={[mapCenter.lat, mapCenter.lng]}
+                zoom={15}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="&copy; OpenStreetMap contributors"
+                />
+
+                <OfficePicker
+                  onPick={(lat, lng) => {
+                    setOfficeLocation({ lat, lng })
+                  }}
+                />
+
+                {officeLocation && (
+                  <Marker position={[officeLocation.lat, officeLocation.lng]} />
+                )}
+              </MapContainer>
+            </div>
+
+            {!officeLocation && (
+              <p className="text-xs text-muted-foreground">
+                Pilih titik lokasi kantor pada peta.
+              </p>
+            )}
+          </div>
+
+          <Button
+            onClick={handleCreateCompany}
+            className="w-full"
+            disabled={loading || !officeLocation}
+          >
+            {loading ? 'Menyimpan...' : 'Buat Perusahaan'}
           </Button>
         </CardContent>
       </Card>
