@@ -12,7 +12,7 @@ import { collection, getDocs, doc, setDoc } from 'firebase/firestore'
 interface HomeDashboardProps {
   user: User
   onLogout: () => void
-  onUserUpdate: (user: User) => void   // <-- TAMBAH INI
+  onUserUpdate: (user: User) => void
   onNavigate: (
     screen:
       | 'home'
@@ -29,11 +29,9 @@ interface HomeDashboardProps {
 
 type CompanyWithRole = Company & { role: UserRole; joinedAt: string }
 
-function safeJoinedAt(input: any) {
-  // handle string / timestamp-like / missing
+function safeISO(input: any) {
   if (!input) return new Date().toISOString()
   if (typeof input === 'string') return input
-  // Firestore Timestamp has toDate()
   if (typeof input?.toDate === 'function') return input.toDate().toISOString()
   return new Date().toISOString()
 }
@@ -55,80 +53,53 @@ export default function HomeDashboard({
       try {
         setLoadingCompanies(true)
         const snap = await getDocs(collection(db, 'companies'))
-        const loaded: Company[] = snap.docs.map(d => ({
-          id: d.id,
-          ...(d.data() as any),
-        }))
-        setCompanies(loaded)
+        setCompanies(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
       } finally {
         setLoadingCompanies(false)
       }
     }
-
     loadCompanies()
   }, [refreshKey])
 
-  // ========= (3) MODE A: owned + joined =========
+  // MODE A: join + owned
   const userCompanies: CompanyWithRole[] = useMemo(() => {
     const memberships = user.companies || []
 
-    const memberCompanies: CompanyWithRole[] = memberships
+    const joined = memberships
       .map(m => {
-        const company = companies.find(c => c.id === m.companyId)
-        if (!company) return null
-        return {
-          ...company,
-          role: m.role,
-          joinedAt: safeJoinedAt(m.joinedAt),
-        }
+        const c = companies.find(x => x.id === m.companyId)
+        if (!c) return null
+        return { ...c, role: m.role, joinedAt: safeISO(m.joinedAt) }
       })
       .filter(Boolean) as CompanyWithRole[]
 
-    const ownedCompanies: CompanyWithRole[] = companies
+    const owned = companies
       .filter(c => c.ownerId === user.id)
-      .map(c => ({
-        ...c,
-        role: 'admin',
-        joinedAt: safeJoinedAt(c.createdAt),
-      }))
+      .map(c => ({ ...c, role: 'admin' as UserRole, joinedAt: safeISO(c.createdAt) }))
 
-    // gabung tanpa duplikat
     const map = new Map<string, CompanyWithRole>()
-    for (const c of [...memberCompanies, ...ownedCompanies]) {
+    for (const c of [...joined, ...owned]) {
       if (!map.has(c.id)) map.set(c.id, c)
     }
 
     return Array.from(map.values()).sort(
       (a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime(),
     )
-  }, [user.companies, companies, user.id])
+  }, [companies, user.companies, user.id])
 
-  // ========= (4) KLIK PERUSAHAAN HARUS SET companyId+role ke Firestore, lalu navigate =========
   const handleCompanyClick = async (companyId: string, role: UserRole) => {
-    try {
-      // simpan pilihan aktif supaya dashboard lain tahu company mana yang dibuka
-      await setDoc(
-        doc(db, 'users', user.id),
-        { companyId, role },
-        { merge: true },
-      )
-      onUserUpdate({ ...user, companyId, role })
-const target = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
-onNavigate(target)
+    // simpan pilihan aktif
+    await setDoc(doc(db, 'users', user.id), { companyId, role }, { merge: true })
+    onUserUpdate({ ...user, companyId, role })
 
-      if (isMobile) setSidebarOpen(false)
-    } catch (e) {
-      console.error('Failed to set active company in Firestore', e)
-      // tetap coba navigate agar tidak “mati”
-      const target = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
-      onNavigate(target)
-      if (isMobile) setSidebarOpen(false)
-    }
+    const target = role === 'admin' ? 'admin-dashboard' : 'courier-dashboard'
+    onNavigate(target)
+
+    if (isMobile) setSidebarOpen(false)
   }
 
-  // ========= (4) SIDEBAR: scroll list, Sign Out tetap di bawah =========
   const SidebarContent = () => (
-    <div className="flex flex-col h-screen bg-card">      {/* header fixed */}
+    <div className="flex flex-col h-screen bg-card">
       <div className="flex flex-col items-center gap-3 p-6 pt-8 flex-shrink-0">
         <div className="w-24 h-24 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
           <span className="text-sm">Photo</span>
@@ -140,7 +111,6 @@ onNavigate(target)
         </div>
       </div>
 
-      {/* scrollable area */}
       <ScrollArea className="flex-1 px-6 min-h-0">
         <nav className="py-4 space-y-2">
           <button
@@ -155,9 +125,7 @@ onNavigate(target)
 
           <div className="pt-2">
             {loadingCompanies ? (
-              <p className="text-xs text-muted-foreground py-2">
-                Memuat perusahaan...
-              </p>
+              <p className="text-xs text-muted-foreground py-2">Memuat perusahaan...</p>
             ) : userCompanies.length > 0 ? (
               userCompanies.map(c => (
                 <button
@@ -188,7 +156,6 @@ onNavigate(target)
         </nav>
       </ScrollArea>
 
-      {/* footer fixed */}
       <div className="px-6 pb-8 pt-4 border-t flex-shrink-0">
         <button
           className="w-full text-left text-base text-destructive py-3 hover:text-destructive/80 transition-colors"
@@ -203,7 +170,6 @@ onNavigate(target)
     </div>
   )
 
-  // ===== MAIN UI (tetap seperti sebelumnya) =====
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {isMobile ? (
@@ -303,58 +269,6 @@ onNavigate(target)
                     Halo, <span className="text-primary">{user.name || user.email.split('@')[0]}</span>
                   </h2>
                   <p className="text-center text-muted-foreground mt-2">Selamat datang kembali di RouteOptima</p>
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-primary/5 to-primary/10">
-                  <CardContent className="p-8">
-                    <div className="flex flex-col items-center text-center space-y-4">
-                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Buildings className="w-8 h-8 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-1">Buat Perusahaan</h3>
-                        <p className="text-sm text-muted-foreground">Buat perusahaan dan kelola bisnis Anda</p>
-                      </div>
-                      <Button onClick={() => onNavigate('create-company')} className="w-full h-12 rounded-xl">
-                        Mulai Buat
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-accent/5 to-accent/10">
-                  <CardContent className="p-8">
-                    <div className="flex flex-col items-center text-center space-y-4">
-                      <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
-                        <UserPlus className="w-8 h-8 text-accent" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-1">Gabung Perusahaan</h3>
-                        <p className="text-sm text-muted-foreground">Bergabung sebagai admin atau kurir</p>
-                      </div>
-                      <Button
-                        onClick={() => onNavigate('join-company')}
-                        variant="outline"
-                        className="w-full h-12 rounded-xl border-accent/30 hover:bg-accent/10"
-                      >
-                        Gabung Sekarang
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-8">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <h3 className="text-lg font-semibold text-foreground">Mode Customer</h3>
-                    <p className="text-sm text-muted-foreground">Lacak dan kelola pesanan Anda</p>
-                    <Button onClick={() => onNavigate('customer-mode')} variant="outline" className="w-full max-w-md h-12 rounded-xl">
-                      Masuk sebagai Customer
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             </div>

@@ -1,144 +1,76 @@
 import { useEffect, useState } from 'react'
-import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { User, Company, UserRole } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Buildings, Copy } from '@phosphor-icons/react'
+import { Card, CardContent } from '@/components/ui/card'
+import { ArrowLeft } from '@phosphor-icons/react'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
-import { User, Company } from '@/lib/types'
 
 interface CompanyListScreenProps {
   user: User
   onBack: () => void
-  onSelectCompany: (companyId: string) => void
+  onSelectCompany: () => void
 }
 
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
   const [companies, setCompanies] = useState<Company[]>([])
-  const [loadingCompanies, setLoadingCompanies] = useState(true)
-
-  const existingCompanyIds = (companies || []).map(c => c.id)
-  const userCompanyIds = (user.companies || [])
-    .filter(m => existingCompanyIds.includes(m.companyId))
-    .map(m => m.companyId)
-  
-  const userCompanies = (companies || []).filter(
-    (company) => userCompanyIds.includes(company.id)
-  )
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (user && user.companies && user.companies.length > 0) {
-      const hasInvalidCompanies = user.companies.some(
-        m => !existingCompanyIds.includes(m.companyId)
-      )
-
-      if (hasInvalidCompanies) {
-        const cleanedCompanies = user.companies.filter(m => 
-          existingCompanyIds.includes(m.companyId)
-        )
-
-        setCurrentUser((prev) => {
-          if (!prev) return null
-          return {
-            ...prev,
-            companies: cleanedCompanies
-          }
-        })
-
-        const load = async () => {
-    try {
-      setLoadingCompanies(true)
-      const snap = await getDocs(collection(db, 'companies'))
-      setCompanies(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
-    } finally {
-      setLoadingCompanies(false)
-    }
-  }
-  load()
-}, []) 
-
-        setUsers((prevUsers) => 
-          (prevUsers || []).map(u => {
-            if (u.id === user.id) {
-              return {
-                ...u,
-                companies: cleanedCompanies
-              }
-            }
-            return u
-          })
-        )
+    const load = async () => {
+      try {
+        setLoading(true)
+        const snap = await getDocs(collection(db, 'companies'))
+        setCompanies(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      } finally {
+        setLoading(false)
       }
     }
-  }, [companies, user.id])
+    load()
+  }, [])
 
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code)
-    toast.success('Kode berhasil disalin')
+  const userCompanies = (user.companies || [])
+    .map(m => {
+      const c = companies.find(x => x.id === m.companyId)
+      return c ? { ...c, role: m.role as UserRole } : null
+    })
+    .filter(Boolean) as Array<Company & { role: UserRole }>
+
+  const choose = async (companyId: string, role: UserRole) => {
+    try {
+      await setDoc(doc(db, 'users', user.id), { companyId, role }, { merge: true })
+      toast.success('Perusahaan dipilih')
+      onSelectCompany()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal memilih perusahaan')
+    }
   }
 
   return (
     <div className="min-h-screen bg-background p-4">
-      <div className="max-w-4xl mx-auto">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-6"
-          onClick={onBack}
-        >
-          <ArrowLeft className="mr-2" />
-          Kembali
+      <div className="max-w-2xl mx-auto space-y-4">
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft className="mr-2" /> Kembali
         </Button>
 
-        <h1 className="text-3xl font-semibold mb-6">Daftar Perusahaan</h1>
+        <h1 className="text-2xl font-semibold">Perusahaan Anda</h1>
 
-        {userCompanies.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <Buildings size={64} className="mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">Anda belum memiliki perusahaan</p>
-              <Button onClick={onBack} className="mt-4">
-                Buat atau Gabung Perusahaan
-              </Button>
-            </CardContent>
-          </Card>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Memuat...</p>
+        ) : userCompanies.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Belum ada perusahaan. Buat atau gabung dulu.</p>
         ) : (
-          <div className="grid gap-4">
-            {userCompanies.map((company) => (
-              <Card key={company.id} className="border-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Buildings size={32} weight="duotone" className="text-primary" />
-                      <span>{company.name}</span>
-                    </div>
-                    {company.ownerId === user.id && (
-                      <span className="text-sm font-normal text-muted-foreground px-3 py-1 bg-secondary rounded-full">
-                        Owner
-                      </span>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between bg-muted rounded-lg p-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Kode Perusahaan</p>
-                      <p className="font-mono text-lg font-semibold">{company.code}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleCopyCode(company.code)}
-                    >
-                      <Copy size={20} />
-                    </Button>
+          <div className="space-y-3">
+            {userCompanies.map(c => (
+              <Card key={c.id}>
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">Role: {c.role}</p>
                   </div>
-                  <Button
-                    onClick={() => onSelectCompany(company.id)}
-                    className="w-full"
-                  >
-                    Masuk ke Perusahaan
-                  </Button>
+                  <Button onClick={() => choose(c.id, c.role)}>Pilih</Button>
                 </CardContent>
               </Card>
             ))}

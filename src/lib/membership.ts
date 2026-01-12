@@ -1,35 +1,23 @@
-import { db } from '@/lib/firebase'
-import { UserCompanyMembership } from '@/lib/types'
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { User, UserRole } from '@/lib/types'
 
-export async function addMembershipToUserFirestore(
-  userId: string,
-  membership: UserCompanyMembership,
-) {
-  const userRef = doc(db, 'users', userId)
-  const snap = await getDoc(userRef)
+export type Membership = {
+  companyId: string
+  role: UserRole
+  joinedAt: string
+}
 
-  if (!snap.exists()) {
-    await setDoc(
-      userRef,
-      {
-        id: userId,
-        companies: [membership],
-      },
-      { merge: true },
-    )
-    return
-  }
+export function hasMembership(user: User, companyId: string) {
+  return (user.companies || []).some(m => m.companyId === companyId)
+}
 
-  const data = snap.data() as any
-  const companies = (data.companies || []) as UserCompanyMembership[]
+export function upsertMembership(user: User, membership: Membership): User {
+  const companies = user.companies || []
+  const idx = companies.findIndex(m => m.companyId === membership.companyId)
 
-  const already = companies.some(
-    m => m.companyId === membership.companyId && m.role === membership.role,
-  )
-  if (already) return
+  const nextCompanies =
+    idx >= 0
+      ? companies.map((m, i) => (i === idx ? membership : m))
+      : [...companies, membership]
 
-  await updateDoc(userRef, {
-    companies: [...companies, membership],
-  })
+  return { ...user, companies: nextCompanies }
 }

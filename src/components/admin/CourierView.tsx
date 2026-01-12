@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react'
-import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { User, Package, Courier } from '@/lib/types'
-import { generateId } from '@/lib/auth'
+import { db } from '@/lib/firebase'
+import { addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 
 interface CourierViewProps {
   user: User
@@ -18,17 +17,35 @@ export default function CourierView({ user, onActivate }: CourierViewProps) {
   const [courierName, setCourierName] = useState('')
   const [capacity, setCapacity] = useState('')
   const [errors, setErrors] = useState<Set<string>>(new Set())
-  
-  const [couriers, setCouriers] = useKV<Courier[]>('couriers', [])
-  const [packages] = useKV<Package[]>('packages', [])
 
-  const companyCouriers = couriers?.filter(c => c.companyId === user.companyId) || []
-  const companyPackages = packages?.filter(p => p.companyId === user.companyId) || []
-  const activeCouriers = companyCouriers.filter(c => c.active)
+  const [couriers, setCouriers] = useState<Courier[]>([])
+  const [packages, setPackages] = useState<Package[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const handleActivate = () => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true)
+        if (!user.companyId) return
+
+        const cSnap = await getDocs(query(collection(db, 'couriers'), where('companyId', '==', user.companyId)))
+        setCouriers(cSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+
+        const pSnap = await getDocs(query(collection(db, 'packages'), where('companyId', '==', user.companyId)))
+        setPackages(pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [user.companyId])
+
+  const companyCouriers = useMemo(() => couriers, [couriers])
+  const companyPackages = useMemo(() => packages, [packages])
+  const activeCouriers = useMemo(() => companyCouriers.filter(c => c.active), [companyCouriers])
+
+  const handleActivate = async () => {
     const newErrors = new Set<string>()
-    
     if (!courierName.trim()) newErrors.add('courierName')
     if (!capacity.trim()) newErrors.add('capacity')
 
@@ -38,22 +55,35 @@ export default function CourierView({ user, onActivate }: CourierViewProps) {
       return
     }
 
-    const newCourier: Courier = {
-      id: generateId(),
-      name: courierName,
-      capacity: parseFloat(capacity),
-      active: false,
-      companyId: user.companyId!,
-      userId: user.id
+    if (!user.companyId) {
+      toast.error('Company belum dipilih')
+      return
     }
 
-    setCouriers((current) => [...(current || []), newCourier])
-    
-    setCourierName('')
-    setCapacity('')
-    setErrors(new Set())
-    
-    onActivate()
+    try {
+      const newCourier: Omit<Courier, 'id'> & any = {
+        name: courierName.trim(),
+        capacity: parseFloat(capacity),
+        active: false,
+        companyId: user.companyId,
+        // optional: link ke user pembuat. Silakan sesuaikan logic Anda.
+        userId: user.id,
+        createdAt: new Date().toISOString(),
+      }
+
+      const ref = await addDoc(collection(db, 'couriers'), newCourier)
+      setCouriers(prev => [...prev, { id: ref.id, ...(newCourier as any) }])
+
+      setCourierName('')
+      setCapacity('')
+      setErrors(new Set())
+
+      toast.success('Kurir berhasil ditambahkan')
+      onActivate()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal menambahkan kurir')
+    }
   }
 
   return (
@@ -67,59 +97,46 @@ export default function CourierView({ user, onActivate }: CourierViewProps) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="p-6">
             <p className="text-sm text-muted-foreground mb-2">Jumlah Kurir</p>
-            <p className="text-4xl font-semibold">{companyCouriers.length}</p>
+            <p className="text-4xl font-semibold">{loading ? '-' : companyCouriers.length}</p>
           </Card>
-          
+
           <Card className="p-6">
             <p className="text-sm text-muted-foreground mb-2">Kurir Aktif</p>
-            <p className="text-4xl font-semibold">{activeCouriers.length}</p>
+            <p className="text-4xl font-semibold">{loading ? '-' : activeCouriers.length}</p>
           </Card>
-          
+
           <Card className="p-6">
             <p className="text-sm text-muted-foreground mb-2">Jumlah Paket</p>
-            <p className="text-4xl font-semibold">{companyPackages.length}</p>
+            <p className="text-4xl font-semibold">{loading ? '-' : companyPackages.length}</p>
           </Card>
         </div>
 
         <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-6">Data Kurir</h2>
-          <div className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="courierName">Nama Kurir *</Label>
-                <Input
-                  id="courierName"
-                  value={courierName}
-                  onChange={(e) => {
-                    setCourierName(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('courierName'); return next })
-                  }}
-                  className={errors.has('courierName') ? 'border-destructive' : ''}
-                  placeholder="Nama lengkap kurir"
-                />
-              </div>
+          <h2 className="text-xl font-semibold mb-6">Tambah Kurir</h2>
 
-              <div className="space-y-2">
-                <Label htmlFor="capacity">Kapasitas (kg) *</Label>
-                <Input
-                  id="capacity"
-                  type="number"
-                  step="0.1"
-                  value={capacity}
-                  onChange={(e) => {
-                    setCapacity(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('capacity'); return next })
-                  }}
-                  className={errors.has('capacity') ? 'border-destructive' : ''}
-                  placeholder="0.0"
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Nama Kurir</Label>
+              <Input
+                value={courierName}
+                onChange={e => setCourierName(e.target.value)}
+                className={errors.has('courierName') ? 'border-destructive' : ''}
+              />
             </div>
 
-            <Button onClick={handleActivate} size="lg" className="w-full md:w-auto">
-              Aktivasi Kurir
-            </Button>
+            <div className="space-y-2">
+              <Label>Kapasitas</Label>
+              <Input
+                value={capacity}
+                onChange={e => setCapacity(e.target.value)}
+                className={errors.has('capacity') ? 'border-destructive' : ''}
+              />
+            </div>
           </div>
+
+          <Button className="mt-4 w-full" onClick={handleActivate} disabled={loading}>
+            Tambah Kurir
+          </Button>
         </Card>
       </div>
     </div>

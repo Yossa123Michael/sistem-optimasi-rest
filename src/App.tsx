@@ -5,18 +5,16 @@ import SplashScreen from './components/auth/SplashScreen'
 import LoginScreen from './components/auth/LoginScreen'
 import RegisterScreen from './components/auth/RegisterScreen'
 import ForgotPasswordScreen from './components/auth/ForgotPasswordScreen'
-import RoleSelectionScreen from './components/auth/RoleSelectionScreen'
 
-import CompanySelectionScreen from './components/company/CompanySelectionScreen'
 import HomeDashboard from './components/HomeDashboard'
-import CreateCompanyScreen from './components/company/CreateCompanyScreen'
-import JoinCompanyScreen from './components/company/JoinCompanyScreen'
-import CompanyListScreen from './components/company/CompanyListScreen'
-
 import AdminDashboard from './components/admin/AdminDashboard'
 import CourierDashboard from './components/courier/CourierDashboard'
 import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
+
+import CreateCompanyScreen from './components/company/CreateCompanyScreen'
+import JoinCompanyScreen from './components/company/JoinCompanyScreen'
+import CompanyListScreen from './components/company/CompanyListScreen'
 
 import { Toaster } from './components/ui/sonner'
 import { toast } from 'sonner'
@@ -30,8 +28,6 @@ type AppScreen =
   | 'login'
   | 'register'
   | 'forgot-password'
-  | 'role-selection'
-  | 'company-selection'
   | 'home-dashboard'
   | 'create-company'
   | 'join-company'
@@ -47,9 +43,9 @@ export default function App() {
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
 
-  // load user from Firestore on auth change
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async fbUser => {
+      console.log('auth state:', fbUser?.uid, fbUser?.email)
       try {
         if (!fbUser) {
           setCurrentUser(null)
@@ -66,7 +62,11 @@ export default function App() {
             id: fbUser.uid,
             email: fbUser.email || '',
             password: '',
-            name: data.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+            name:
+              data.name ||
+              fbUser.displayName ||
+              fbUser.email?.split('@')[0] ||
+              'User',
             role: data.role,
             companyId: data.companyId,
             companies: data.companies || [],
@@ -103,7 +103,7 @@ export default function App() {
     setCurrentScreen('login')
   }
 
-  const handleNavigateFromHome = async (
+  const handleNavigateFromHome = (
     screen:
       | 'home'
       | 'companies'
@@ -176,7 +176,6 @@ export default function App() {
       }
     }
 
-    // logged in
     switch (currentScreen) {
       case 'create-company':
         return (
@@ -210,8 +209,8 @@ export default function App() {
           <CompanyListScreen
             user={currentUser}
             onBack={() => setCurrentScreen('home-dashboard')}
-            onSelectCompany={(companyId: string) => {
-              setCurrentUser(prev => (prev ? { ...prev, companyId } : null))
+            onSelectCompany={() => {
+              setHomeRefreshKey(k => k + 1)
               setCurrentScreen('home-dashboard')
             }}
           />
@@ -241,12 +240,7 @@ export default function App() {
         return <CustomerDashboard user={currentUser} onLogout={handleLogout} />
 
       case 'track-package':
-        return (
-          <TrackPackageScreen
-            onBack={() => setCurrentScreen('home-dashboard')}
-            packages={[] as any}
-          />
-        )
+        return <TrackPackageScreen onBack={() => setCurrentScreen('home-dashboard')} />
 
       case 'home-dashboard':
       default:

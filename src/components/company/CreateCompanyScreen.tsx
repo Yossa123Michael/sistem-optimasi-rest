@@ -1,106 +1,65 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { User, Company } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User, Company } from '@/lib/types'
-import { generateCode } from '@/lib/auth'
 import { db } from '@/lib/firebase'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
+import { addDoc, collection, doc, setDoc } from 'firebase/firestore'
 
 interface CreateCompanyScreenProps {
   user: User
   onBack: () => void
-  onCompanyCreated: (companyId: string) => void
+  onCompanyCreated: () => void
 }
 
-function OfficePicker({
-  onPick,
-}: {
-  onPick: (lat: number, lng: number) => void
-}) {
-  useMapEvents({
-    click(e) {
-      onPick(e.latlng.lat, e.latlng.lng)
-    },
-  })
-  return null
+function genCode(len = 8) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let out = ''
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)]
+  return out
 }
 
-export default function CreateCompanyScreen({
-  user,
-  onBack,
-  onCompanyCreated,
-}: CreateCompanyScreenProps) {
-  const [companyName, setCompanyName] = useState('')
+export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: CreateCompanyScreenProps) {
+  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
-  const [officeLocation, setOfficeLocation] = useState<{
-    lat: number
-    lng: number
-  } | null>(null)
 
-  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
-    lat: -6.2088,
-    lng: 106.8456,
-  })
-
-  useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        setMapCenter({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        })
-      },
-      () => {
-        // ignore, pakai default
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    )
-  }, [])
-
-  const handleCreateCompany = async () => {
-    if (!companyName.trim()) {
-      toast.error('Masukan nama perusahaan')
-      return
-    }
-    if (!officeLocation) {
-      toast.error('Pilih lokasi kantor pada peta')
-      return
-    }
+  const handleCreate = async () => {
+    if (!name.trim()) return toast.error('Nama perusahaan wajib diisi')
 
     try {
       setLoading(true)
-      const newCompanyData: Omit<Company, 'id'> = {
-        name: companyName.trim(),
-        code: generateCode(),
+
+      const payload: Omit<Company, 'id'> & any = {
+        name: name.trim(),
+        code: genCode(),
         ownerId: user.id,
         createdAt: new Date().toISOString(),
-        officeLocation: {
-          lat: officeLocation.lat,
-          lng: officeLocation.lng,
-        },
       }
 
-      const docRef = await addDoc(collection(db, 'companies'), {
-        ...newCompanyData,
-        createdAt: serverTimestamp(),
-      })
+      const ref = await addDoc(collection(db, 'companies'), payload)
 
-      const newCompanyId = docRef.id
-      console.log('New company created in Firestore with id:', newCompanyId)
+      // otomatis: owner menjadi admin dan punya membership
+      const membership = { companyId: ref.id, role: 'admin', joinedAt: new Date().toISOString() }
 
-      toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompanyData.code}`)
-      onCompanyCreated(newCompanyId)
-    } catch (error) {
-      console.error('Error creating company in Firestore:', error)
-      toast.error('Terjadi kesalahan saat membuat perusahaan di database')
-    } finally {
+      await setDoc(
+        doc(db, 'users', user.id),
+        {
+          companyId: ref.id,
+          role: 'admin',
+          companies: [...(user.companies || []), membership],
+        },
+        { merge: true },
+      )
+
+      toast.success('Perusahaan berhasil dibuat')
+      onCompanyCreated()
+    } catch (e: any) {
+  console.error(e)
+  toast.error(`Gagal membuat perusahaan: ${e?.code || e?.message || String(e)}`)
+} finally {
       setLoading(false)
     }
   }
@@ -109,71 +68,25 @@ export default function CreateCompanyScreen({
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-fit mb-4"
-            onClick={onBack}
-          >
+          <Button variant="ghost" size="sm" className="w-fit mb-4" onClick={onBack}>
             <ArrowLeft className="mr-2" />
             Kembali
           </Button>
-          <CardTitle className="text-2xl">Buat Perusahaan Baru</CardTitle>
+          <CardTitle className="text-2xl">Buat Perusahaan</CardTitle>
         </CardHeader>
-
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="company-name">Nama Perusahaan</Label>
             <Input
               id="company-name"
-              placeholder="Masukkan nama perusahaan"
-              value={companyName}
-              onChange={e => setCompanyName(e.target.value)}
-              onKeyDown={e =>
-                e.key === 'Enter' && !loading && handleCreateCompany()
-              }
+              placeholder="Contoh: PT Maju Jaya"
+              value={name}
+              onChange={e => setName(e.target.value)}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Lokasi Kantor (klik pada peta)</Label>
-
-            <div className="h-64 w-full overflow-hidden rounded-lg border">
-              <MapContainer
-                center={[mapCenter.lat, mapCenter.lng]}
-                zoom={15}
-                style={{ height: '100%', width: '100%' }}
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution="&copy; OpenStreetMap contributors"
-                />
-
-                <OfficePicker
-                  onPick={(lat, lng) => {
-                    setOfficeLocation({ lat, lng })
-                  }}
-                />
-
-                {officeLocation && (
-                  <Marker position={[officeLocation.lat, officeLocation.lng]} />
-                )}
-              </MapContainer>
-            </div>
-
-            {!officeLocation && (
-              <p className="text-xs text-muted-foreground">
-                Pilih titik lokasi kantor pada peta.
-              </p>
-            )}
-          </div>
-
-          <Button
-            onClick={handleCreateCompany}
-            className="w-full"
-            disabled={loading || !officeLocation}
-          >
-            {loading ? 'Menyimpan...' : 'Buat Perusahaan'}
+          <Button className="w-full" onClick={handleCreate} disabled={loading}>
+            {loading ? 'Membuat...' : 'Buat'}
           </Button>
         </CardContent>
       </Card>

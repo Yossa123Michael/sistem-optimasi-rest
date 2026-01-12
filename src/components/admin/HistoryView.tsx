@@ -1,22 +1,47 @@
-import { useEffect, useState } from 'react'
-import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { User, Package, Courier } from '@/lib/types'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 
 interface HistoryViewProps {
   user: User
 }
 
 export default function HistoryView({ user }: HistoryViewProps) {
-  const [packages] = useKV<Package[]>('packages', [])
-  const [couriers] = useKV<Courier[]>('couriers', [])
+  const [packages, setPackages] = useState<Package[]>([])
+  const [couriers, setCouriers] = useState<Courier[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const companyPackages = packages?.filter(
-    p => p.companyId === user.companyId && (p.status === 'delivered' || p.status === 'failed')
-  ) || []
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true)
+        if (!user.companyId) {
+          setPackages([])
+          setCouriers([])
+          return
+        }
+
+        const pSnap = await getDocs(query(collection(db, 'packages'), where('companyId', '==', user.companyId)))
+        setPackages(pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+
+        const cSnap = await getDocs(query(collection(db, 'couriers'), where('companyId', '==', user.companyId)))
+        setCouriers(cSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [user.companyId])
+
+  const companyPackages = useMemo(() => {
+    return (packages || []).filter(
+      p => p.companyId === user.companyId && (p.status === 'delivered' || p.status === 'failed'),
+    )
+  }, [packages, user.companyId])
 
   const getCourierName = (courierId?: string) => {
     if (!courierId) return '-'
@@ -45,14 +70,20 @@ export default function HistoryView({ user }: HistoryViewProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {companyPackages.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                    Memuat...
+                  </TableCell>
+                </TableRow>
+              ) : companyPackages.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                     Belum ada riwayat pengiriman
                   </TableCell>
                 </TableRow>
               ) : (
-                companyPackages.map((pkg) => (
+                companyPackages.map(pkg => (
                   <TableRow key={pkg.id}>
                     <TableCell className="font-medium">{pkg.name}</TableCell>
                     <TableCell>{getCourierName(pkg.courierId)}</TableCell>
@@ -67,7 +98,9 @@ export default function HistoryView({ user }: HistoryViewProps) {
                     <TableCell>
                       {pkg.deliveredAt
                         ? new Date(pkg.deliveredAt).toLocaleString('id-ID')
-                        : new Date(pkg.updatedAt).toLocaleString('id-ID')}
+                        : pkg.updatedAt
+                          ? new Date(pkg.updatedAt).toLocaleString('id-ID')
+                          : '-'}
                     </TableCell>
                   </TableRow>
                 ))

@@ -1,14 +1,13 @@
 import { useState } from 'react'
+import { User, Company, UserRole } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User, UserRole } from '@/lib/types'
 import { db } from '@/lib/firebase'
-import { addDoc, collection, getDocs, query, where } from 'firebase/firestore'
-import RoleSelectionScreen from './RoleSelectionScreen'
+import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
 
 interface JoinCompanyScreenProps {
   user: User
@@ -18,68 +17,63 @@ interface JoinCompanyScreenProps {
 
 export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinCompanyScreenProps) {
   const [companyCode, setCompanyCode] = useState('')
-  const [showRoleSelection, setShowRoleSelection] = useState(false)
-  const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [foundCompany, setFoundCompany] = useState<Company | null>(null)
 
-  const handleLookupCompany = async () => {
-    if (!companyCode.trim()) {
-      toast.error('Masukan kode perusahaan')
-      return
-    }
-
-    const q = query(
-      collection(db, 'companies'),
-      where('code', '==', companyCode.trim().toUpperCase()),
-    )
-    const snap = await getDocs(q)
-    if (snap.empty) {
-      toast.error('Kode salah')
-      return
-    }
-
-    const d = snap.docs[0]
-    const data = d.data() as any
-    setSelectedCompany({ id: d.id, name: data.name })
-    setShowRoleSelection(true)
-  }
-
-  const handleRoleSelected = async (role: UserRole) => {
-    if (!selectedCompany) return
+  const findCompany = async () => {
+    if (!companyCode.trim()) return toast.error('Masukkan kode perusahaan')
 
     try {
-      await addDoc(collection(db, 'employeeRequests'), {
-        companyId: selectedCompany.id,
-        userId: user.id,
-        userEmail: user.email,
-        userName: user.name || user.email,
-        status: 'pending',
-        requestedRole: role,
-        createdAt: new Date().toISOString(),
-      })
+      setLoading(true)
+      setFoundCompany(null)
 
-      toast.success(`Permintaan terkirim ke ${selectedCompany.name}`)
-      onRequestSent()
+      const snap = await getDocs(
+        query(collection(db, 'companies'), where('code', '==', companyCode.trim().toUpperCase())),
+      )
+
+      if (snap.empty) {
+        toast.error('Kode perusahaan tidak ditemukan')
+        return
+      }
+
+      const d = snap.docs[0]
+      setFoundCompany({ id: d.id, ...(d.data() as any) } as Company)
     } catch (e) {
-      console.error('Failed to create employee request', e)
-      toast.error('Gagal mengirim permintaan')
+      console.error(e)
+      toast.error('Gagal mencari perusahaan')
     } finally {
-      setShowRoleSelection(false)
-      setSelectedCompany(null)
-      setCompanyCode('')
+      setLoading(false)
     }
   }
 
-  if (showRoleSelection && selectedCompany) {
-    return (
-      <RoleSelectionScreen
-        companyName={selectedCompany.name}
-        onBack={() => {
-          setShowRoleSelection(false)
-          setSelectedCompany(null)
-        }}
-        onRoleSelected={handleRoleSelected}
-      />
-    )
+  const joinAs = async (role: UserRole) => {
+    if (!foundCompany) return
+
+    const already = (user.companies || []).some(m => m.companyId === foundCompany.id)
+    if (already) return toast.error('Anda sudah bergabung dengan perusahaan ini')
+
+    try {
+      setLoading(true)
+      const membership = { companyId: foundCompany.id, role, joinedAt: new Date().toISOString() }
+
+      await setDoc(
+        doc(db, 'users', user.id),
+        {
+          companyId: foundCompany.id,
+          role,
+          companies: [...(user.companies || []), membership],
+        },
+        { merge: true },
+      )
+
+      toast.success(`Bergabung dengan ${foundCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
+      onRequestSent()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal bergabung')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -92,7 +86,7 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
           </Button>
           <CardTitle className="text-2xl">Gabung Perusahaan</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="company-code">Kode Perusahaan</Label>
             <Input
@@ -100,13 +94,31 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
               placeholder="Masukkan kode perusahaan"
               value={companyCode}
               onChange={e => setCompanyCode(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === 'Enter' && handleLookupCompany()}
+              onKeyDown={e => e.key === 'Enter' && findCompany()}
               className="font-mono"
             />
           </div>
-          <Button onClick={handleLookupCompany} className="w-full">
-            Gabung
+
+          <Button onClick={findCompany} className="w-full" disabled={loading}>
+            {loading ? 'Mencari...' : 'Cari'}
           </Button>
+
+          {foundCompany && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <div>
+                <p className="font-medium">{foundCompany.name}</p>
+                <p className="text-xs text-muted-foreground">Kode: {foundCompany.code}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={() => joinAs('admin')} disabled={loading}>
+                  Sebagai Admin
+                </Button>
+                <Button variant="outline" onClick={() => joinAs('courier')} disabled={loading}>
+                  Sebagai Kurir
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

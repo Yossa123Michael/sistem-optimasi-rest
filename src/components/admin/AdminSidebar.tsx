@@ -23,13 +23,7 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
   const userName = user.name || user.email.split('@')[0]
   const companyExists = !!user.companyId
 
-  const menuItems = [
-    { id: 'home' as const, label: 'Home' },
-    { id: 'input-data' as const, label: 'Input Data Paket' },
-    { id: 'courier' as const, label: 'Kelola Kurir' },
-    { id: 'monitoring' as const, label: 'Monitoring' },
-    { id: 'history' as const, label: 'Riwayat' },
-  ]
+  const menuItems = [{ id: 'home' as const, label: 'Home' }]
 
   const SidebarContent = () => (
     <div className="flex flex-col h-screen bg-card border-r">

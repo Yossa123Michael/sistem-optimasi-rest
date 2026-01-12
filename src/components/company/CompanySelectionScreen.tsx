@@ -1,148 +1,84 @@
 import { useEffect, useState } from 'react'
-import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { User, Company, UserRole } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Buildings, Plus } from '@phosphor-icons/react'
+import { Card, CardContent } from '@/components/ui/card'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
-import { User, Company } from '@/lib/types'
-import { generateId, generateCode } from '@/lib/auth'
 
 interface CompanySelectionScreenProps {
   user: User
-  onCompanySet: (companyId: string) => void
+  onSelected: () => void
+  onBack?: () => void
 }
 
-export default function CompanySelectionScreen({ user, onCompanySet }: CompanySelectionScreenProps) {
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [showJoinDialog, setShowJoinDialog] = useState(false)
-  const [companyName, setCompanyName] = useState('')
-  const [companyCode, setCompanyCode] = useState('')
-  const [companies, setCompanies] = useKV<Company[]>('companies', [])
+export default function CompanySelectionScreen({ user, onSelected, onBack }: CompanySelectionScreenProps) {
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const handleCreateCompany = () => {
-    if (!companyName.trim()) {
-      toast.error('Masukan nama perusahaan')
-      return
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true)
+        const snap = await getDocs(collection(db, 'companies'))
+        setCompanies(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+      } finally {
+        setLoading(false)
+      }
     }
+    load()
+  }, [])
 
-    const newCompany: Company = {
-      id: generateId(),
-      name: companyName,
-      code: generateCode(),
-      ownerId: user.id,
-      createdAt: new Date().toISOString()
+  const userCompanies = (user.companies || [])
+    .map(m => {
+      const c = companies.find(x => x.id === m.companyId)
+      return c ? { ...c, role: m.role as UserRole } : null
+    })
+    .filter(Boolean) as Array<Company & { role: UserRole }>
+
+  const choose = async (companyId: string, role: UserRole) => {
+    try {
+      await setDoc(doc(db, 'users', user.id), { companyId, role }, { merge: true })
+      toast.success('Perusahaan dipilih')
+      onSelected()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal memilih perusahaan')
     }
-
-    setCompanies((currentCompanies) => [...(currentCompanies || []), newCompany])
-    toast.success(`Perusahaan berhasil dibuat! Kode: ${newCompany.code}`)
-    onCompanySet(newCompany.id)
-  }
-
-  const handleJoinCompany = () => {
-    if (!companyCode.trim()) {
-      toast.error('Masukan kode perusahaan')
-      return
-    }
-
-    const company = companies?.find(c => c.code.toUpperCase() === companyCode.toUpperCase())
-
-    if (!company) {
-      toast.error('Kode salah')
-      return
-    }
-
-    toast.success(`Bergabung dengan ${company.name}`)
-    onCompanySet(company.id)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary/50 p-4">
-      <Card className="w-full max-w-2xl shadow-xl">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary rounded-2xl p-4">
-              <Buildings size={48} weight="duotone" className="text-primary-foreground" />
-            </div>
-          </div>
-          <CardTitle className="text-3xl font-semibold">
-            Selamat datang, {user.name || user.email}
-          </CardTitle>
-          <p className="text-muted-foreground mt-2">
-            Buat perusahaan baru atau bergabung dengan yang sudah ada
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            <Button
-              onClick={() => setShowCreateDialog(true)}
-              size="lg"
-              className="h-32 flex flex-col gap-3"
-            >
-              <Plus size={32} weight="bold" />
-              <span className="text-lg">Buat Perusahaan</span>
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-2xl mx-auto space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Pilih Perusahaan</h1>
+          {onBack && (
+            <Button variant="outline" onClick={onBack}>
+              Kembali
             </Button>
+          )}
+        </div>
 
-            <Button
-              onClick={() => setShowJoinDialog(true)}
-              variant="outline"
-              size="lg"
-              className="h-32 flex flex-col gap-3"
-            >
-              <Buildings size={32} weight="duotone" />
-              <span className="text-lg">Gabung Perusahaan</span>
-            </Button>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Memuat...</p>
+        ) : userCompanies.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Anda belum punya perusahaan.</p>
+        ) : (
+          <div className="space-y-3">
+            {userCompanies.map(c => (
+              <Card key={c.id}>
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">Role: {c.role}</p>
+                  </div>
+                  <Button onClick={() => choose(c.id, c.role)}>Pilih</Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Buat Perusahaan Baru</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="company-name">Nama Perusahaan</Label>
-              <Input
-                id="company-name"
-                placeholder="Masukkan nama perusahaan"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleCreateCompany} className="w-full">
-              Buat Perusahaan
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Gabung Perusahaan</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="company-code">Kode Perusahaan</Label>
-              <Input
-                id="company-code"
-                placeholder="Masukkan kode perusahaan"
-                value={companyCode}
-                onChange={(e) => setCompanyCode(e.target.value.toUpperCase())}
-                className="font-mono"
-              />
-            </div>
-            <Button onClick={handleJoinCompany} className="w-full">
-              Gabung
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
     </div>
   )
 }

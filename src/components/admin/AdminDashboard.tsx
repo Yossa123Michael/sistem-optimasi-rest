@@ -2,19 +2,9 @@ import { useEffect, useState } from 'react'
 import { User } from '@/lib/types'
 import AdminSidebar from './AdminSidebar'
 import HomeView from './HomeView'
-import InputDataView from './InputDataView'
-import CourierView from './CourierView'
-import CourierActivationView from './CourierActivationView'
-import MonitoringView from './MonitoringView'
-import HistoryView from './HistoryView'
 
-type AdminView =
-  | 'home'
-  | 'input-data'
-  | 'courier'
-  | 'courier-activation'
-  | 'monitoring'
-  | 'history'
+// NOTE: view lain akan kita migrasi setelah ini
+type AdminView = 'home' | 'input-data' | 'courier' | 'courier-activation' | 'monitoring' | 'history'
 
 interface AdminDashboardProps {
   user: User
@@ -26,7 +16,6 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
   const [currentView, setCurrentView] = useState<AdminView>('home')
 
   useEffect(() => {
-    // validasi minimal (jangan cek KV)
     if (!user.companyId || user.role !== 'admin') {
       onBackToHome?.()
     }
@@ -35,17 +24,6 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
   const renderView = () => {
     switch (currentView) {
       case 'home':
-        return <HomeView user={user} />
-      case 'input-data':
-        return <InputDataView user={user as any} />
-      case 'courier':
-        return <CourierView user={user} onActivate={() => setCurrentView('courier-activation')} />
-      case 'courier-activation':
-        return <CourierActivationView user={user} onBack={() => setCurrentView('courier')} />
-      case 'monitoring':
-        return <MonitoringView user={user} />
-      case 'history':
-        return <HistoryView user={user} />
       default:
         return <HomeView user={user} />
     }
