@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,7 +44,6 @@ export default function LoginScreen({
         { merge: true },
       )
     } else {
-      // optional merge update name/email if changed
       await setDoc(userRef, payload, { merge: true })
     }
   }
@@ -90,6 +89,28 @@ export default function LoginScreen({
     } finally {
       setLoading(false)
     }
+  }
+
+  // Guest tracking via long-press (more resistant to auto-trigger)
+  const pressStartRef = useRef<number | null>(null)
+  const LONG_PRESS_MS = 900
+
+  const handleTrackPointerDown = () => {
+    pressStartRef.current = Date.now()
+  }
+
+  const handleTrackPointerUp = () => {
+    const start = pressStartRef.current
+    pressStartRef.current = null
+    if (!start) return
+
+    const duration = Date.now() - start
+    if (duration < LONG_PRESS_MS) {
+      toast.message(`Tahan ${Math.ceil(LONG_PRESS_MS / 1000)} detik untuk membuka Cek Paket`)
+      return
+    }
+
+    onTrackPackage()
   }
 
   return (
@@ -171,16 +192,21 @@ export default function LoginScreen({
             </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t">
-            <Button
-              onClick={onTrackPackage}
-              variant="outline"
-              className="w-full"
-              size="lg"
-              type="button"
+          <div className="mt-6 pt-6 border-t text-center">
+            <span
+              role="button"
+              tabIndex={0}
+              className="text-primary hover:underline font-medium select-none cursor-pointer"
+              onPointerDown={handleTrackPointerDown}
+              onPointerUp={handleTrackPointerUp}
+              onPointerCancel={() => (pressStartRef.current = null)}
+              onKeyDown={e => {
+                // blok Enter/Space agar tidak auto-activate
+                if (e.key === 'Enter' || e.key === ' ') e.preventDefault()
+              }}
             >
-              Cek Paket
-            </Button>
+              Cek Paket (Guest)
+            </span>
           </div>
         </CardContent>
       </Card>

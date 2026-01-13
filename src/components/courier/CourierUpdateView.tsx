@@ -5,17 +5,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner'
 import { User, Package, Courier } from '@/lib/types'
 import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where, updateDoc, doc } from 'firebase/firestore'
+import { collection, getDocs, query, where, updateDoc, doc, setDoc } from 'firebase/firestore'
 
 interface CourierUpdateViewProps {
   user: User
 }
+
+type ShareMode = 'travel' | 'stop'
 
 export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null)
   const [packages, setPackages] = useState<Package[]>([])
   const [courier, setCourier] = useState<Courier | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sharing, setSharing] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -46,6 +49,48 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
     load()
   }, [user.companyId, user.id])
 
+  const shareLiveLocation = async () => {
+  if (!selectedPackage?.trackingNumber) return toast.error('Tracking number kosong')
+  if (!navigator.geolocation) return toast.error('Browser tidak mendukung GPS')
+
+  try {
+    setSharing(true)
+    const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      })
+    })
+
+    const lastLat = pos.coords.latitude
+    const lastLng = pos.coords.longitude
+    const updatedAt = new Date().toISOString()
+    const lastLocation = `Lat ${lastLat.toFixed(6)}, Lng ${lastLng.toFixed(6)}`
+
+    await setDoc(
+      doc(db, 'publicTracking', selectedPackage.trackingNumber),
+      {
+        trackingNumber: selectedPackage.trackingNumber,
+        companyId: selectedPackage.companyId,
+        status: selectedPackage.status,
+        lastLat,
+        lastLng,
+        lastLocation,
+        updatedAt,
+      },
+      { merge: true },
+    )
+
+    toast.success('Lokasi terkini berhasil dibagikan')
+  } catch (e: any) {
+    console.error(e)
+    toast.error(`Gagal membagikan lokasi: ${e?.message || String(e)}`)
+  } finally {
+    setSharing(false)
+  }
+}
+
   const markDelivered = async () => {
     if (!selectedPackage) return
     try {
@@ -55,9 +100,21 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
         updatedAt: new Date().toISOString(),
       })
 
-      setPackages(prev =>
-        prev.map(p => (p.id === selectedPackage.id ? { ...p, status: 'delivered' as any } : p)),
-      )
+      // Optional: update publik juga supaya status tracking ikut berubah cepat
+      if (selectedPackage.trackingNumber) {
+        await setDoc(
+          doc(db, 'publicTracking', selectedPackage.trackingNumber),
+          {
+            trackingNumber: selectedPackage.trackingNumber,
+            companyId: selectedPackage.companyId,
+            status: 'delivered',
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        )
+      }
+
+      setPackages(prev => prev.map(p => (p.id === selectedPackage.id ? { ...p, status: 'delivered' as any } : p)))
       toast.success('Paket berhasil ditandai selesai!')
       setSelectedPackage(null)
     } catch (e) {
@@ -82,45 +139,70 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
           </Card>
         ) : !courier && !loading ? (
           <Card className="p-6">
-            <p className="text-sm text-destructive">Profil kurir belum dibuat oleh admin.</p>
+            <p className="text-sm text-destructive">Profil kurir tidak ditemukan.</p>
           </Card>
         ) : (
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-6">Paket Aktif</h2>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Memuat...</p>
-            ) : pending.length === 0 ? (
-              <p className="text-center py-12 text-muted-foreground">Semua paket sudah diselesaikan!</p>
+            {pending.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada paket yang perlu diupdate.</p>
             ) : (
               <div className="space-y-3">
-                {pending.map(p => (
-                  <div key={p.id} className="flex items-center justify-between border rounded-lg p-4">
-                    <div>
-                      <p className="font-medium">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">Status: {p.status}</p>
-                    </div>
-                    <Button onClick={() => setSelectedPackage(p)}>Tandai Selesai</Button>
-                  </div>
+                {pending.map(pkg => (
+                  <button
+                    key={pkg.id}
+                    className="w-full text-left p-4 border rounded-lg hover:bg-secondary transition-colors"
+                    onClick={() => setSelectedPackage(pkg)}
+                  >
+                    <p className="font-medium">{pkg.name}</p>
+                    <p className="text-sm text-muted-foreground">{pkg.locationDetail}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Resi: {pkg.trackingNumber}</p>
+                  </button>
                 ))}
               </div>
             )}
           </Card>
         )}
 
-        <Dialog open={!!selectedPackage} onOpenChange={() => setSelectedPackage(null)}>
+        <Dialog open={!!selectedPackage} onOpenChange={open => !open && setSelectedPackage(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Konfirmasi</DialogTitle>
+              <DialogTitle>Update Paket</DialogTitle>
+                <Button variant="outline" onClick={shareLiveLocation} disabled={sharing}>
+                  {sharing ? 'Memproses...' : 'Share lokasi terkini'}
+                </Button>
             </DialogHeader>
-            <p className="text-sm">
-              Tandai paket <b>{selectedPackage?.name}</b> sebagai terkirim?
-            </p>
-            <div className="flex gap-2 justify-end mt-4">
-              <Button variant="outline" onClick={() => setSelectedPackage(null)}>
-                Batal
-              </Button>
-              <Button onClick={markDelivered}>Ya, terkirim</Button>
-            </div>
+
+            {selectedPackage && (
+              <div className="space-y-3">
+                <div className="text-sm space-y-1">
+                  <p><b>Paket:</b> {selectedPackage.name}</p>
+                  <p><b>Resi:</b> {selectedPackage.trackingNumber}</p>
+                  <p><b>Status:</b> {selectedPackage.status}</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => shareLiveLocation('travel')}
+                    disabled={sharing}
+                  >
+                    {sharing ? 'Memproses...' : 'Share lokasi (Perjalanan)'}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => shareLiveLocation('stop')}
+                    disabled={sharing}
+                  >
+                    {sharing ? 'Memproses...' : 'Share lokasi (Sampai Stop)'}
+                  </Button>
+                </div>
+
+                <Button onClick={markDelivered} className="w-full">
+                  Tandai Selesai (Delivered)
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

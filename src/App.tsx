@@ -45,11 +45,16 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async fbUser => {
-      console.log('auth state:', fbUser?.uid, fbUser?.email)
       try {
         if (!fbUser) {
           setCurrentUser(null)
-          setCurrentScreen('login')
+
+          // Allow guest tracking: don't force login if guest is tracking
+          setCurrentScreen(prev =>
+            prev === 'track-package' ? 'track-package' : 'login',
+          )
+
+          setLoadingAuth(false)
           return
         }
 
@@ -88,6 +93,7 @@ export default function App() {
       } catch (e) {
         console.error('Failed to load user from Firestore', e)
         toast.error('Gagal memuat data user')
+        setCurrentUser(null)
         setCurrentScreen('login')
       } finally {
         setLoadingAuth(false)
@@ -99,8 +105,6 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth)
-    setCurrentUser(null)
-    setCurrentScreen('login')
   }
 
   const handleNavigateFromHome = (
@@ -117,21 +121,16 @@ export default function App() {
     if (screen === 'home') {
       setHomeRefreshKey(k => k + 1)
       setCurrentScreen('home-dashboard')
-    } else if (screen === 'companies') {
-      setCurrentScreen('company-list')
-    } else if (screen === 'track-package') {
-      setCurrentScreen('track-package')
-    } else if (screen === 'create-company') {
-      setCurrentScreen('create-company')
-    } else if (screen === 'join-company') {
-      setCurrentScreen('join-company')
-    } else if (screen === 'customer-mode') {
-      setCurrentScreen('customer-dashboard')
-    } else if (screen === 'admin-dashboard') {
-      setCurrentScreen('admin-dashboard')
-    } else if (screen === 'courier-dashboard') {
-      setCurrentScreen('courier-dashboard')
+      return
     }
+
+    if (screen === 'companies') return setCurrentScreen('company-list')
+    if (screen === 'track-package') return setCurrentScreen('track-package')
+    if (screen === 'create-company') return setCurrentScreen('create-company')
+    if (screen === 'join-company') return setCurrentScreen('join-company')
+    if (screen === 'customer-mode') return setCurrentScreen('customer-dashboard')
+    if (screen === 'admin-dashboard') return setCurrentScreen('admin-dashboard')
+    if (screen === 'courier-dashboard') return setCurrentScreen('courier-dashboard')
   }
 
   if (loadingAuth) {
@@ -144,10 +143,9 @@ export default function App() {
   }
 
   const renderScreen = () => {
+    // Guest (not logged in)
     if (!currentUser) {
       switch (currentScreen) {
-        case 'splash':
-          return <SplashScreen onStart={() => setCurrentScreen('login')} />
         case 'login':
           return (
             <LoginScreen
@@ -157,6 +155,7 @@ export default function App() {
               onTrackPackage={() => setCurrentScreen('track-package')}
             />
           )
+
         case 'register':
           return (
             <RegisterScreen
@@ -164,6 +163,7 @@ export default function App() {
               onLogin={() => setCurrentScreen('login')}
             />
           )
+
         case 'forgot-password':
           return (
             <ForgotPasswordScreen
@@ -171,54 +171,60 @@ export default function App() {
               onRegister={() => setCurrentScreen('register')}
             />
           )
+
+        case 'track-package':
+          return <TrackPackageScreen onBack={() => setCurrentScreen('login')} />
+
+        case 'splash':
         default:
           return <SplashScreen onStart={() => setCurrentScreen('login')} />
       }
     }
 
+    // Logged-in
     switch (currentScreen) {
       case 'create-company':
-  return (
-    <CreateCompanyScreen
-      user={currentUser}
-      onBack={() => {
-        setHomeRefreshKey(k => k + 1)
-        setCurrentScreen('home-dashboard')
-      }}
-      onCompanyCreated={(patch) => {
-        // patch berisi { companyId, role, companies }
-        setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
-        setHomeRefreshKey(k => k + 1)
-        setCurrentScreen('home-dashboard')
-      }}
-    />
-  )
+        return (
+          <CreateCompanyScreen
+            user={currentUser}
+            onBack={() => {
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+            onCompanyCreated={patch => {
+              setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+          />
+        )
 
-case 'join-company':
-  return (
-    <JoinCompanyScreen
-      user={currentUser}
-      onBack={() => setCurrentScreen('home-dashboard')}
-      onRequestSent={(patch) => {
-        setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
-        setHomeRefreshKey(k => k + 1)
-        setCurrentScreen('home-dashboard')
-      }}
-    />
-  )
+      case 'join-company':
+        return (
+          <JoinCompanyScreen
+            user={currentUser}
+            onBack={() => setCurrentScreen('home-dashboard')}
+            onRequestSent={patch => {
+              setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+          />
+        )
 
       case 'company-list':
-  return (
-    <CompanyListScreen
-      user={currentUser}
-      onBack={() => setCurrentScreen('home-dashboard')}
-      onSelectCompany={(patch) => {
-        setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
-        setHomeRefreshKey(k => k + 1)
-        setCurrentScreen('home-dashboard')
-      }}
-    />
-  )
+        return (
+          <CompanyListScreen
+            user={currentUser}
+            onBack={() => setCurrentScreen('home-dashboard')}
+            onSelectCompany={patch => {
+              setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
+              setHomeRefreshKey(k => k + 1)
+              setCurrentScreen('home-dashboard')
+            }}
+          />
+        )
+
       case 'admin-dashboard':
         return (
           <AdminDashboard
@@ -243,7 +249,11 @@ case 'join-company':
         return <CustomerDashboard user={currentUser} onLogout={handleLogout} />
 
       case 'track-package':
-        return <TrackPackageScreen onBack={() => setCurrentScreen('home-dashboard')} />
+        return (
+          <TrackPackageScreen
+            onBack={() => setCurrentScreen('home-dashboard')}
+          />
+        )
 
       case 'home-dashboard':
       default:
@@ -260,21 +270,21 @@ case 'join-company':
   }
 
   return (
-  <>
-    {(() => {
-      try {
-        return renderScreen()
-      } catch (e) {
-        console.error(e)
-        return (
-          <div style={{ padding: 24 }}>
-            <h1>App crashed</h1>
-            <pre>{String(e)}</pre>
-          </div>
-        )
-      }
-    })()}
-    <Toaster position="top-right" />
-  </>
-)
+    <>
+      {(() => {
+        try {
+          return renderScreen()
+        } catch (e) {
+          console.error(e)
+          return (
+            <div style={{ padding: 24 }}>
+              <h1>App crashed</h1>
+              <pre>{String(e)}</pre>
+            </div>
+          )
+        }
+      })()}
+      <Toaster position="top-right" />
+    </>
+  )
 }
