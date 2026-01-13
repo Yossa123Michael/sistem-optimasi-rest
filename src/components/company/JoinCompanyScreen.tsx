@@ -7,7 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore'
 
 type UserPatch = Pick<User, 'companyId' | 'role' | 'companies'>
 
@@ -30,7 +36,10 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
       setFoundCompany(null)
 
       const snap = await getDocs(
-        query(collection(db, 'companies'), where('code', '==', companyCode.trim().toUpperCase())),
+        query(
+          collection(db, 'companies'),
+          where('code', '==', companyCode.trim().toUpperCase()),
+        ),
       )
 
       if (snap.empty) {
@@ -48,38 +57,53 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
     }
   }
 
-  const joinAs = async (role: UserRole) => {
+  const requestJoinAs = async (role: UserRole) => {
     if (!foundCompany) return
 
+    // kalau sudah approved/bermembership, jangan request lagi
     const already = (user.companies || []).some(m => m.companyId === foundCompany.id)
     if (already) return toast.error('Anda sudah bergabung dengan perusahaan ini')
 
     try {
       setLoading(true)
-      const membership = { companyId: foundCompany.id, role, joinedAt: new Date().toISOString() }
-      const nextCompanies = [...(user.companies || []), membership]
 
-      await setDoc(
-        doc(db, 'users', user.id),
-        {
-          companyId: foundCompany.id,
-          role,
-          companies: nextCompanies,
-        },
-        { merge: true },
+      // cegah duplikat request pending
+      const existingReq = await getDocs(
+        query(
+          collection(db, 'employeeRequests'),
+          where('companyId', '==', foundCompany.id),
+          where('userId', '==', user.id),
+          where('status', '==', 'pending'),
+        ),
       )
+      if (!existingReq.empty) {
+        toast.message('Request Anda masih pending. Tunggu approval owner.')
+        return
+      }
 
-      toast.success(`Bergabung dengan ${foundCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
-
-      // PATCH user state di App langsung
-      onRequestSent({
+      await addDoc(collection(db, 'employeeRequests'), {
         companyId: foundCompany.id,
-        role,
-        companies: nextCompanies,
+        userId: user.id,
+        userName: user.name || user.email.split('@')[0],
+        userEmail: user.email,
+        status: 'pending',
+        requestedRole: role,
+        createdAt: new Date().toISOString(),
+      })
+
+      toast.success('Request join berhasil dikirim. Tunggu approval owner.')
+
+      // Tidak mengubah membership user.
+      // Optional: kalau mau update state App untuk tampilkan status "pending",
+      // Anda bisa pakai patch kosong atau menambah field baru di User.
+      onRequestSent({
+        companyId: user.companyId,
+        role: user.role,
+        companies: user.companies || [],
       })
     } catch (e: any) {
       console.error(e)
-      toast.error(`Gagal bergabung: ${e?.code || e?.message || String(e)}`)
+      toast.error(`Gagal mengirim request: ${e?.code || e?.message || String(e)}`)
     } finally {
       setLoading(false)
     }
@@ -95,6 +119,7 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
           </Button>
           <CardTitle className="text-2xl">Gabung Perusahaan</CardTitle>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="company-code">Kode Perusahaan</Label>
@@ -118,14 +143,27 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
                 <p className="font-medium">{foundCompany.name}</p>
                 <p className="text-xs text-muted-foreground">Kode: {foundCompany.code}</p>
               </div>
+
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" onClick={() => joinAs('admin')} disabled={loading}>
-                  Sebagai Admin
+                <Button
+                  variant="outline"
+                  onClick={() => requestJoinAs('admin')}
+                  disabled={loading}
+                >
+                  Request Admin
                 </Button>
-                <Button variant="outline" onClick={() => joinAs('courier')} disabled={loading}>
-                  Sebagai Kurir
+                <Button
+                  variant="outline"
+                  onClick={() => requestJoinAs('courier')}
+                  disabled={loading}
+                >
+                  Request Kurir
                 </Button>
               </div>
+
+              <p className="text-xs text-muted-foreground">
+                Setelah request di-approve owner, Anda baru bisa akses perusahaan.
+              </p>
             </div>
           )}
         </CardContent>

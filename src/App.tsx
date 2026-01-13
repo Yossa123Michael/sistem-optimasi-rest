@@ -21,7 +21,7 @@ import { toast } from 'sonner'
 
 import { auth, db } from '@/lib/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 
 type AppScreen =
   | 'splash'
@@ -44,23 +44,25 @@ export default function App() {
   const [homeRefreshKey, setHomeRefreshKey] = useState(0)
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async fbUser => {
-      try {
-        if (!fbUser) {
-          setCurrentUser(null)
+  let unsubUserDoc: (() => void) | null = null
 
-          // Allow guest tracking: don't force login if guest is tracking
-          setCurrentScreen(prev =>
-            prev === 'track-package' ? 'track-package' : 'login',
-          )
+  const unsubAuth = onAuthStateChanged(auth, async fbUser => {
+    try {
+      if (!fbUser) {
+        unsubUserDoc?.()
+        unsubUserDoc = null
 
-          setLoadingAuth(false)
-          return
-        }
+        setCurrentUser(null)
+        setCurrentScreen(prev => (prev === 'track-package' ? 'track-package' : 'login'))
+        setLoadingAuth(false)
+        return
+      }
 
-        const userRef = doc(db, 'users', fbUser.uid)
-        const snap = await getDoc(userRef)
+      const userRef = doc(db, 'users', fbUser.uid)
 
+      // listen realtime supaya setelah approve langsung update di UI
+      unsubUserDoc?.()
+      unsubUserDoc = onSnapshot(userRef, async (snap) => {
         if (snap.exists()) {
           const data = snap.data() as any
           const loadedUser: User = {
@@ -88,20 +90,23 @@ export default function App() {
           await setDoc(userRef, newUser, { merge: true })
           setCurrentUser(newUser)
         }
+      })
 
-        setCurrentScreen('home-dashboard')
-      } catch (e) {
-        console.error('Failed to load user from Firestore', e)
-        toast.error('Gagal memuat data user')
-        setCurrentUser(null)
-        setCurrentScreen('login')
-      } finally {
-        setLoadingAuth(false)
-      }
-    })
+      setCurrentScreen('home-dashboard')
+    } catch (e) {
+      console.error('Failed to load user from Firestore', e)
+      toast.error('Gagal memuat data user')
+      setCurrentScreen('login')
+    } finally {
+      setLoadingAuth(false)
+    }
+  })
 
-    return () => unsub()
-  }, [])
+  return () => {
+    unsubUserDoc?.()
+    unsubAuth()
+  }
+}, [])
 
   const handleLogout = async () => {
     await signOut(auth)

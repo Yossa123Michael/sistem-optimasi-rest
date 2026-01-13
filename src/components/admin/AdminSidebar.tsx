@@ -31,6 +31,7 @@ export default function AdminSidebar({
     { id: 'home', label: 'Home' },
     { id: 'courier', label: 'Kurir' },
     { id: 'monitoring', label: 'Monitoring' },
+    { id: 'requests', label: 'Permintaan' },
     { id: 'history', label: 'History' },
   ]
 
