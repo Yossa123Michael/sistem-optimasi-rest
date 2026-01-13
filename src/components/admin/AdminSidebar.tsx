@@ -5,8 +5,7 @@ import { List } from '@phosphor-icons/react'
 import { User } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useState } from 'react'
-
-type AdminView = 'home' | 'input-data' | 'courier' | 'courier-activation' | 'monitoring' | 'history'
+import type { AdminView } from './AdminDashboard'
 
 interface AdminSidebarProps {
   user: User
@@ -16,14 +15,24 @@ interface AdminSidebarProps {
   onBackToHome?: () => void
 }
 
-export default function AdminSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: AdminSidebarProps) {
+export default function AdminSidebar({
+  user,
+  currentView,
+  onViewChange,
+  onLogout,
+  onBackToHome,
+}: AdminSidebarProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
 
   const userName = user.name || user.email.split('@')[0]
-  const companyExists = !!user.companyId
 
-  const menuItems = [{ id: 'home' as const, label: 'Home' }]
+  const menuItems: Array<{ id: AdminView; label: string }> = [
+    { id: 'home', label: 'Home' },
+    { id: 'courier', label: 'Kurir' },
+    { id: 'monitoring', label: 'Monitoring' },
+    { id: 'history', label: 'History' },
+  ]
 
   const SidebarContent = () => (
     <div className="flex flex-col h-screen bg-card border-r">
@@ -32,6 +41,7 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
           <p className="text-sm text-muted-foreground">Photo</p>
         </div>
         <p className="text-sm text-center text-foreground font-medium">{userName}</p>
+
         {user.companyId ? (
           <p className="text-xs text-muted-foreground mt-1">Company ID: {user.companyId}</p>
         ) : (
@@ -55,7 +65,8 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
                   onViewChange(item.id)
                   if (isMobile) setOpen(false)
                 }}
-                disabled={!companyExists}
+                // Home selalu boleh; selain itu butuh companyId
+                disabled={item.id !== 'home' && !user.companyId}
               >
                 {item.label}
               </Button>
@@ -95,7 +106,7 @@ export default function AdminSidebar({ user, currentView, onViewChange, onLogout
     return (
       <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">RouteOptima</h2>
+          <h2 className="font-semibold text-lg">Admin</h2>
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon">

@@ -7,6 +7,7 @@ import { ErrorFallback } from './ErrorFallback.tsx'
 import "./main.css"
 import "./styles/theme.css"
 import "./index.css"
+import 'leaflet/dist/leaflet.css'
 
 console.log('main.tsx loaded')
 createRoot(document.getElementById('root')!).render(

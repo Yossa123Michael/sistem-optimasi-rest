@@ -7,10 +7,12 @@ import { db } from '@/lib/firebase'
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
 
+type UserPatch = Pick<User, 'companyId' | 'role'>
+
 interface CompanyListScreenProps {
   user: User
   onBack: () => void
-  onSelectCompany: () => void
+  onSelectCompany: (patch: UserPatch) => void
 }
 
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
@@ -41,10 +43,12 @@ export default function CompanyListScreen({ user, onBack, onSelectCompany }: Com
     try {
       await setDoc(doc(db, 'users', user.id), { companyId, role }, { merge: true })
       toast.success('Perusahaan dipilih')
-      onSelectCompany()
-    } catch (e) {
+
+      // patch state di App agar langsung berubah
+      onSelectCompany({ companyId, role })
+    } catch (e: any) {
       console.error(e)
-      toast.error('Gagal memilih perusahaan')
+      toast.error(`Gagal memilih perusahaan: ${e?.code || e?.message || String(e)}`)
     }
   }
 

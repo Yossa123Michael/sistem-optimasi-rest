@@ -172,50 +172,53 @@ export default function App() {
             />
           )
         default:
-          return null
+          return <SplashScreen onStart={() => setCurrentScreen('login')} />
       }
     }
 
     switch (currentScreen) {
       case 'create-company':
-        return (
-          <CreateCompanyScreen
-            user={currentUser}
-            onBack={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-            onCompanyCreated={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-          />
-        )
+  return (
+    <CreateCompanyScreen
+      user={currentUser}
+      onBack={() => {
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+      onCompanyCreated={(patch) => {
+        // patch berisi { companyId, role, companies }
+        setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+    />
+  )
 
-      case 'join-company':
-        return (
-          <JoinCompanyScreen
-            user={currentUser}
-            onBack={() => setCurrentScreen('home-dashboard')}
-            onRequestSent={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-          />
-        )
+case 'join-company':
+  return (
+    <JoinCompanyScreen
+      user={currentUser}
+      onBack={() => setCurrentScreen('home-dashboard')}
+      onRequestSent={(patch) => {
+        setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+    />
+  )
 
       case 'company-list':
-        return (
-          <CompanyListScreen
-            user={currentUser}
-            onBack={() => setCurrentScreen('home-dashboard')}
-            onSelectCompany={() => {
-              setHomeRefreshKey(k => k + 1)
-              setCurrentScreen('home-dashboard')
-            }}
-          />
-        )
-
+  return (
+    <CompanyListScreen
+      user={currentUser}
+      onBack={() => setCurrentScreen('home-dashboard')}
+      onSelectCompany={(patch) => {
+        setCurrentUser(prev => (prev ? { ...prev, ...patch } : prev))
+        setHomeRefreshKey(k => k + 1)
+        setCurrentScreen('home-dashboard')
+      }}
+    />
+  )
       case 'admin-dashboard':
         return (
           <AdminDashboard
@@ -257,9 +260,21 @@ export default function App() {
   }
 
   return (
-    <>
-      {renderScreen()}
-      <Toaster position="top-right" />
-    </>
-  )
+  <>
+    {(() => {
+      try {
+        return renderScreen()
+      } catch (e) {
+        console.error(e)
+        return (
+          <div style={{ padding: 24 }}>
+            <h1>App crashed</h1>
+            <pre>{String(e)}</pre>
+          </div>
+        )
+      }
+    })()}
+    <Toaster position="top-right" />
+  </>
+)
 }

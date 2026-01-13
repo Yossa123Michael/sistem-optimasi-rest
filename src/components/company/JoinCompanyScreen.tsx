@@ -9,10 +9,12 @@ import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { collection, getDocs, query, where, doc, setDoc } from 'firebase/firestore'
 
+type UserPatch = Pick<User, 'companyId' | 'role' | 'companies'>
+
 interface JoinCompanyScreenProps {
   user: User
   onBack: () => void
-  onRequestSent: () => void
+  onRequestSent: (patch: UserPatch) => void
 }
 
 export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinCompanyScreenProps) {
@@ -55,22 +57,29 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
     try {
       setLoading(true)
       const membership = { companyId: foundCompany.id, role, joinedAt: new Date().toISOString() }
+      const nextCompanies = [...(user.companies || []), membership]
 
       await setDoc(
         doc(db, 'users', user.id),
         {
           companyId: foundCompany.id,
           role,
-          companies: [...(user.companies || []), membership],
+          companies: nextCompanies,
         },
         { merge: true },
       )
 
       toast.success(`Bergabung dengan ${foundCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
-      onRequestSent()
-    } catch (e) {
+
+      // PATCH user state di App langsung
+      onRequestSent({
+        companyId: foundCompany.id,
+        role,
+        companies: nextCompanies,
+      })
+    } catch (e: any) {
       console.error(e)
-      toast.error('Gagal bergabung')
+      toast.error(`Gagal bergabung: ${e?.code || e?.message || String(e)}`)
     } finally {
       setLoading(false)
     }

@@ -9,10 +9,12 @@ import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { addDoc, collection, doc, setDoc } from 'firebase/firestore'
 
+type UserPatch = Pick<User, 'companyId' | 'role' | 'companies'>
+
 interface CreateCompanyScreenProps {
   user: User
   onBack: () => void
-  onCompanyCreated: () => void
+  onCompanyCreated: (patch: UserPatch) => void
 }
 
 function genCode(len = 8) {
@@ -41,25 +43,31 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
       const ref = await addDoc(collection(db, 'companies'), payload)
 
-      // otomatis: owner menjadi admin dan punya membership
       const membership = { companyId: ref.id, role: 'admin', joinedAt: new Date().toISOString() }
+      const nextCompanies = [...(user.companies || []), membership]
 
       await setDoc(
         doc(db, 'users', user.id),
         {
           companyId: ref.id,
           role: 'admin',
-          companies: [...(user.companies || []), membership],
+          companies: nextCompanies,
         },
         { merge: true },
       )
 
       toast.success('Perusahaan berhasil dibuat')
-      onCompanyCreated()
+
+      // PATCH user state di App langsung
+      onCompanyCreated({
+        companyId: ref.id,
+        role: 'admin',
+        companies: nextCompanies,
+      })
     } catch (e: any) {
-  console.error(e)
-  toast.error(`Gagal membuat perusahaan: ${e?.code || e?.message || String(e)}`)
-} finally {
+      console.error(e)
+      toast.error(`Gagal membuat perusahaan: ${e?.code || e?.message || String(e)}`)
+    } finally {
       setLoading(false)
     }
   }

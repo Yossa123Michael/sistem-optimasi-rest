@@ -3,41 +3,69 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
-import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { auth, db } from '@/lib/firebase'
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { toast } from 'sonner'
+import TrackingMap from './TrackingMap'
 
 interface TrackPackageScreenProps {
   onBack: () => void
 }
 
+type PublicTracking = {
+  trackingNumber?: string
+  status?: string
+  lastLocation?: string
+  lastLat?: number
+  lastLng?: number
+  updatedAt?: string
+}
+
+type MyPackage = {
+  trackingNumber: string
+  queueIndex?: number
+  nextStopName?: string
+  updatedAt?: string
+}
+
 export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any | null>(null)
+
+  const [result, setResult] = useState<(PublicTracking & { id: string }) | null>(null)
+  const [myPkg, setMyPkg] = useState<MyPackage | null>(null)
 
   const handleSearch = async () => {
-    if (!code.trim()) return toast.error('Masukkan kode / resi')
+    const resi = code.trim()
+    if (!resi) return toast.error('Masukkan kode / resi')
 
     try {
       setLoading(true)
       setResult(null)
+      setMyPkg(null)
 
-      // Asumsi field trackingNumber atau code. Sesuaikan dengan schema Anda.
-      const snap = await getDocs(
-        query(collection(db, 'packages'), where('trackingNumber', '==', code.trim()))
-      )
-
-      if (snap.empty) {
+      // 1) PUBLIC tracking (tanpa login bisa)
+      const snap = await getDoc(doc(db, 'publicTracking', resi))
+      if (!snap.exists()) {
         toast.error('Paket tidak ditemukan')
         return
       }
+      const publicData = { id: snap.id, ...(snap.data() as any) } as any
+      setResult(publicData)
 
-      const d = snap.docs[0]
-      setResult({ id: d.id, ...(d.data() as any) })
-    } catch (e) {
+      // 2) Jika login: cek apakah paket ini milik user (via users/{uid}/myPackages)
+      const uid = auth.currentUser?.uid
+      if (uid) {
+        const mySnap = await getDocs(
+          query(collection(db, 'users', uid, 'myPackages'), where('trackingNumber', '==', resi)),
+        )
+        if (!mySnap.empty) {
+          setMyPkg(mySnap.docs[0].data() as MyPackage)
+        }
+      }
+    } catch (e: any) {
       console.error(e)
-      toast.error('Gagal mencari paket')
+      toast.error(`Gagal mencari paket: ${e?.code || e?.message || String(e)}`)
     } finally {
       setLoading(false)
     }
@@ -65,10 +93,37 @@ export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) 
           </Button>
 
           {result && (
-            <div className="mt-4 text-sm">
-              <p><b>Nama Paket:</b> {result.name || '-'}</p>
-              <p><b>Status:</b> {result.status || '-'}</p>
-              <p><b>Penerima:</b> {result.recipientName || '-'}</p>
+            <div className="mt-4 text-sm space-y-3">
+              {myPkg && (
+                <div className="rounded-lg border p-3 bg-primary/5">
+                  <p className="font-medium">
+                    Paket anda dalam antrian ke{' '}
+                    <span className="text-primary">
+                      {myPkg.nextStopName || '(tujuan berikutnya belum di-set)'}
+                    </span>
+                  </p>
+                  {typeof myPkg.queueIndex === 'number' && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Posisi antrian: {myPkg.queueIndex}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <p><b>Resi:</b> {result.trackingNumber || result.id}</p>
+                <p><b>Status:</b> {result.status || '-'}</p>
+                <p><b>Posisi Kurir:</b> {result.lastLocation || '-'}</p>
+                <p><b>Update terakhir:</b> {result.updatedAt || '-'}</p>
+              </div>
+
+              {typeof result.lastLat === 'number' && typeof result.lastLng === 'number' && (
+                <TrackingMap
+                  lat={result.lastLat}
+                  lng={result.lastLng}
+                  label={result.lastLocation || 'Posisi terakhir kurir'}
+                />
+              )}
             </div>
           )}
         </CardContent>
