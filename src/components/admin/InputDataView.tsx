@@ -334,7 +334,7 @@ export default function InputDataView({
 
       // Process each local package (create new or update existing)
       for (const p of localPackages) {
-        const isExisting = p.id && existingPackageIds.has(p.id)
+        const isExisting = Boolean(p.id) && existingPackageIds.has(p.id)
         
         // Prepare payload without undefined values (Firestore rejects undefined)
         const payload: any = {
@@ -371,7 +371,7 @@ export default function InputDataView({
             ...payload,
             id: packageId,
             createdAt: p.createdAt || now,
-            deliveredAt: p.deliveredAt,
+            deliveredAt: p.deliveredAt ?? null,
           } as Package
         } else {
           // CREATE new package
@@ -391,6 +391,7 @@ export default function InputDataView({
           packageDoc = { 
             ...payload,
             id: packageId,
+            createdAt: now,
             deliveredAt: null,
           } as Package
         }
