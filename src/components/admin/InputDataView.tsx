@@ -348,7 +348,7 @@ export default function InputDataView({
           longitude: toNumber(p.longitude),
           weight: toNumber(p.weight),
           trackingNumber: String(p.trackingNumber || '').trim(),
-          courierId: p.courierId || null, // preserve existing assignment or null
+          courierId: p.courierId ?? null, // preserve existing assignment or null
           status: p.status || 'pending',
           updatedAt: now,
         }
@@ -368,8 +368,8 @@ export default function InputDataView({
           }
           
           packageDoc = { 
-            id: packageId,
             ...payload,
+            id: packageId,
             createdAt: p.createdAt || now,
             deliveredAt: p.deliveredAt,
           } as Package
@@ -389,9 +389,9 @@ export default function InputDataView({
           }
           
           packageDoc = { 
-            id: packageId,
             ...payload,
-            deliveredAt: undefined,
+            id: packageId,
+            deliveredAt: null,
           } as Package
         }
 
