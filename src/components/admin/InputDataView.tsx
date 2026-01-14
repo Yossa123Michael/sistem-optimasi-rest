@@ -203,46 +203,71 @@ export default function InputDataView({
 
       const now = new Date().toISOString()
 
-      await Promise.all(
-        unassigned.map((pkg, idx) => {
-          const courier = activeCouriers[idx % activeCouriers.length]
-          return updateDoc(doc(db, 'packages', pkg.id), {
-            courierId: courier.id,
-            status: 'in-transit',
-            updatedAt: now,
-          })
-        }),
-      )
-
-      await Promise.all(
-        unassigned.map(pkg => {
-          if (!pkg.trackingNumber) return Promise.resolve()
-          return setDoc(
-            doc(db, 'publicTracking', pkg.trackingNumber),
-            {
-              trackingNumber: pkg.trackingNumber,
-              companyId: pkg.companyId,
+      // Assign packages to couriers
+      try {
+        await Promise.all(
+          unassigned.map((pkg, idx) => {
+            const courier = activeCouriers[idx % activeCouriers.length]
+            return updateDoc(doc(db, 'packages', pkg.id), {
+              courierId: courier.id,
               status: 'in-transit',
               updatedAt: now,
-            },
-            { merge: true },
-          )
-        }),
-      )
+            })
+          }),
+        )
+        console.log(`Assigned ${unassigned.length} packages to active couriers`)
+      } catch (assignErr) {
+        console.error('Failed to assign packages to couriers:', assignErr)
+        throw new Error('Gagal menugaskan paket ke kurir')
+      }
+
+      // Update public tracking
+      try {
+        await Promise.all(
+          unassigned.map(pkg => {
+            if (!pkg.trackingNumber) return Promise.resolve()
+            return setDoc(
+              doc(db, 'publicTracking', pkg.trackingNumber),
+              {
+                trackingNumber: pkg.trackingNumber,
+                companyId: pkg.companyId,
+                status: 'in-transit',
+                updatedAt: now,
+              },
+              { merge: true },
+            )
+          }),
+        )
+      } catch (trackErr) {
+        console.error('Failed to update tracking after assignment:', trackErr)
+        // Don't fail the whole operation for tracking updates
+      }
 
       // refresh state packages for admin UI
-      const refreshed = await getDocs(
-        query(collection(db, 'packages'), where('companyId', '==', company.id)),
-      )
-      const loaded = refreshed.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
+      try {
+        const refreshed = await getDocs(
+          query(collection(db, 'packages'), where('companyId', '==', company.id)),
+        )
+        const loaded = refreshed.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
 
-      onSetPackages(prev => {
-        const other = prev.filter(pp => pp.companyId !== company.id)
-        return [...other, ...loaded]
-      })
-      setLocalPackages(loaded.filter(p => p.companyId === company.id))
+        onSetPackages(prev => {
+          const other = prev.filter(pp => pp.companyId !== company.id)
+          return [...other, ...loaded]
+        })
+        setLocalPackages(loaded.filter(p => p.companyId === company.id))
+        console.log('Refreshed package state after assignment')
+      } catch (refreshErr) {
+        console.error('Failed to refresh packages after assignment:', refreshErr)
+        // Continue even if refresh fails - assignment succeeded
+      }
 
       return { assigned: unassigned.length }
+    } catch (err) {
+      console.error('assignPendingToActiveCouriers error:', err)
+      if (err instanceof Error && err.message.startsWith('Gagal')) {
+        throw err
+      }
+      throw new Error('Gagal melakukan auto-assignment')
     } finally {
       setAssigning(false)
     }
@@ -276,16 +301,39 @@ export default function InputDataView({
 
     setSaving(true)
     try {
-      // replace packages for this company
+      // UPSERT STRATEGY: fetch existing packages to compare
       const snap = await getDocs(
         query(collection(db, 'packages'), where('companyId', '==', company.id)),
       )
-      await Promise.all(snap.docs.map(d => deleteDoc(doc(db, 'packages', d.id))))
-
+      const existingPackages = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
+      
       const now = new Date().toISOString()
-      const newPackages: Package[] = []
+      const savedPackages: Package[] = []
+      
+      // Track which existing package IDs are still present in localPackages
+      const localPackageIds = new Set(
+        localPackages
+          .filter(p => p.id && existingPackages.some(ep => ep.id === p.id))
+          .map(p => p.id)
+      )
+      
+      // Delete packages that were removed from the UI
+      const packagesToDelete = existingPackages.filter(ep => !localPackageIds.has(ep.id))
+      for (const pkg of packagesToDelete) {
+        try {
+          await deleteDoc(doc(db, 'packages', pkg.id))
+          console.log(`Deleted package: ${pkg.id}`)
+        } catch (delErr) {
+          console.error(`Failed to delete package ${pkg.id}:`, delErr)
+          throw new Error(`Gagal menghapus paket ${pkg.name}`)
+        }
+      }
 
+      // Process each local package (create new or update existing)
       for (const p of localPackages) {
+        const isExisting = p.id && existingPackages.some(ep => ep.id === p.id)
+        
+        // Prepare payload without undefined values (Firestore rejects undefined)
         const payload: any = {
           companyId: company.id,
           name: String(p.name || '').trim(),
@@ -297,37 +345,81 @@ export default function InputDataView({
           longitude: toNumber(p.longitude),
           weight: toNumber(p.weight),
           trackingNumber: String(p.trackingNumber || '').trim(),
-          courierId: null, // start unassigned
-          status: 'pending',
-          createdAt: p.createdAt || now,
+          courierId: p.courierId || null, // preserve existing assignment or null
+          status: p.status || 'pending',
           updatedAt: now,
         }
+        
+        let packageId: string
+        let packageDoc: Package
 
-        const ref = await addDoc(collection(db, 'packages'), payload)
+        if (isExisting) {
+          // UPDATE existing package
+          packageId = p.id
+          try {
+            await updateDoc(doc(db, 'packages', packageId), payload)
+            console.log(`Updated package: ${packageId}`)
+          } catch (updateErr) {
+            console.error(`Failed to update package ${packageId}:`, updateErr)
+            throw new Error(`Gagal memperbarui paket ${p.name}`)
+          }
+          
+          packageDoc = { 
+            ...p, 
+            ...payload,
+            id: packageId,
+            createdAt: p.createdAt || now,
+          }
+        } else {
+          // CREATE new package
+          payload.createdAt = now
+          payload.status = 'pending'
+          payload.courierId = null
+          
+          try {
+            const ref = await addDoc(collection(db, 'packages'), payload)
+            packageId = ref.id
+            console.log(`Created package: ${packageId}`)
+          } catch (addErr) {
+            console.error('Failed to create package:', addErr)
+            throw new Error(`Gagal membuat paket ${p.name}`)
+          }
+          
+          packageDoc = { 
+            ...p, 
+            ...payload,
+            id: packageId,
+            courierId: undefined,
+          }
+        }
 
-        await setDoc(
-          doc(db, 'publicTracking', payload.trackingNumber),
-          {
-            trackingNumber: payload.trackingNumber,
-            packageId: ref.id,
-            companyId: company.id,
-            status: payload.status,
-            lastLocation: payload.locationDetail,
-            updatedAt: now,
-            recipientName: payload.recipientName,
-          },
-          { merge: true },
-        )
+        // Update publicTracking
+        try {
+          await setDoc(
+            doc(db, 'publicTracking', payload.trackingNumber),
+            {
+              trackingNumber: payload.trackingNumber,
+              packageId: packageId,
+              companyId: company.id,
+              status: payload.status,
+              lastLocation: payload.locationDetail,
+              updatedAt: now,
+              recipientName: payload.recipientName,
+            },
+            { merge: true },
+          )
+        } catch (trackErr) {
+          console.error(`Failed to update tracking for ${payload.trackingNumber}:`, trackErr)
+          // Don't fail the whole operation for tracking updates
+        }
 
-        const saved: Package = { ...p, id: ref.id, status: 'pending', updatedAt: now, courierId: undefined }
-        ;(saved as any).recipientEmail = payload.recipientEmail
-        newPackages.push(saved)
+        savedPackages.push(packageDoc)
       }
 
-      setLocalPackages(newPackages)
+      setLocalPackages(savedPackages)
       onSetPackages(prev => {
         const other = prev.filter(pp => pp.companyId !== company.id)
-        return [...other, ...newPackages]
+        return [...other, ...savedPackages]
       })
 
       // AUTO ASSIGN after submit
@@ -338,8 +430,12 @@ export default function InputDataView({
         toast.success('Paket disimpan (belum ada paket yang perlu ditugaskan / atau tidak ada kurir aktif)')
       }
     } catch (err) {
-      console.error(err)
-      toast.error('Gagal menyimpan data paket')
+      console.error('handleSavePackages error:', err)
+      if (err instanceof Error && err.message.startsWith('Gagal')) {
+        toast.error(err.message)
+      } else {
+        toast.error('Gagal menyimpan data paket. Periksa console untuk detail.')
+      }
     } finally {
       setSaving(false)
     }
