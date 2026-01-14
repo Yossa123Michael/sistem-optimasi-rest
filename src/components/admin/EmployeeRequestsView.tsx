@@ -12,6 +12,7 @@ import {
   where,
   updateDoc,
   doc,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { addMembershipToUserFirestore } from '@/lib/membership'
@@ -98,46 +99,113 @@ export default function EmployeeRequestsView({
   role: Exclude<UserRole, 'customer'>,
 ) => {
   if (!isOwner) return
-  try {
-    // 1) set approved di Firestore
-    await updateDoc(doc(db, 'employeeRequests', req.id), {
-      status: 'approved',
-      requestedRole: role,
-    })
 
-    // 2) update membership user pelamar di Firestore
+  console.log('Approving employee request:', {
+    requestId: req.id,
+    userId: req.userId,
+    companyId: company.id,
+    role,
+  })
+
+  try {
+    // STEP 1: Update membership user pelamar di Firestore (FIRST)
     const membership = {
       companyId: company.id,
       role,
       joinedAt: new Date().toISOString(),
     } as const
 
-    // import helper
-    // (lihat import section di bawah)
-    await addMembershipToUserFirestore(req.userId, membership)
-
-    // 3) kalau courier, ensure couriers doc ada
-    if (role === 'courier') {
-      const existingSnap = await getDocs(
-        query(
-          collection(db, 'couriers'),
-          where('userId', '==', req.userId),
-          where('companyId', '==', company.id),
-        ),
+    try {
+      await addMembershipToUserFirestore(req.userId, membership)
+      console.log('✓ Membership updated successfully:', {
+        userId: req.userId,
+        companyId: company.id,
+        role,
+      })
+    } catch (e) {
+      console.error('Failed to update membership:', {
+        requestId: req.id,
+        userId: req.userId,
+        companyId: company.id,
+        role,
+        error: e,
+      })
+      toast.error(
+        'Gagal memperbarui membership pengguna. Permintaan tidak disetujui.',
       )
+      throw e // Stop here, don't proceed
+    }
 
-      if (existingSnap.empty) {
-        await addDoc(collection(db, 'couriers'), {
-          name: req.userName || req.userEmail || 'Kurir',
-          capacity: 40,
-          active: true,
-          companyId: company.id,
+    // STEP 2: If courier, ensure couriers doc exists (SECOND)
+    if (role === 'courier') {
+      try {
+        const existingSnap = await getDocs(
+          query(
+            collection(db, 'couriers'),
+            where('userId', '==', req.userId),
+            where('companyId', '==', company.id),
+          ),
+        )
+
+        if (existingSnap.empty) {
+          // Ensure no undefined values in courier doc
+          const courierData = {
+            name: req.userName || req.userEmail || 'Kurir',
+            capacity: 40,
+            active: true,
+            companyId: company.id,
+            userId: req.userId,
+          }
+          await addDoc(collection(db, 'couriers'), courierData)
+          console.log('✓ Courier document created:', courierData)
+        } else {
+          console.log('✓ Courier document already exists')
+        }
+      } catch (e) {
+        console.error('Failed to create courier document:', {
+          requestId: req.id,
           userId: req.userId,
+          companyId: company.id,
+          error: e,
         })
+        toast.error(
+          'Gagal membuat dokumen kurir. Permintaan tidak disetujui.',
+        )
+        throw e // Stop here, don't proceed
       }
     }
 
-    // 4) optional: sync state lama (biar UI Anda yang lain tidak rusak)
+    // STEP 3: Set approved di Firestore (LAST - only if previous steps succeeded)
+    try {
+      const batch = writeBatch(db)
+      const reqRef = doc(db, 'employeeRequests', req.id)
+      
+      // Ensure no undefined values in the update
+      batch.update(reqRef, {
+        status: 'approved',
+        requestedRole: role,
+      })
+      
+      await batch.commit()
+      console.log('✓ Employee request marked as approved:', req.id)
+    } catch (e) {
+      console.error('Failed to update request status:', {
+        requestId: req.id,
+        userId: req.userId,
+        companyId: company.id,
+        role,
+        error: e,
+      })
+      toast.error(
+        'Membership dan dokumen kurir berhasil dibuat, tetapi gagal memperbarui status permintaan. Silakan refresh halaman.',
+      )
+      // Don't throw here - membership and courier are already created
+      // Just refresh to show updated state
+      loadRequests()
+      return
+    }
+
+    // Only call onApproveAsRole and show success if everything succeeded
     onApproveAsRole(req, role)
 
     toast.success(
@@ -145,8 +213,10 @@ export default function EmployeeRequestsView({
     )
     loadRequests()
   } catch (e) {
-    console.error('Failed to approve request', e)
-    toast.error('Gagal menyetujui permintaan')
+    // This catch handles any errors thrown from steps 1 or 2
+    // Step 3 has its own handling and doesn't throw
+    console.error('Approval process failed:', e)
+    // Error toast already shown in specific catch blocks above
   }
 }
 
