@@ -368,10 +368,11 @@ export default function InputDataView({
           }
           
           packageDoc = { 
-            ...p, 
-            ...payload,
             id: packageId,
-          }
+            ...payload,
+            createdAt: p.createdAt || now,
+            deliveredAt: p.deliveredAt,
+          } as Package
         } else {
           // CREATE new package
           payload.createdAt = now
@@ -388,10 +389,10 @@ export default function InputDataView({
           }
           
           packageDoc = { 
-            ...p, 
-            ...payload,
             id: packageId,
-          }
+            ...payload,
+            deliveredAt: undefined,
+          } as Package
         }
 
         // Update publicTracking
