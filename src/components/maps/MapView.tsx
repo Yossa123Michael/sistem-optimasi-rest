@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -9,7 +9,7 @@ interface MapViewProps {
     position: [number, number]
     label: string
     color?: string
-    markerText?: string // NEW: nomor marker (mis. "1", "2", "K")
+    markerText?: string
   }>
   routes?: Array<
     | [number, number][]
@@ -32,41 +32,71 @@ export default function MapView({
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
 
+  // layer groups biar clear aman (tidak ganggu tile layer)
+  const markerLayerRef = useRef<L.LayerGroup | null>(null)
+  const routeLayerRef = useRef<L.LayerGroup | null>(null)
+
+  // cache bounds terakhir supaya tidak fitBounds terus-terusan
+  const lastBoundsKeyRef = useRef<string>('')
+
   useEffect(() => {
     if (!containerRef.current || initializedRef.current) return
 
-    mapRef.current = L.map(containerRef.current, {
-      zoomAnimation: true,
-      fadeAnimation: true,
-    }).setView(center, zoom)
+    const map = L.map(containerRef.current, { zoomAnimation: true, fadeAnimation: true }).setView(center, zoom)
+    mapRef.current = map
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
-    }).addTo(mapRef.current)
+    }).addTo(map)
+
+    markerLayerRef.current = L.layerGroup().addTo(map)
+    routeLayerRef.current = L.layerGroup().addTo(map)
 
     initializedRef.current = true
 
     return () => {
-      if (mapRef.current) {
-        mapRef.current.remove()
-        mapRef.current = null
-        initializedRef.current = false
-      }
+      map.remove()
+      mapRef.current = null
+      markerLayerRef.current = null
+      routeLayerRef.current = null
+      initializedRef.current = false
     }
   }, [center, zoom])
 
+  const boundsKey = useMemo(() => {
+    // key ringkas untuk deteksi perubahan bounds
+    const pts: [number, number][] = []
+    markers.forEach(m => pts.push(m.position))
+    routes.forEach(r => {
+      const points = Array.isArray(r) ? r : r.points
+      points.forEach(p => pts.push(p))
+    })
+    return JSON.stringify(pts)
+  }, [markers, routes])
+
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
+    const markerLayer = markerLayerRef.current
+    const routeLayer = routeLayerRef.current
+    if (!map || !markerLayer || !routeLayer) return
 
-    map.eachLayer(layer => {
-      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-        map.removeLayer(layer)
-      }
-    })
+    // stop animasi dulu biar tidak crash (_leaflet_pos)
+    try {
+      map.stop()
+    } catch {
+      // ignore
+    }
 
-    // add markers
+    // clear aman
+    markerLayer.clearLayers()
+    routeLayer.clearLayers()
+
+    const boundsPoints: [number, number][] = []
+
+    // markers
     markers.forEach(({ position, label, color = '#3B82F6', markerText }) => {
+      boundsPoints.push(position)
+
       const textHtml = markerText
         ? `<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; transform: rotate(45deg); color:white; font-weight:700; font-size:13px; text-shadow:0 1px 2px rgba(0,0,0,0.45);">${markerText}</div>`
         : ''
@@ -90,44 +120,40 @@ export default function MapView({
         iconAnchor: [15, 30],
       })
 
-      L.marker(position, { icon }).bindPopup(label).addTo(map)
+      L.marker(position, { icon }).bindPopup(label).addTo(markerLayer)
     })
 
-    // add routes
+    // routes
     routes.forEach(routeItem => {
       const points = Array.isArray(routeItem) ? routeItem : routeItem.points
       const color = Array.isArray(routeItem) ? '#10B981' : routeItem.color || '#10B981'
 
-      L.polyline(points, {
-        color,
-        weight: 4,
-        opacity: 0.85,
-        smoothFactor: 1,
-      }).addTo(map)
+      points.forEach(p => boundsPoints.push(p))
+
+      L.polyline(points, { color, weight: 4, opacity: 0.9 }).addTo(routeLayer)
     })
 
-    // bounds from markers + routes
-    const allPoints: [number, number][] = []
-    markers.forEach(m => allPoints.push(m.position))
-    routes.forEach(r => {
-      const pts = Array.isArray(r) ? r : r.points
-      pts.forEach(p => allPoints.push(p))
-    })
+    // redraw + fit
+    requestAnimationFrame(() => {
+      try {
+        map.invalidateSize()
 
-    if (allPoints.length > 0) {
-      const bounds = L.latLngBounds(allPoints)
-      const t = window.setTimeout(() => {
-        if (!mapRef.current) return
-        try {
-          map.fitBounds(bounds, { padding: [50, 50], animate: false })
-        } catch (e) {
-          console.warn('fitBounds failed', e)
+        // hanya fitBounds kalau konten berubah
+        if (boundsKey !== lastBoundsKeyRef.current) {
+          lastBoundsKeyRef.current = boundsKey
+
+          if (boundsPoints.length > 0) {
+            const b = L.latLngBounds(boundsPoints.map(p => L.latLng(p[0], p[1])))
+            map.fitBounds(b, { padding: [24, 24], animate: false })
+          } else {
+            map.setView(center, zoom, { animate: false })
+          }
         }
-      }, 0)
-
-      return () => window.clearTimeout(t)
-    }
-  }, [markers, routes])
+      } catch {
+        // ignore
+      }
+    })
+  }, [markers, routes, center, zoom, boundsKey])
 
   return <div ref={containerRef} className={className} />
 }

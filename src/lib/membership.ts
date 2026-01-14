@@ -52,7 +52,7 @@ export async function addMembershipToUserFirestore(
 
   const next = upsertMembership(current, membership)
 
-  const patch: Partial<User> & { companies: Membership[] } = {
+  const patch: Record<string, any> = {
     companies: next.companies || [],
   }
 
@@ -64,6 +64,13 @@ export async function addMembershipToUserFirestore(
     if (!current.companyId) patch.companyId = membership.companyId
     if (!current.role) patch.role = membership.role
   }
+
+  // Remove any undefined values from patch to prevent Firestore errors
+  Object.keys(patch).forEach(key => {
+    if (patch[key] === undefined) {
+      delete patch[key]
+    }
+  })
 
   await setDoc(userRef, patch, { merge: true })
 }

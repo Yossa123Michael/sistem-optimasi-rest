@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import {
-  addDoc,
   collection,
   getDocs,
   query,
   where,
   updateDoc,
   doc,
+  setDoc,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { addMembershipToUserFirestore } from '@/lib/membership'
@@ -21,10 +21,7 @@ interface EmployeeRequestsViewProps {
   currentUser: User
   requests: EmployeeRequest[]
   onUpdateStatus: (id: string, status: EmployeeRequest['status']) => void
-  onApproveAsRole: (
-    req: EmployeeRequest,
-    role: Exclude<UserRole, 'customer'>,
-  ) => void
+  onApproveAsRole: (req: EmployeeRequest, role: Exclude<UserRole, 'customer'>) => void
   onBackToOverview: () => void
 }
 
@@ -43,21 +40,13 @@ export default function EmployeeRequestsView({
   const loadRequests = async () => {
     try {
       setLoading(true)
-      const q = query(
-        collection(db, 'employeeRequests'),
-        where('companyId', '==', company.id),
-      )
+      const q = query(collection(db, 'employeeRequests'), where('companyId', '==', company.id))
       const snap = await getDocs(q)
       const loaded: EmployeeRequest[] = snap.docs.map(d => ({
         id: d.id,
         ...(d.data() as any),
       }))
       setRequests(loaded)
-      console.log(
-        'EmployeeRequestsView loaded from Firestore:',
-        loaded.length,
-        loaded,
-      )
     } catch (e) {
       console.error('EmployeeRequestsView failed to load from Firestore', e)
       toast.error('Gagal memuat permintaan karyawan')
@@ -71,14 +60,8 @@ export default function EmployeeRequestsView({
     loadRequests()
   }, [company.id])
 
-  const pending = useMemo(
-    () => requests.filter(r => r.status === 'pending'),
-    [requests],
-  )
-  const processed = useMemo(
-    () => requests.filter(r => r.status !== 'pending'),
-    [requests],
-  )
+  const pending = useMemo(() => requests.filter(r => r.status === 'pending'), [requests])
+  const processed = useMemo(() => requests.filter(r => r.status !== 'pending'), [requests])
 
   const handleReject = async (reqId: string) => {
     if (!isOwner) return
@@ -93,190 +76,115 @@ export default function EmployeeRequestsView({
     }
   }
 
-  const handleApprove = async (
-  req: EmployeeRequest,
-  role: Exclude<UserRole, 'customer'>,
-) => {
-  if (!isOwner) return
-  try {
-    // 1) set approved di Firestore
-    await updateDoc(doc(db, 'employeeRequests', req.id), {
-      status: 'approved',
-      requestedRole: role,
-    })
+  const handleApprove = async (req: EmployeeRequest, role: Exclude<UserRole, 'customer'>) => {
+    if (!isOwner) return
 
-    // 2) update membership user pelamar di Firestore
-    const membership = {
-      companyId: company.id,
-      role,
-      joinedAt: new Date().toISOString(),
-    } as const
+    try {
+      const now = new Date().toISOString()
 
-    // import helper
-    // (lihat import section di bawah)
-    await addMembershipToUserFirestore(req.userId, membership)
+      // 1) update membership user
+      const membership = { companyId: company.id, role, joinedAt: now } as const
+      await addMembershipToUserFirestore(req.userId, membership)
 
-    // 3) kalau courier, ensure couriers doc ada
-    if (role === 'courier') {
-      const existingSnap = await getDocs(
-        query(
-          collection(db, 'couriers'),
-          where('userId', '==', req.userId),
-          where('companyId', '==', company.id),
-        ),
-      )
-
-      if (existingSnap.empty) {
-        await addDoc(collection(db, 'couriers'), {
-          name: req.userName || req.userEmail || 'Kurir',
-          capacity: 40,
-          active: true,
+      // 2) upsert companyMembers (NEW)
+      await setDoc(
+        doc(db, 'companyMembers', `${company.id}_${req.userId}`),
+        {
           companyId: company.id,
           userId: req.userId,
-        })
-      }
+          role,
+          active: true,
+          joinedAt: now,
+          updatedAt: now,
+          leftAt: null,
+        },
+        { merge: true },
+      )
+
+      // 3) update request status
+      await updateDoc(doc(db, 'employeeRequests', req.id), { status: 'approved' })
+
+      onApproveAsRole(req, role)
+      onUpdateStatus(req.id, 'approved')
+
+      toast.success(`Permintaan disetujui sebagai ${role}`)
+      loadRequests()
+    } catch (e: any) {
+      console.error('Failed to approve request', e)
+      toast.error(`Gagal menyetujui: ${e?.code || e?.message || String(e)}`)
     }
-
-    // 4) optional: sync state lama (biar UI Anda yang lain tidak rusak)
-    onApproveAsRole(req, role)
-
-    toast.success(
-      `Permintaan disetujui sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`,
-    )
-    loadRequests()
-  } catch (e) {
-    console.error('Failed to approve request', e)
-    toast.error('Gagal menyetujui permintaan')
-  }
-}
-
-  if (!isOwner) {
-    return (
-      <div className="p-6 md:p-10">
-        <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={onBackToOverview} className="mb-4">
-            ← Kembali
-          </Button>
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground">
-              Hanya owner perusahaan yang dapat mengelola permintaan karyawan.
-            </p>
-          </Card>
-        </div>
-      </div>
-    )
   }
 
   return (
-    <div className="p-6 md:p-10">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+    <div className="p-4 md:p-8 pt-20 lg:pt-8">
+      <div className="max-w-4xl mx-auto space-y-4">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <Button
-              variant="ghost"
-              onClick={onBackToOverview}
-              className="mb-2 px-0"
-            >
-              ← Kembali
-            </Button>
-            <h1 className="text-2xl font-semibold mt-1">Permintaan Karyawan</h1>
-            <p className="text-sm text-muted-foreground">
-              Kelola permintaan bergabung ke perusahaan{' '}
-              <span className="font-medium">{company.name}</span>.
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Company ID: <span className="font-mono">{company.id}</span>
-            </p>
+            <h1 className="text-2xl font-semibold">Permintaan Karyawan</h1>
+            <p className="text-sm text-muted-foreground">Kelola permintaan gabung perusahaan.</p>
           </div>
-
-          <Button size="sm" variant="outline" onClick={loadRequests}>
-            Refresh
+          <Button variant="outline" onClick={onBackToOverview}>
+            Kembali
           </Button>
         </div>
 
-        <Card className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Permintaan Pending</h2>
-            <Badge variant="outline">{pending.length} permintaan</Badge>
-          </div>
-
+        <Card className="p-6 space-y-6">
           {loading ? (
             <p className="text-sm text-muted-foreground">Memuat...</p>
-          ) : pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Belum ada permintaan bergabung.
-            </p>
           ) : (
-            <div className="space-y-3">
-              {pending.map(req => (
-                <Card key={req.id} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium">
-                        {req.userName || req.userEmail}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {req.userEmail}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Role diminta:{' '}
-                        <span className="font-mono">
-                          {req.requestedRole || '-'}
-                        </span>
-                      </div>
-                    </div>
+            <>
+              <div className="space-y-3">
+                <h2 className="font-semibold">Pending</h2>
+                {pending.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Tidak ada request pending.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {pending.map(r => (
+                      <div key={r.id} className="border rounded-xl p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{r.userName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{r.userEmail}</p>
+                          </div>
+                          <Badge variant="secondary">pending</Badge>
+                        </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleReject(req.id)}
-                      >
-                        Tolak
-                      </Button>
-                      <Button size="sm" onClick={() => handleApprove(req, 'admin')}>
-                        Set Admin
-                      </Button>
-                      <Button size="sm" onClick={() => handleApprove(req, 'courier')}>
-                        Set Kurir
-                      </Button>
-                    </div>
+                        <div className="flex gap-2 flex-wrap">
+                          <Button onClick={() => handleApprove(r, 'admin')}>Approve Admin</Button>
+                          <Button variant="outline" onClick={() => handleApprove(r, 'courier')}>
+                            Approve Kurir
+                          </Button>
+                          <Button variant="destructive" onClick={() => handleReject(r.id)}>
+                            Tolak
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </Card>
+                )}
+              </div>
 
-        <Card className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Riwayat Permintaan</h2>
-            <Badge variant="outline">{processed.length}</Badge>
-          </div>
-
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Memuat...</p>
-          ) : processed.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Belum ada riwayat.</p>
-          ) : (
-            <div className="space-y-2">
-              {processed.map(req => (
-                <div
-                  key={req.id}
-                  className="text-sm flex items-center justify-between border rounded-md p-3"
-                >
-                  <div className="truncate">
-                    {req.userName || req.userEmail}{' '}
-                    <span className="text-xs text-muted-foreground">
-                      ({req.userEmail})
-                    </span>
+              <div className="space-y-3">
+                <h2 className="font-semibold">Riwayat</h2>
+                {processed.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada riwayat.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {processed.map(r => (
+                      <div key={r.id} className="border rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{r.userName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{r.userEmail}</p>
+                          </div>
+                          <Badge variant={r.status === 'approved' ? 'default' : 'destructive'}>{r.status}</Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <Badge variant={req.status === 'approved' ? 'default' : 'secondary'}>
-                    {req.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            </>
           )}
         </Card>
       </div>

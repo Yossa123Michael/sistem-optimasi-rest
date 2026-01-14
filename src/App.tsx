@@ -251,7 +251,13 @@ export default function App() {
         )
 
       case 'customer-dashboard':
-        return <CustomerDashboard user={currentUser} onLogout={handleLogout} />
+  return (
+    <CustomerDashboard
+      user={currentUser}
+      onLogout={handleLogout}
+      onBackToHome={() => setCurrentScreen('home-dashboard')}
+    />
+  )
 
       case 'track-package':
         return (

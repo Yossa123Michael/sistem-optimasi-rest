@@ -15,6 +15,8 @@ import {
   where,
 } from 'firebase/firestore'
 
+import { assignPendingPackagesToActiveCouriers } from '@/lib/assign'
+
 type OrderDoc = {
   id: string
   companyId: string
@@ -122,6 +124,8 @@ export default function OrderRequestsView({ user }: { user: User }) {
         trackingNumber,
         updatedAt: now,
       })
+
+      await assignPendingPackagesToActiveCouriers(user.companyId!)
 
       toast.success('Order di-approve & paket dibuat')
       await load()

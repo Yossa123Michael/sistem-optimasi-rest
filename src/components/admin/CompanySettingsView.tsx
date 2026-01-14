@@ -4,33 +4,72 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { User } from '@/lib/types'
+import { User, UserRole } from '@/lib/types'
 import { db } from '@/lib/firebase'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+} from 'firebase/firestore'
 import LocationPickerMap from '@/components/customer/LocationPickerMap'
 
 type CompanyDoc = {
   id: string
   name: string
   ownerId?: string
+  code?: string
   ratePerKm?: number
   officeLat?: number
   officeLng?: number
   officeAddress?: string
+
+  isOpen?: boolean
+}
+
+type Tab = 'settings' | 'employees'
+
+function upsertMembership(companies: any[], companyId: string, role: UserRole) {
+  const arr = Array.isArray(companies) ? companies : []
+  const idx = arr.findIndex((m: any) => m?.companyId === companyId)
+  const next = {
+    companyId,
+    role,
+    joinedAt: new Date().toISOString(),
+  }
+  if (idx >= 0) return arr.map((m: any, i: number) => (i === idx ? { ...m, role } : m))
+  return [...arr, next]
+}
+
+function removeMembership(companies: any[], companyId: string) {
+  const arr = Array.isArray(companies) ? companies : []
+  return arr.filter((m: any) => m?.companyId !== companyId)
 }
 
 export default function CompanySettingsView({ user }: { user: User }) {
+  const [tab, setTab] = useState<Tab>('settings')
+
   const [company, setCompany] = useState<CompanyDoc | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const [ratePerKm, setRatePerKm] = useState<number>(0)
   const [officeAddress, setOfficeAddress] = useState('')
+  const [isOpen, setIsOpen] = useState(true)
 
   const [office, setOffice] = useState<{ lat: number; lng: number }>({
     lat: -6.2088,
     lng: 106.8456,
   })
+
+  // employees
+  const [employees, setEmployees] = useState<User[]>([])
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
+
+  const isOwner = useMemo(() => !!company?.ownerId && company.ownerId === user.id, [company?.ownerId, user.id])
 
   useEffect(() => {
     const load = async () => {
@@ -55,6 +94,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
         setRatePerKm(Number.isFinite(r) ? r : 0)
 
         setOfficeAddress(String((c as any).officeAddress || ''))
+        setIsOpen((c as any).isOpen !== false)
 
         const lat = Number((c as any).officeLat)
         const lng = Number((c as any).officeLng)
@@ -68,6 +108,40 @@ export default function CompanySettingsView({ user }: { user: User }) {
 
     load()
   }, [user.companyId])
+
+  const loadEmployees = async () => {
+    if (!user.companyId) return
+    try {
+      setLoadingEmployees(true)
+
+      // Tampilkan karyawan yang sedang aktif di company ini
+      const snap = await getDocs(
+        query(
+          collection(db, 'users'),
+          where('companyId', '==', user.companyId),
+        ),
+      )
+
+      const list = snap.docs
+        .map(d => ({ id: d.id, ...(d.data() as any) } as User))
+        .filter(u => u.role === 'admin' || u.role === 'courier')
+        // jangan tampilkan owner sebagai "karyawan" (opsional)
+        .filter(u => u.id !== company?.ownerId)
+
+      setEmployees(list)
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal memuat karyawan')
+      setEmployees([])
+    } finally {
+      setLoadingEmployees(false)
+    }
+  }
+
+  useEffect(() => {
+    if (tab === 'employees') loadEmployees()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, user.companyId, company?.ownerId])
 
   const canSave = useMemo(() => {
     return !!user.companyId && Number(ratePerKm) >= 0 && !!office && !saving
@@ -84,6 +158,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
         officeAddress: officeAddress.trim(),
         officeLat: office.lat,
         officeLng: office.lng,
+        isOpen: !!isOpen,
         updatedAt: new Date().toISOString(),
       })
       toast.success('Pengaturan perusahaan tersimpan')
@@ -92,6 +167,62 @@ export default function CompanySettingsView({ user }: { user: User }) {
       toast.error('Gagal menyimpan pengaturan')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const fireEmployee = async (employee: User) => {
+    if (!user.companyId) return
+    if (!isOwner) return toast.error('Hanya owner yang bisa pecat karyawan')
+
+    try {
+      const ref = doc(db, 'users', employee.id)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) return toast.error('User tidak ditemukan')
+
+      const data = snap.data() as any
+      const nextCompanies = removeMembership(data.companies || [], user.companyId)
+
+      await updateDoc(ref, {
+        companies: nextCompanies,
+        companyId: '', // keluarkan dari company aktif
+        role: 'customer',
+        updatedAt: new Date().toISOString(),
+      })
+
+      toast.success('Karyawan berhasil dipecat')
+      loadEmployees()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal memecat karyawan')
+    }
+  }
+
+  const changeRole = async (employee: User, role: Exclude<UserRole, 'customer'>) => {
+    if (!user.companyId) return
+    if (!isOwner) return toast.error('Hanya owner yang bisa mengubah role')
+
+    try {
+      const ref = doc(db, 'users', employee.id)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) return toast.error('User tidak ditemukan')
+
+      const data = snap.data() as any
+      const nextCompanies = upsertMembership(data.companies || [], user.companyId, role)
+
+      // kalau employee sedang aktif di company ini, role aktif harus ikut berubah
+      const patch: any = {
+        companies: nextCompanies,
+        updatedAt: new Date().toISOString(),
+      }
+      if (data.companyId === user.companyId) patch.role = role
+
+      await updateDoc(ref, patch)
+
+      toast.success('Role karyawan berhasil diubah')
+      loadEmployees()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal mengubah role')
     }
   }
 
@@ -107,71 +238,162 @@ export default function CompanySettingsView({ user }: { user: User }) {
 
   return (
     <div className="p-4 md:p-8 pt-20 lg:pt-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold mb-2">Pengaturan Perusahaan</h1>
-          <p className="text-muted-foreground">
-            Set tarif argo per km dan lokasi kantor untuk perhitungan biaya customer.
-          </p>
+      <div className="max-w-6xl mx-auto space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold mb-1">Pengaturan Perusahaan</h1>
+            <p className="text-muted-foreground text-sm">
+              Atur status buka/tutup, tarif, lokasi kantor, dan (owner) kelola karyawan.
+            </p>
+
+            {/* NEW: code perusahaan hanya owner */}
+            {isOwner && company?.code ? (
+              <p className="text-xs text-muted-foreground mt-2">
+                Kode Perusahaan (Owner): <span className="font-mono">{company.code}</span>
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={tab === 'settings' ? 'default' : 'outline'}
+              onClick={() => setTab('settings')}
+            >
+              Pengaturan
+            </Button>
+            {isOwner && (
+              <Button
+                type="button"
+                variant={tab === 'employees' ? 'default' : 'outline'}
+                onClick={() => setTab('employees')}
+              >
+                Karyawan
+              </Button>
+            )}
+          </div>
         </div>
 
-        {loading ? (
-          <Card className="p-6">Memuat...</Card>
-        ) : !company ? (
-          <Card className="p-6">Company tidak ditemukan.</Card>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Perusahaan</p>
-                  <p className="text-lg font-semibold">{company.name}</p>
+        <Card className="p-6 space-y-6">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Memuat...</p>
+          ) : !company ? (
+            <p className="text-sm text-destructive">Company tidak ditemukan.</p>
+          ) : tab === 'settings' ? (
+            <>
+              <div className="space-y-2">
+                <Label>Status Perusahaan (untuk Pemesanan Customer)</Label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Button type="button" variant={isOpen ? 'default' : 'outline'} onClick={() => setIsOpen(true)}>
+                    Buka
+                  </Button>
+                  <Button type="button" variant={!isOpen ? 'destructive' : 'outline'} onClick={() => setIsOpen(false)}>
+                    Tutup
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    {isOpen
+                      ? 'Perusahaan akan muncul di pencarian pemesanan.'
+                      : 'Perusahaan disembunyikan dari pencarian pemesanan.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Argo per KM</Label>
+                    <Input
+                      type="number"
+                      value={ratePerKm}
+                      onChange={e => setRatePerKm(Number(e.target.value))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Alamat Kantor</Label>
+                    <Input value={officeAddress} onChange={e => setOfficeAddress(e.target.value)} />
+                  </div>
+
+                  <Button onClick={save} disabled={!canSave} className="w-full">
+                    {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                  </Button>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Argo per km</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={100}
-                    value={ratePerKm}
-                    onChange={e => setRatePerKm(Number(e.target.value))}
+                  <Label>Lokasi Kantor (Pin)</Label>
+                  <LocationPickerMap
+                    value={office}
+                    onChange={setOffice}
+                    className="h-[360px] w-full rounded-xl overflow-hidden border"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Contoh: 5000 berarti Rp 5.000 per 1 km.
+                    Kantor: <span className="font-mono">{office.lat.toFixed(6)}</span>,{' '}
+                    <span className="font-mono">{office.lng.toFixed(6)}</span>
                   </p>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Alamat Kantor (opsional)</Label>
-                  <Input value={officeAddress} onChange={e => setOfficeAddress(e.target.value)} />
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  Lokasi kantor: <span className="font-mono">{office.lat.toFixed(6)}</span>,{' '}
-                  <span className="font-mono">{office.lng.toFixed(6)}</span>
-                </div>
-
-                <Button className="w-full" onClick={save} disabled={!canSave}>
-                  {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
-                </Button>
               </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="space-y-3">
-                <div>
-                  <h2 className="text-lg font-semibold">Pin Lokasi Kantor</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Klik peta untuk memindahkan pin kantor.
-                  </p>
-                </div>
-
-                <LocationPickerMap value={office} onChange={setOffice} className="h-[380px] w-full rounded-xl overflow-hidden border" />
+            </>
+          ) : (
+            <>
+              <div>
+                <h2 className="text-xl font-semibold">Karyawan</h2>
+                <p className="text-xs text-muted-foreground">
+                  Anda bisa memecat karyawan dan mengganti role. (Hanya owner)
+                </p>
               </div>
-            </Card>
-          </div>
-        )}
+
+              {loadingEmployees ? (
+                <p className="text-sm text-muted-foreground">Memuat karyawan...</p>
+              ) : employees.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Belum ada karyawan aktif.</p>
+              ) : (
+                <div className="space-y-3">
+                  {employees.map(emp => (
+                    <div key={emp.id} className="border rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{emp.name || emp.email}</p>
+                        <p className="text-xs text-muted-foreground truncate">{emp.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Role: <span className="font-mono">{emp.role}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          type="button"
+                          variant={emp.role === 'admin' ? 'default' : 'outline'}
+                          onClick={() => changeRole(emp, 'admin')}
+                        >
+                          Jadikan Admin
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant={emp.role === 'courier' ? 'default' : 'outline'}
+                          onClick={() => changeRole(emp, 'courier')}
+                        >
+                          Jadikan Kurir
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          onClick={() => {
+                            const ok = confirm(`Pecat ${emp.name || emp.email}?`)
+                            if (!ok) return
+                            fireEmployee(emp)
+                          }}
+                        >
+                          Pecat
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </Card>
       </div>
     </div>
   )

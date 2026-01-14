@@ -15,8 +15,8 @@ type RouteOptimDoc = {
     courierId: string
     courierName: string
     packageIds: string[]
-    route: LatLng[]          // garis lurus
-    routePath?: LatLng[]     // jalur nyata OSRM
+    route: LatLng[] // garis lurus
+    routePath?: LatLng[] // jalur nyata OSRM
     totalDistance: number
   }>
 }
@@ -82,13 +82,20 @@ export default function CourierRecommendationView({ user }: CourierRecommendatio
       .filter(Boolean) as Package[]
   }, [myRoute, packages])
 
+  // Rute Anda harus mengikuti nomor marker (mark), bukan nama paket
   const routeText = useMemo(() => {
     if (!orderedPackages.length) return '-'
-    return orderedPackages.map(p => p.name).join(' > ')
+    return orderedPackages.map((_, idx) => String(idx + 1)).join(' > ')
   }, [orderedPackages])
 
+  // Markers: label fokus ke stop number, bukan nama paket/pelanggan
   const markers = useMemo(() => {
-    const out: Array<{ position: [number, number]; label: string; color?: string; markerText?: string }> = []
+    const out: Array<{
+      position: [number, number]
+      label: string
+      color?: string
+      markerText?: string
+    }> = []
 
     if (optDoc?.warehouse) {
       out.push({
@@ -102,7 +109,7 @@ export default function CourierRecommendationView({ user }: CourierRecommendatio
     orderedPackages.forEach((p, idx) => {
       out.push({
         position: [p.latitude, p.longitude],
-        label: `${idx + 1}. ${p.name} • ${p.locationDetail}`,
+        label: `Stop ${idx + 1} • ${p.locationDetail || '-'}`,
         color: '#10B981',
         markerText: String(idx + 1),
       })
@@ -113,7 +120,7 @@ export default function CourierRecommendationView({ user }: CourierRecommendatio
 
   const routes = useMemo(() => {
     if (!myRoute) return []
-    const pts = (myRoute.routePath && myRoute.routePath.length > 1) ? myRoute.routePath : myRoute.route
+    const pts = myRoute.routePath && myRoute.routePath.length > 1 ? myRoute.routePath : myRoute.route
     if (!pts?.length) return []
     const poly: [number, number][] = pts.map(p => [p.lat, p.lng])
     return [poly]
@@ -134,16 +141,20 @@ export default function CourierRecommendationView({ user }: CourierRecommendatio
             ) : !courier ? (
               <p className="text-destructive">Profil kurir tidak ditemukan.</p>
             ) : !optDoc ? (
-              <p className="text-muted-foreground">Belum ada hasil optimasi. Admin harus klik “Cari Opsi” dulu.</p>
+              <p className="text-muted-foreground">
+                Belum ada hasil optimasi. Admin harus klik “Cari Opsi” dulu.
+              </p>
             ) : !myRoute || myRoute.packageIds.length === 0 ? (
               <p className="text-muted-foreground">Tidak ada paket untuk Anda pada hasil optimasi terakhir.</p>
             ) : (
               <>
                 <div className="text-xs text-muted-foreground">Generated: {optDoc.generatedAt}</div>
-                <div><b>Rute Anda:</b> {routeText}</div>
+                <div>
+                  <b>Rute Anda:</b> {routeText}
+                </div>
                 <div className="text-xs text-muted-foreground">
-                  Jalur: {myRoute.routePath?.length ? 'OSRM (jalan nyata)' : 'Garis lurus (fallback)'} •
-                  Distance (approx): {myRoute.totalDistance.toFixed(2)}
+                  Jalur: {myRoute.routePath?.length ? 'OSRM (jalan nyata)' : 'Garis lurus (fallback)'} • Distance
+                  (approx): {myRoute.totalDistance.toFixed(2)}
                 </div>
               </>
             )}

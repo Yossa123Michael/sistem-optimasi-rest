@@ -5,7 +5,7 @@ import { User } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useState } from 'react'
 
-type CourierView = 'home' | 'recommendation' | 'update'
+type CourierView = 'home' | 'recommendation' | 'update' | 'history'
 
 interface CourierSidebarProps {
   user: User
@@ -13,9 +13,19 @@ interface CourierSidebarProps {
   onViewChange: (view: CourierView) => void
   onLogout: () => void
   onBackToHome?: () => void
+
+  // NEW
+  onLeaveCompany?: () => void
 }
 
-export default function CourierSidebar({ user, currentView, onViewChange, onLogout, onBackToHome }: CourierSidebarProps) {
+export default function CourierSidebar({
+  user,
+  currentView,
+  onViewChange,
+  onLogout,
+  onBackToHome,
+  onLeaveCompany,
+}: CourierSidebarProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
   const userName = user.name || user.email.split('@')[0]
@@ -27,6 +37,12 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
           <p className="text-sm text-muted-foreground">Photo</p>
         </div>
         <p className="text-sm text-center text-foreground font-medium">{userName}</p>
+
+        {user.companyId ? (
+          <p className="text-xs text-muted-foreground mt-1">Company ID: {user.companyId}</p>
+        ) : (
+          <p className="text-xs text-destructive mt-1">Belum pilih perusahaan</p>
+        )}
       </div>
 
       <nav className="flex-1 p-4 space-y-2">
@@ -40,6 +56,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         >
           Home
         </Button>
+
         <Button
           variant="ghost"
           className={currentView === 'recommendation' ? 'w-full justify-center bg-secondary' : 'w-full justify-center'}
@@ -50,6 +67,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         >
           Rekomendasi
         </Button>
+
         <Button
           variant="ghost"
           className={currentView === 'update' ? 'w-full justify-center bg-secondary' : 'w-full justify-center'}
@@ -60,9 +78,36 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
         >
           Update Status
         </Button>
+
+        <Button
+          variant="ghost"
+          className={currentView === 'history' ? 'w-full justify-center bg-secondary' : 'w-full justify-center'}
+          onClick={() => {
+            onViewChange('history')
+            if (isMobile) setOpen(false)
+          }}
+        >
+          History
+        </Button>
       </nav>
 
       <div className="p-4 space-y-2 border-t">
+        {/* NEW: Keluar perusahaan di bawah */}
+        {user.companyId && onLeaveCompany && (
+          <Button
+            variant="outline"
+            className="w-full justify-center"
+            onClick={() => {
+              const ok = confirm('Keluar dari perusahaan ini?')
+              if (!ok) return
+              onLeaveCompany()
+              if (isMobile) setOpen(false)
+            }}
+          >
+            Keluar Perusahaan
+          </Button>
+        )}
+
         {onBackToHome && (
           <Button
             variant="ghost"
@@ -75,6 +120,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
             Kembali ke Home
           </Button>
         )}
+
         <Button
           variant="ghost"
           className="w-full justify-center text-destructive hover:text-destructive/80"
@@ -96,8 +142,8 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
           <h2 className="font-semibold text-lg">RouteOptima</h2>
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
-                <List size={24} />
+              <Button variant="ghost" size="icon">
+                <List className="h-6 w-6" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="p-0 w-64">
@@ -110,7 +156,7 @@ export default function CourierSidebar({ user, currentView, onViewChange, onLogo
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-48 z-40">
+    <aside className="hidden lg:flex w-48 fixed inset-y-0 left-0">
       <SidebarContent />
     </aside>
   )

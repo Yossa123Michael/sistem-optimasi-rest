@@ -24,7 +24,7 @@ export default function CustomerDashboard({ user, onLogout, onBackToHome }: Cust
       case 'status':
         return <CostumerStatusview user={user} />
       case 'history':
-        return <CustomerHistoryView user={user} />
+        return <CustomerHistoryView user={user} onBack={() => setCurrentView('home')} />
       case 'home':
       default:
         return (

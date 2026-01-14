@@ -2,22 +2,37 @@ import { useEffect, useMemo, useState } from 'react'
 import { User, Company, EmployeeRequest, UserRole, Courier, Package } from '@/lib/types'
 import AdminSidebar from './AdminSidebar'
 import HomeView from './HomeView'
-import CourierActivationView from './CourierActivationView' // keep
+import CourierActivationView from './CourierActivationView'
 import MonitoringView from './MonitoringView'
 import HistoryView from './HistoryView'
 import EmployeeRequestsView from './EmployeeRequestsView'
 import InputDataView from './InputDataView'
 import OrderRequestsView from './OrderRequestView'
 import { db } from '@/lib/firebase'
-import CompanySettingsView from './CompanySettingsView' // NEW
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import CompanySettingsView from './CompanySettingsView'
+import EmployeesView from './EmployeesView'
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  setDoc,
+  writeBatch,
+  deleteDoc,
+  limit,
+  updateDoc,
+} from 'firebase/firestore'
+import { toast } from 'sonner'
 
 export type AdminView =
   | 'home'
   | 'input-data'
   | 'courier'
-  | 'orders' // NEW
+  | 'orders'
   | 'company-settings'
+  | 'employees' // NEW
   | 'courier-activation'
   | 'monitoring'
   | 'requests'
@@ -75,14 +90,10 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
     try {
       setLoadingData(true)
 
-      const cSnap = await getDocs(
-        query(collection(db, 'couriers'), where('companyId', '==', user.companyId)),
-      )
+      const cSnap = await getDocs(query(collection(db, 'couriers'), where('companyId', '==', user.companyId)))
       setCouriers(cSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Courier)))
 
-      const pSnap = await getDocs(
-        query(collection(db, 'packages'), where('companyId', '==', user.companyId)),
-      )
+      const pSnap = await getDocs(query(collection(db, 'packages'), where('companyId', '==', user.companyId)))
       setPackages(pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package)))
     } finally {
       setLoadingData(false)
@@ -101,16 +112,97 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView])
 
+  // ===== leave company (admin biasa saja, owner tidak boleh) =====
+  const leaveCompany = async () => {
+    if (!user.companyId) return
+    const companyId = user.companyId
+
+    try {
+      // set member inactive (ignore jika belum ada)
+      try {
+        await updateDoc(doc(db, 'companyMembers', `${companyId}_${user.id}`), {
+          active: false,
+          leftAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      } catch (e) {
+        // ignore: doc bisa belum dibuat
+      }
+
+      // reset user
+      await setDoc(doc(db, 'users', user.id), { companyId: '', role: 'customer' }, { merge: true })
+
+      toast.success('Keluar perusahaan berhasil')
+      onBackToHome?.()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal keluar perusahaan')
+    }
+  }
+
+  // ===== delete company cascade (owner) =====
+  const deleteCompanyCascade = async () => {
+    if (!user.companyId) return
+    const companyId = user.companyId
+
+    try {
+      await setDoc(
+        doc(db, 'companies', companyId),
+        { archived: true, updatedAt: new Date().toISOString() },
+        { merge: true },
+      )
+
+      const batch = writeBatch(db)
+
+      // reset active users
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('companyId', '==', companyId)))
+      usersSnap.docs.forEach(u => batch.update(doc(db, 'users', u.id), { companyId: '', role: 'customer' }))
+
+      // delete ops data
+      const courSnap = await getDocs(query(collection(db, 'couriers'), where('companyId', '==', companyId)))
+      courSnap.docs.forEach(d => batch.delete(doc(db, 'couriers', d.id)))
+
+      const pkgSnap = await getDocs(query(collection(db, 'packages'), where('companyId', '==', companyId)))
+      pkgSnap.docs.forEach(d => batch.delete(doc(db, 'packages', d.id)))
+
+      const ordSnap = await getDocs(query(collection(db, 'orders'), where('companyId', '==', companyId)))
+      ordSnap.docs.forEach(d => batch.delete(doc(db, 'orders', d.id)))
+
+      const reqSnap = await getDocs(query(collection(db, 'employeeRequests'), where('companyId', '==', companyId)))
+      reqSnap.docs.forEach(d => batch.delete(doc(db, 'employeeRequests', d.id)))
+
+      batch.delete(doc(db, 'routeOptimizations', companyId))
+
+      await batch.commit()
+
+      // publicTracking delete (up to 500)
+      const trackSnap = await getDocs(
+        query(collection(db, 'publicTracking'), where('companyId', '==', companyId), limit(500)),
+      )
+      for (const t of trackSnap.docs) await deleteDoc(doc(db, 'publicTracking', t.id))
+
+      // companyMembers delete (up to 500)
+      const memSnap = await getDocs(
+        query(collection(db, 'companyMembers'), where('companyId', '==', companyId), limit(500)),
+      )
+      for (const m of memSnap.docs) await deleteDoc(doc(db, 'companyMembers', m.id))
+
+      toast.success('Perusahaan berhasil dihapus')
+      onBackToHome?.()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal menghapus perusahaan')
+    }
+  }
+
   const renderView = () => {
     if (showActivation) {
       return <CourierActivationView user={user} onBack={() => setShowActivation(false)} />
     }
 
     switch (currentView) {
-      case 'orders': {
-        // order masuk cukup admin biasa (tidak harus owner)
+      case 'orders':
         return <OrderRequestsView user={user} />
-      }
 
       case 'input-data': {
         if (loadingCompany || loadingData) return <div className="p-6">Memuat...</div>
@@ -134,9 +226,11 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
       case 'monitoring':
         return <MonitoringView user={user} />
 
+      case 'employees':
+        return isOwner ? <EmployeesView user={user} /> : <HomeView user={user} />
+
       case 'requests': {
         if (!isOwner) return <HomeView user={user} />
-
         if (loadingCompany) return <div className="p-6">Memuat...</div>
         if (!company) return <div className="p-6">Company tidak ditemukan.</div>
 
@@ -155,9 +249,8 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
         )
       }
 
-      case 'company-settings': {
+      case 'company-settings':
         return <CompanySettingsView user={user} />
-      }
 
       case 'history':
         return <HistoryView user={user} />
@@ -180,6 +273,8 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
         }}
         onLogout={onLogout}
         onBackToHome={onBackToHome}
+        onLeaveCompany={isOwner ? undefined : leaveCompany}
+        onDeleteCompany={isOwner ? deleteCompanyCascade : undefined}
       />
       <main className="flex-1 lg:ml-48">{renderView()}</main>
     </div>

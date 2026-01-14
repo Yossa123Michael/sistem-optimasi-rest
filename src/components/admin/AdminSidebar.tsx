@@ -13,7 +13,9 @@ interface AdminSidebarProps {
   onViewChange: (view: AdminView) => void
   onLogout: () => void
   onBackToHome?: () => void
-  isOwner: boolean // NEW
+  isOwner: boolean
+  onLeaveCompany?: () => void
+  onDeleteCompany?: () => void
 }
 
 export default function AdminSidebar({
@@ -23,6 +25,8 @@ export default function AdminSidebar({
   onLogout,
   onBackToHome,
   isOwner,
+  onLeaveCompany,
+  onDeleteCompany,
 }: AdminSidebarProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
@@ -32,10 +36,11 @@ export default function AdminSidebar({
   const menuItems: Array<{ id: AdminView; label: string }> = [
     { id: 'home', label: 'Home' },
     { id: 'input-data', label: 'Input Data' },
-    { id: 'orders', label: 'Order Masuk' }, // NEW
+    { id: 'orders', label: 'Order Masuk' },
     { id: 'courier', label: 'Kurir' },
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'company-settings', label: 'Pengaturan Perusahaan' },
+    ...(isOwner ? ([{ id: 'employees', label: 'Karyawan' }] as const) : []),
     ...(isOwner ? ([{ id: 'requests', label: 'Permintaan' }] as const) : []),
     { id: 'history', label: 'History' },
   ]
@@ -81,10 +86,43 @@ export default function AdminSidebar({
       </div>
 
       <div className="p-4 space-y-2 border-t">
+        {/* owner tidak boleh keluar perusahaan */}
+        {user.companyId && onLeaveCompany && !isOwner && (
+          <Button
+            variant="outline"
+            className="w-full justify-center"
+            onClick={() => {
+              const ok = confirm('Keluar dari perusahaan ini?')
+              if (!ok) return
+              onLeaveCompany()
+              if (isMobile) setOpen(false)
+            }}
+          >
+            Keluar Perusahaan
+          </Button>
+        )}
+
+        {user.companyId && isOwner && onDeleteCompany && (
+          <Button
+            variant="destructive"
+            className="w-full justify-center"
+            onClick={() => {
+              const ok = confirm(
+                'Hapus perusahaan ini?\n\nIni akan mengarsipkan perusahaan dan menghapus data admin/kurir/paket terkait.',
+              )
+              if (!ok) return
+              onDeleteCompany()
+              if (isMobile) setOpen(false)
+            }}
+          >
+            Hapus Perusahaan
+          </Button>
+        )}
+
         {onBackToHome && (
           <Button
             variant="ghost"
-            className="w-full justify-center text-foreground"
+            className="w-full justify-center"
             onClick={() => {
               onBackToHome()
               if (isMobile) setOpen(false)
@@ -93,6 +131,7 @@ export default function AdminSidebar({
             Kembali ke Home
           </Button>
         )}
+
         <Button
           variant="ghost"
           className="w-full justify-center text-destructive hover:text-destructive/80"
@@ -111,11 +150,11 @@ export default function AdminSidebar({
     return (
       <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Admin</h2>
+          <h2 className="font-semibold text-lg">RouteOptima</h2>
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
-                <List size={24} />
+              <Button variant="ghost" size="icon">
+                <List className="h-6 w-6" />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="p-0 w-64">
@@ -128,7 +167,7 @@ export default function AdminSidebar({
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-48 z-40">
+    <aside className="hidden lg:flex w-48 fixed inset-y-0 left-0">
       <SidebarContent />
     </aside>
   )

@@ -8,6 +8,8 @@ import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase
 import MapView from '@/components/maps/MapView'
 import { optimizeRoutes } from '@/lib/route-optimizer'
 import { getOsrmRoutePath, LatLng } from '@/lib/osrm'
+import { assignPendingPackagesToActiveCouriers } from '@/lib/assign'
+
 
 interface HomeViewProps {
   user: User
@@ -74,27 +76,31 @@ export default function HomeView({ user }: HomeViewProps) {
   const officeLat = company?.officeLocation?.lat
   const officeLng = company?.officeLocation?.lng
 
-  const markers = useMemo(() => {
-    const out: Array<{ position: [number, number]; label: string; color?: string }> = []
+const markers = useMemo(() => {
+  const out: Array<{ position: [number, number]; label: string; color?: string; markerText?: string }> = []
 
-    if (typeof officeLat === 'number' && typeof officeLng === 'number') {
-      out.push({
-        position: [officeLat, officeLng],
-        label: `Kantor (${company?.name || '-'})`,
-        color: '#1D4ED8',
-      })
-    }
+  if (typeof officeLat === 'number' && typeof officeLng === 'number') {
+    out.push({
+      position: [officeLat, officeLng],
+      label: `Kantor (${company?.name || '-'})`,
+      color: '#1D4ED8',
+      markerText: 'K',
+    })
+  }
 
-    for (const p of packages) {
-      out.push({
-        position: [p.latitude, p.longitude],
-        label: `${p.name} • ${p.locationDetail}`,
-        color: '#10B981',
-      })
-    }
+  const activePackages = packages.filter(p => p.status !== 'delivered' && p.status !== 'failed')
 
-    return out
-  }, [officeLat, officeLng, company?.name, packages])
+  activePackages.forEach((p, idx) => {
+    out.push({
+      position: [p.latitude, p.longitude],
+      label: `Stop ${idx + 1} • ${p.locationDetail || '-'}`,
+      color: '#10B981',
+      markerText: String(idx + 1),
+    })
+  })
+
+  return out
+}, [officeLat, officeLng, company?.name, packages])
 
   const routePolylines = useMemo(() => {
     if (!optDoc?.routes?.length) return []
@@ -166,6 +172,8 @@ export default function HomeView({ user }: HomeViewProps) {
       await setDoc(doc(db, 'routeOptimizations', user.companyId), payload, { merge: true })
       setOptDoc(payload)
 
+      await assignPendingPackagesToActiveCouriers(user.companyId!)
+
       toast.success('Optimasi berhasil dibuat. Rute berwarna per kurir ditampilkan di peta.')
     } catch (e) {
       console.error(e)
@@ -174,6 +182,16 @@ export default function HomeView({ user }: HomeViewProps) {
       setOptimizing(false)
     }
   }
+
+  const reloadPackagesAndOpt = async () => {
+  if (!user.companyId) return
+
+  const pSnap = await getDocs(query(collection(db, 'packages'), where('companyId', '==', user.companyId)))
+  setPackages(pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package)))
+
+  const optSnap = await getDoc(doc(db, 'routeOptimizations', user.companyId))
+  setOptDoc(optSnap.exists() ? ({ ...(optSnap.data() as any) } as RouteOptimDoc) : null)
+}
 
   if (!user.companyId) {
     return (
