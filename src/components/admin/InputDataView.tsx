@@ -307,13 +307,16 @@ export default function InputDataView({
       )
       const existingPackages = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
       
+      // Create a Set of existing package IDs for O(1) lookups
+      const existingPackageIds = new Set(existingPackages.map(ep => ep.id))
+      
       const now = new Date().toISOString()
       const savedPackages: Package[] = []
       
       // Track which existing package IDs are still present in localPackages
       const localPackageIds = new Set(
         localPackages
-          .filter(p => p.id && existingPackages.some(ep => ep.id === p.id))
+          .filter(p => p.id && existingPackageIds.has(p.id))
           .map(p => p.id)
       )
       
@@ -331,7 +334,7 @@ export default function InputDataView({
 
       // Process each local package (create new or update existing)
       for (const p of localPackages) {
-        const isExisting = p.id && existingPackages.some(ep => ep.id === p.id)
+        const isExisting = p.id && existingPackageIds.has(p.id)
         
         // Prepare payload without undefined values (Firestore rejects undefined)
         const payload: any = {
@@ -389,7 +392,7 @@ export default function InputDataView({
             ...p, 
             ...payload,
             id: packageId,
-            courierId: undefined,
+            courierId: null, // consistent with Firestore null for unassigned
           }
         }
 
