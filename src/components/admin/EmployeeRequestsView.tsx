@@ -12,7 +12,6 @@ import {
   where,
   updateDoc,
   doc,
-  writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { addMembershipToUserFirestore } from '@/lib/membership'
@@ -177,16 +176,14 @@ export default function EmployeeRequestsView({
 
     // STEP 3: Set approved di Firestore (LAST - only if previous steps succeeded)
     try {
-      const batch = writeBatch(db)
       const reqRef = doc(db, 'employeeRequests', req.id)
       
       // Ensure no undefined values in the update
-      batch.update(reqRef, {
+      await updateDoc(reqRef, {
         status: 'approved',
         requestedRole: role,
       })
       
-      await batch.commit()
       console.log('✓ Employee request marked as approved:', req.id)
     } catch (e) {
       console.error('Failed to update request status:', {
