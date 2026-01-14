@@ -5,7 +5,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner'
 import { User, Package, Courier } from '@/lib/types'
 import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where, updateDoc, doc, setDoc } from 'firebase/firestore'
+import {
+  collection,
+  getDocs,
+  query,
+  limit,
+  where,
+  updateDoc,
+  doc,
+  setDoc,
+} from 'firebase/firestore'
 
 interface CourierUpdateViewProps {
   user: User
@@ -85,13 +94,11 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
       const updatedAt = new Date().toISOString()
       const lastLocation = `Lat ${lastLat.toFixed(6)}, Lng ${lastLng.toFixed(6)}`
 
-      // Kalau tidak ada paket aktif, tetap kasih info (tapi tidak ada resi yang bisa diupdate)
       if (activePkgs.length === 0) {
         toast.message('Tidak ada paket aktif. Lokasi kurir tidak dikirim ke resi manapun.')
         return
       }
 
-      // Update semua resi paket aktif milik kurir
       await Promise.all(
         activePkgs.map(pkg => {
           if (!pkg.trackingNumber) return Promise.resolve()
@@ -105,7 +112,6 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
               lastLng,
               lastLocation,
               updatedAt,
-              // opsional: info kurir
               courierId: courier.id,
               courierName: courier.name,
             },
@@ -125,14 +131,18 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
 
   const markDelivered = async () => {
     if (!selectedPackage) return
+
     try {
       const now = new Date().toISOString()
+
+      // 1) update package
       await updateDoc(doc(db, 'packages', selectedPackage.id), {
         status: 'delivered',
         deliveredAt: now,
         updatedAt: now,
       })
 
+      // 2) update public tracking
       if (selectedPackage.trackingNumber) {
         await setDoc(
           doc(db, 'publicTracking', selectedPackage.trackingNumber),
@@ -146,6 +156,24 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
         )
       }
 
+      // 3) update order (agar history customer ikut berubah)
+      if (selectedPackage.trackingNumber) {
+        const q = query(
+          collection(db, 'orders'),
+          where('trackingNumber', '==', selectedPackage.trackingNumber),
+          limit(1),
+        )
+        const snap = await getDocs(q)
+        const odoc = snap.docs[0]
+
+        if (odoc) {
+          await updateDoc(doc(db, 'orders', odoc.id), {
+            status: 'delivered',
+            updatedAt: now,
+          })
+        }
+      }
+
       setPackages(prev =>
         prev.map(p => (p.id === selectedPackage.id ? { ...p, status: 'delivered' as any } : p)),
       )
@@ -157,7 +185,7 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
     }
   }
 
-  const pending = packages.filter(p => p.status !== 'delivered')
+  const pending = packages.filter(p => p.status !== 'delivered' && p.status !== 'failed')
   const email = selectedPackage ? String((selectedPackage as any).recipientEmail || '-') : '-'
 
   return (
@@ -198,7 +226,6 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
           </Card>
         )}
 
-        {/* Dialog detail + delivered */}
         <Dialog open={!!selectedPackage} onOpenChange={open => !open && setSelectedPackage(null)}>
           <DialogContent>
             <DialogHeader>
@@ -226,7 +253,6 @@ export default function CourierUpdateView({ user }: CourierUpdateViewProps) {
         </Dialog>
       </div>
 
-      {/* KOTAK MERAH: selalu 1 tombol share lokasi (tanpa syarat pilih paket) */}
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]">
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-center">
           <Button

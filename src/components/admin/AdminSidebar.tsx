@@ -32,8 +32,10 @@ export default function AdminSidebar({
   const menuItems: Array<{ id: AdminView; label: string }> = [
     { id: 'home', label: 'Home' },
     { id: 'input-data', label: 'Input Data' },
+    { id: 'orders', label: 'Order Masuk' }, // NEW
     { id: 'courier', label: 'Kurir' },
     { id: 'monitoring', label: 'Monitoring' },
+    { id: 'company-settings', label: 'Pengaturan Perusahaan' },
     ...(isOwner ? ([{ id: 'requests', label: 'Permintaan' }] as const) : []),
     { id: 'history', label: 'History' },
   ]

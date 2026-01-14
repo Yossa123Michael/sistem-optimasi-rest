@@ -88,3 +88,36 @@ export interface TrackingStatus {
   timestamp: string
   location?: string
 }
+
+export type OrderStatus =
+  | 'created'     // waiting approval
+  | 'assigned'    // approved
+  | 'failed'      // rejected
+  | 'paid'        // optional future
+  | 'in-transit'
+  | 'delivered'
+
+export interface Order {
+  id: string
+  customerId: string
+  customerName?: string
+  customerEmail?: string
+
+  companyId: string
+
+  packageName: string
+  recipientName: string
+  recipientPhone: string
+  recipientEmail?: string
+
+  destinationDetail: string
+  latitude: number
+  longitude: number
+  weight: number
+
+  status: OrderStatus
+  trackingNumber?: string
+
+  createdAt: string
+  updatedAt: string
+}

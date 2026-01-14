@@ -7,13 +7,17 @@ import MonitoringView from './MonitoringView'
 import HistoryView from './HistoryView'
 import EmployeeRequestsView from './EmployeeRequestsView'
 import InputDataView from './InputDataView'
+import OrderRequestsView from './OrderRequestView'
 import { db } from '@/lib/firebase'
+import CompanySettingsView from './CompanySettingsView' // NEW
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 
 export type AdminView =
   | 'home'
   | 'input-data'
   | 'courier'
+  | 'orders' // NEW
+  | 'company-settings'
   | 'courier-activation'
   | 'monitoring'
   | 'requests'
@@ -98,12 +102,16 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
   }, [currentView])
 
   const renderView = () => {
-    // NOTE: showActivation legacy (kalau masih kepakai di UI lain)
     if (showActivation) {
       return <CourierActivationView user={user} onBack={() => setShowActivation(false)} />
     }
 
     switch (currentView) {
+      case 'orders': {
+        // order masuk cukup admin biasa (tidak harus owner)
+        return <OrderRequestsView user={user} />
+      }
+
       case 'input-data': {
         if (loadingCompany || loadingData) return <div className="p-6">Memuat...</div>
         if (!company) return <div className="p-6">Company tidak ditemukan.</div>
@@ -121,7 +129,6 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
       }
 
       case 'courier':
-        // CHANGE: menu Kurir sekarang jadi Aktivasi Kurir (aktif/nonaktif)
         return <CourierActivationView user={user} onBack={() => setCurrentView('home')} />
 
       case 'monitoring':
@@ -146,6 +153,10 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
             onBackToOverview={() => setCurrentView('home')}
           />
         )
+      }
+
+      case 'company-settings': {
+        return <CompanySettingsView user={user} />
       }
 
       case 'history':

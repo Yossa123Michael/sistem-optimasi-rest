@@ -1,7 +1,7 @@
 import { User } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 
-type CustomerView = 'home' | 'status' | 'history'
+type CustomerView = 'home' | 'pemesanan' | 'status' | 'history'
 
 interface CustomerSidebarProps {
   user: User
@@ -34,18 +34,19 @@ export default function CustomerSidebar({
   return (
     <aside className="hidden lg:flex w-48 fixed inset-y-0 left-0 border-r bg-card">
       <div className="flex flex-col w-full h-full">
-        <div className="flex flex-col items-center gap-3 p-6 pt-8">
-          <div className="w-20 h-20 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
-            <span className="text-xs">Photo</span>
+        <div className="flex flex-col items-center gap-3 p-6 pt-8 flex-shrink-0">
+          <div className="w-24 h-24 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
+            <span className="text-sm">Photo</span>
           </div>
           <div className="text-center">
-            <p className="text-sm font-medium">{userName}</p>
+            <p className="text-base text-primary font-medium">{userName}</p>
             <p className="text-xs text-muted-foreground">Customer</p>
           </div>
         </div>
 
         <nav className="px-3 space-y-2">
           <Item id="home" label="Home" />
+          <Item id="pemesanan" label="Pemesanan" />
           <Item id="status" label="Status Paket" />
           <Item id="history" label="History" />
         </nav>

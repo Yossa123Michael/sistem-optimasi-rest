@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { User } from '@/lib/types'
 import CustomerSidebar from './CustomerSidebar'
 import CustomerHomeView from './CustomerHomeView'
-import CustomerStatusView from './CustomerStatusView'
 import CustomerHistoryView from './CustomerHistoryView'
+import CustomerOrderView from './CustomerOrderView'
+import CostumerStatusview from './CustomerStatusView'
 
-type CustomerView = 'home' | 'status' | 'history'
+type CustomerView = 'home' | 'pemesanan' | 'status' | 'history'
 
 interface CustomerDashboardProps {
   user: User
@@ -18,13 +19,22 @@ export default function CustomerDashboard({ user, onLogout, onBackToHome }: Cust
 
   const renderView = () => {
     switch (currentView) {
+      case 'pemesanan':
+        return <CustomerOrderView user={user} />
       case 'status':
-        return <CustomerStatusView user={user} />
+        return <CostumerStatusview user={user} />
       case 'history':
         return <CustomerHistoryView user={user} />
       case 'home':
       default:
-        return <CustomerHomeView user={user} onGoStatus={() => setCurrentView('status')} onGoHistory={() => setCurrentView('history')} />
+        return (
+          <CustomerHomeView
+            user={user}
+            onGoOrder={() => setCurrentView('pemesanan')}
+            onGoStatus={() => setCurrentView('status')}
+            onGoHistory={() => setCurrentView('history')}
+          />
+        )
     }
   }
 
