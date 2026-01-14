@@ -26,8 +26,8 @@ export default function CourierDashboard({ user, onLogout, onBackToHome }: Couri
       case 'update':
         return <CourierUpdateView user={user} />
       case 'home':
-      default:
-        return <CourierHomeView user={user} />
+        default:
+          return <CourierHomeView user={user} onGoRecommendation={() => setCurrentView('recommendation')} />
     }
   }
 

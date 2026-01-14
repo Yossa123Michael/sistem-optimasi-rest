@@ -53,7 +53,10 @@ export default function HomeDashboard({
       try {
         setLoadingCompanies(true)
         const snap = await getDocs(collection(db, 'companies'))
-        setCompanies(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+        const all = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Company))
+
+        // Soft delete: hanya tampilkan yang belum diarsipkan
+        setCompanies(all.filter(c => !c.archived))
       } finally {
         setLoadingCompanies(false)
       }
@@ -61,7 +64,6 @@ export default function HomeDashboard({
     loadCompanies()
   }, [refreshKey])
 
-  // MODE A: join + owned
   const userCompanies: CompanyWithRole[] = useMemo(() => {
     const memberships = user.companies || []
 
@@ -88,7 +90,6 @@ export default function HomeDashboard({
   }, [companies, user.companies, user.id])
 
   const handleCompanyClick = async (companyId: string, role: UserRole) => {
-    // simpan pilihan aktif
     await setDoc(doc(db, 'users', user.id), { companyId, role }, { merge: true })
     onUserUpdate({ ...user, companyId, role })
 
@@ -125,7 +126,9 @@ export default function HomeDashboard({
 
           <div className="pt-2">
             {loadingCompanies ? (
-              <p className="text-xs text-muted-foreground py-2">Memuat perusahaan...</p>
+              <p className="text-xs text-muted-foreground py-2">
+                Memuat perusahaan...
+              </p>
             ) : userCompanies.length > 0 ? (
               userCompanies.map(c => (
                 <button
@@ -143,20 +146,20 @@ export default function HomeDashboard({
               </p>
             )}
           </div>
-
-          <button
-            className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
-            onClick={() => {
-              onNavigate('track-package')
-              if (isMobile) setSidebarOpen(false)
-            }}
-          >
-            Cek paket
-          </button>
         </nav>
       </ScrollArea>
 
       <div className="px-6 pb-8 pt-4 border-t flex-shrink-0">
+        <button
+          className="w-full text-left text-base text-muted-foreground py-3 hover:text-primary transition-colors"
+          onClick={() => {
+            onNavigate('track-package')
+            if (isMobile) setSidebarOpen(false)
+          }}
+        >
+          Cek paket
+        </button>
+
         <button
           className="w-full text-left text-base text-destructive py-3 hover:text-destructive/80 transition-colors"
           onClick={() => {
@@ -171,87 +174,198 @@ export default function HomeDashboard({
   )
 
   return (
-  <div className="flex h-screen overflow-hidden bg-background">
-    {isMobile ? (
-      <>
-        <div className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-border flex items-center px-4 z-10">
-          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <List className="h-6 w-6" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
-              <SidebarContent />
-            </SheetContent>
-          </Sheet>
-          <h1 className="ml-4 text-lg font-medium">{user.name || user.email}</h1>
-        </div>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {isMobile ? (
+        <>
+          <div className="fixed top-0 left-0 right-0 h-16 bg-background border-b border-border flex items-center px-4 z-10">
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <List className="h-6 w-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-64">
+                <SidebarContent />
+              </SheetContent>
+            </Sheet>
+            <h1 className="ml-4 text-lg font-medium">{user.name || user.email}</h1>
+          </div>
 
-        <main className="flex-1 overflow-y-auto pt-16">
-          <div className="p-6 max-w-2xl mx-auto space-y-6">
-            <Card className="rounded-2xl border shadow-sm bg-gradient-to-br from-card to-card/50">
-              <CardContent className="p-8">
-                <h2 className="text-xl text-center font-medium text-foreground">
-                  Halo, <span className="text-primary">{user.name || user.email.split('@')[0]}</span>
-                </h2>
-                <p className="text-center text-muted-foreground text-sm mt-2">
-                  Selamat datang kembali di RouteOptima
-                </p>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-4">
-              <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-primary/5 to-primary/10">
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center text-center space-y-3">
-                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Buildings className="w-7 h-7 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-foreground mb-1">Buat Perusahaan</h3>
-                      <p className="text-xs text-muted-foreground">Buat perusahaan dan kelola bisnis Anda</p>
-                    </div>
-                    <Button
-                      onClick={() => onNavigate('create-company')}
-                      className="w-full h-11 rounded-xl text-sm"
-                    >
-                      Mulai Buat
-                    </Button>
-                  </div>
+          <main className="flex-1 overflow-y-auto pt-16">
+            <div className="p-6 max-w-2xl mx-auto space-y-6">
+              <Card className="rounded-2xl border shadow-sm bg-gradient-to-br from-card to-card/50">
+                <CardContent className="p-8">
+                  <h2 className="text-xl text-center font-medium text-foreground">
+                    Halo,{' '}
+                    <span className="text-primary">
+                      {user.name || user.email.split('@')[0]}
+                    </span>
+                  </h2>
+                  <p className="text-center text-muted-foreground text-sm mt-2">
+                    Selamat datang kembali di RouteOptima
+                  </p>
                 </CardContent>
               </Card>
 
-              <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-accent/5 to-accent/10">
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center text-center space-y-3">
-                    <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center">
-                      <UserPlus className="w-7 h-7 text-accent" />
+              <div className="space-y-4">
+                <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-primary/5 to-primary/10">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Buildings className="w-7 h-7 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground mb-1">
+                          Buat Perusahaan
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Buat perusahaan dan kelola bisnis Anda
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => onNavigate('create-company')}
+                        className="w-full h-11 rounded-xl text-sm"
+                      >
+                        Mulai Buat
+                      </Button>
                     </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-foreground mb-1">Gabung Perusahaan</h3>
-                      <p className="text-xs text-muted-foreground">Bergabung sebagai admin atau kurir</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-accent/5 to-accent/10">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center">
+                        <UserPlus className="w-7 h-7 text-accent" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground mb-1">
+                          Gabung Perusahaan
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Bergabung sebagai admin atau kurir
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => onNavigate('join-company')}
+                        variant="outline"
+                        className="w-full h-11 rounded-xl border-accent/30 hover:bg-accent/10 text-sm"
+                      >
+                        Gabung Sekarang
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => onNavigate('join-company')}
-                      variant="outline"
-                      className="w-full h-11 rounded-xl border-accent/30 hover:bg-accent/10 text-sm"
-                    >
-                      Gabung Sekarang
-                    </Button>
-                  </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col items-center text-center space-y-3">
+                      <h3 className="text-base font-semibold text-foreground">
+                        Mode Customer
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Lacak dan kelola pesanan Anda
+                      </p>
+                      <Button
+                        onClick={() => onNavigate('customer-mode')}
+                        variant="outline"
+                        className="w-full h-11 rounded-xl text-sm"
+                      >
+                        Masuk sebagai Customer
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </main>
+        </>
+      ) : (
+        <>
+          <aside className="w-64 flex-shrink-0 border-r border-border bg-card">
+            <SidebarContent />
+          </aside>
+
+          <main className="flex-1 overflow-y-auto bg-background flex items-center justify-center p-8">
+            <div className="w-full max-w-3xl space-y-8">
+              <Card className="rounded-2xl border shadow-sm bg-gradient-to-br from-card to-card/50">
+                <CardContent className="p-12">
+                  <h2 className="text-2xl text-center font-medium text-foreground">
+                    Halo,{' '}
+                    <span className="text-primary">
+                      {user.name || user.email.split('@')[0]}
+                    </span>
+                  </h2>
+                  <p className="text-center text-muted-foreground mt-2">
+                    Selamat datang kembali di RouteOptima
+                  </p>
                 </CardContent>
               </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-primary/5 to-primary/10">
+                  <CardContent className="p-8">
+                    <div className="flex flex-col items-center text-center space-y-4">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Buildings className="w-8 h-8 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-foreground mb-1">
+                          Buat Perusahaan
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Buat perusahaan dan kelola bisnis Anda
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => onNavigate('create-company')}
+                        className="w-full h-12 rounded-xl"
+                      >
+                        Mulai Buat
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-accent/5 to-accent/10">
+                  <CardContent className="p-8">
+                    <div className="flex flex-col items-center text-center space-y-4">
+                      <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
+                        <UserPlus className="w-8 h-8 text-accent" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-foreground mb-1">
+                          Gabung Perusahaan
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Bergabung sebagai admin atau kurir
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => onNavigate('join-company')}
+                        variant="outline"
+                        className="w-full h-12 rounded-xl border-accent/30 hover:bg-accent/10"
+                      >
+                        Gabung Sekarang
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
               <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex flex-col items-center text-center space-y-3">
-                    <h3 className="text-base font-semibold text-foreground">Mode Customer</h3>
-                    <p className="text-xs text-muted-foreground">Lacak dan kelola pesanan Anda</p>
+                <CardContent className="p-8">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Mode Customer
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Lacak dan kelola pesanan Anda
+                    </p>
                     <Button
                       onClick={() => onNavigate('customer-mode')}
                       variant="outline"
-                      className="w-full h-11 rounded-xl text-sm"
+                      className="w-full max-w-md h-12 rounded-xl"
                     >
                       Masuk sebagai Customer
                     </Button>
@@ -259,94 +373,9 @@ export default function HomeDashboard({
                 </CardContent>
               </Card>
             </div>
-          </div>
-        </main>
-      </>
-    ) : (
-      <>
-        <aside className="w-64 flex-shrink-0 border-r border-border bg-card">
-          <SidebarContent />
-        </aside>
-
-        <main className="flex-1 overflow-y-auto bg-background flex items-center justify-center p-8">
-          <div className="w-full max-w-3xl space-y-8">
-            <Card className="rounded-2xl border shadow-sm bg-gradient-to-br from-card to-card/50">
-              <CardContent className="p-12">
-                <h2 className="text-2xl text-center font-medium text-foreground">
-                  Halo, <span className="text-primary">{user.name || user.email.split('@')[0]}</span>
-                </h2>
-                <p className="text-center text-muted-foreground mt-2">
-                  Selamat datang kembali di RouteOptima
-                </p>
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-primary/5 to-primary/10">
-                <CardContent className="p-8">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Buildings className="w-8 h-8 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-1">Buat Perusahaan</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Buat perusahaan dan kelola bisnis Anda
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => onNavigate('create-company')}
-                      className="w-full h-12 rounded-xl"
-                    >
-                      Mulai Buat
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-accent/5 to-accent/10">
-                <CardContent className="p-8">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
-                      <UserPlus className="w-8 h-8 text-accent" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-1">Gabung Perusahaan</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Bergabung sebagai admin atau kurir
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => onNavigate('join-company')}
-                      variant="outline"
-                      className="w-full h-12 rounded-xl border-accent/30 hover:bg-accent/10"
-                    >
-                      Gabung Sekarang
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="rounded-2xl border shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="p-8">
-                <div className="flex flex-col items-center text-center space-y-4">
-                  <h3 className="text-lg font-semibold text-foreground">Mode Customer</h3>
-                  <p className="text-sm text-muted-foreground">Lacak dan kelola pesanan Anda</p>
-                  <Button
-                    onClick={() => onNavigate('customer-mode')}
-                    variant="outline"
-                    className="w-full max-w-md h-12 rounded-xl"
-                  >
-                    Masuk sebagai Customer
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-      </>
-    )}
-  </div>
-)
+          </main>
+        </>
+      )}
+    </div>
+  )
 }

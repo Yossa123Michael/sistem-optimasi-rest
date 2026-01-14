@@ -13,6 +13,7 @@ interface AdminSidebarProps {
   onViewChange: (view: AdminView) => void
   onLogout: () => void
   onBackToHome?: () => void
+  isOwner: boolean // NEW
 }
 
 export default function AdminSidebar({
@@ -21,6 +22,7 @@ export default function AdminSidebar({
   onViewChange,
   onLogout,
   onBackToHome,
+  isOwner,
 }: AdminSidebarProps) {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
@@ -29,9 +31,10 @@ export default function AdminSidebar({
 
   const menuItems: Array<{ id: AdminView; label: string }> = [
     { id: 'home', label: 'Home' },
+    { id: 'input-data', label: 'Input Data' },
     { id: 'courier', label: 'Kurir' },
     { id: 'monitoring', label: 'Monitoring' },
-    { id: 'requests', label: 'Permintaan' },
+    ...(isOwner ? ([{ id: 'requests', label: 'Permintaan' }] as const) : []),
     { id: 'history', label: 'History' },
   ]
 
@@ -66,7 +69,6 @@ export default function AdminSidebar({
                   onViewChange(item.id)
                   if (isMobile) setOpen(false)
                 }}
-                // Home selalu boleh; selain itu butuh companyId
                 disabled={item.id !== 'home' && !user.companyId}
               >
                 {item.label}

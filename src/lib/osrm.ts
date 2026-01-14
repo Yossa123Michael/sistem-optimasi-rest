@@ -1,19 +1,22 @@
-export type OsrmPoint = { lat: number; lng: number }
+export type LatLng = { lat: number; lng: number }
 
-const OSRM_BASE_URL =
-  import.meta.env.VITE_OSRM_BASE_URL || 'https://router.project-osrm.org'
+export async function getOsrmRoutePath(points: LatLng[], profile: 'driving' | 'car' = 'driving') {
+  // OSRM butuh minimal 2 titik
+  if (points.length < 2) return []
 
-export async function osrmRoute(a: OsrmPoint, b: OsrmPoint) {
-  const url = `${OSRM_BASE_URL}/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`
+  // OSRM format: lng,lat;lng,lat;...
+  const coords = points.map(p => `${p.lng},${p.lat}`).join(';')
+  const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson`
+
   const res = await fetch(url)
-  if (!res.ok) throw new Error(`OSRM route failed: ${res.status}`)
-  const json = await res.json()
+  if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`)
 
-  const route = json.routes?.[0]
-  if (!route) throw new Error('OSRM: no routes returned')
+  const data = await res.json()
+  const route = data?.routes?.[0]
+  const geom = route?.geometry?.coordinates
 
-  return {
-    distanceM: route.distance as number,
-    durationS: route.duration as number,
-  }
+  if (!Array.isArray(geom)) return []
+
+  // geojson coords: [lng,lat]
+  return geom.map((c: [number, number]) => ({ lng: c[0], lat: c[1] } as LatLng))
 }

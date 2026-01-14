@@ -1,92 +1,66 @@
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { List } from '@phosphor-icons/react'
 import { User } from '@/lib/types'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { Button } from '@/components/ui/button'
 
-type CustomerView = 'home' | 'orders' | 'track'
+type CustomerView = 'home' | 'status' | 'history'
 
 interface CustomerSidebarProps {
   user: User
   currentView: CustomerView
-  onViewChange: (view: CustomerView) => void
+  onViewChange: (v: CustomerView) => void
   onLogout: () => void
+  onBackToHome?: () => void
 }
 
-export default function CustomerSidebar({ user, currentView, onViewChange, onLogout }: CustomerSidebarProps) {
-  const isMobile = useIsMobile()
+export default function CustomerSidebar({
+  user,
+  currentView,
+  onViewChange,
+  onLogout,
+  onBackToHome,
+}: CustomerSidebarProps) {
   const userName = user.name || user.email.split('@')[0]
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-card border-r">
-      <div className="p-6 border-b flex flex-col items-center">
-        <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">Photo</p>
-        </div>
-        <p className="text-sm text-center text-foreground font-medium">{userName}</p>
-      </div>
-
-      <nav className="flex-1 p-4 space-y-2">
-        <Button
-          variant="ghost"
-          className={currentView === 'home' ? 'w-full justify-center bg-secondary' : 'w-full justify-center'}
-          onClick={() => onViewChange('home')}
-        >
-          Home
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={currentView === 'orders' ? 'w-full justify-center bg-secondary' : 'w-full justify-center'}
-          onClick={() => onViewChange('orders')}
-        >
-          Pesanan Saya
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={currentView === 'track' ? 'w-full justify-center bg-secondary' : 'w-full justify-center'}
-          onClick={() => onViewChange('track')}
-        >
-          Cek paket
-        </Button>
-      </nav>
-
-      <div className="p-4 border-t">
-        <Button
-          variant="ghost"
-          className="w-full justify-center text-destructive hover:text-destructive/80"
-          onClick={onLogout}
-        >
-          Sign Out
-        </Button>
-      </div>
-    </div>
+  const Item = ({ id, label }: { id: CustomerView; label: string }) => (
+    <button
+      onClick={() => onViewChange(id)}
+      className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${
+        currentView === id ? 'bg-secondary' : 'hover:bg-secondary/50'
+      }`}
+    >
+      {label}
+    </button>
   )
 
-  if (isMobile) {
-    return (
-      <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">RouteOptima</h2>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
-                <List size={24} />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
-              <SidebarContent />
-            </SheetContent>
-          </Sheet>
+  return (
+    <aside className="hidden lg:flex w-48 fixed inset-y-0 left-0 border-r bg-card">
+      <div className="flex flex-col w-full h-full">
+        <div className="flex flex-col items-center gap-3 p-6 pt-8">
+          <div className="w-20 h-20 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
+            <span className="text-xs">Photo</span>
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium">{userName}</p>
+            <p className="text-xs text-muted-foreground">Customer</p>
+          </div>
+        </div>
+
+        <nav className="px-3 space-y-2">
+          <Item id="home" label="Home" />
+          <Item id="status" label="Status Paket" />
+          <Item id="history" label="History" />
+        </nav>
+
+        <div className="mt-auto p-3 space-y-2">
+          {onBackToHome && (
+            <Button variant="ghost" className="w-full" onClick={onBackToHome}>
+              Kembali ke Home
+            </Button>
+          )}
+          <Button variant="ghost" className="w-full text-destructive" onClick={onLogout}>
+            Sign Out
+          </Button>
         </div>
       </div>
-    )
-  }
-
-  return (
-    <aside className="fixed left-0 top-0 h-screen w-64 z-40">
-      <SidebarContent />
     </aside>
   )
 }

@@ -8,6 +8,7 @@ import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { addDoc, collection, doc, setDoc } from 'firebase/firestore'
+import OfficeLocationPicker from '@/components/maps/OfficeLocationPicker'
 
 type UserPatch = Pick<User, 'companyId' | 'role' | 'companies'>
 
@@ -24,12 +25,21 @@ function genCode(len = 8) {
   return out
 }
 
-export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: CreateCompanyScreenProps) {
+export default function CreateCompanyScreen({
+  user,
+  onBack,
+  onCompanyCreated,
+}: CreateCompanyScreenProps) {
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const [officeLocation, setOfficeLocation] = useState<{ lat: number; lng: number } | undefined>(
+    undefined,
+  )
+
   const handleCreate = async () => {
     if (!name.trim()) return toast.error('Nama perusahaan wajib diisi')
+    if (!officeLocation) return toast.error('Silakan pilih lokasi kantor di peta')
 
     try {
       setLoading(true)
@@ -39,11 +49,12 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
         code: genCode(),
         ownerId: user.id,
         createdAt: new Date().toISOString(),
+        officeLocation, // NEW
       }
 
       const ref = await addDoc(collection(db, 'companies'), payload)
 
-      const membership = { companyId: ref.id, role: 'admin', joinedAt: new Date().toISOString() }
+      const membership = { companyId: ref.id, role: 'admin' as const, joinedAt: new Date().toISOString() }
       const nextCompanies = [...(user.companies || []), membership]
 
       await setDoc(
@@ -58,7 +69,6 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
       toast.success('Perusahaan berhasil dibuat')
 
-      // PATCH user state di App langsung
       onCompanyCreated({
         companyId: ref.id,
         role: 'admin',
@@ -74,7 +84,7 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
           <Button variant="ghost" size="sm" className="w-fit mb-4" onClick={onBack}>
             <ArrowLeft className="mr-2" />
@@ -82,7 +92,8 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
           </Button>
           <CardTitle className="text-2xl">Buat Perusahaan</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="company-name">Nama Perusahaan</Label>
             <Input
@@ -91,6 +102,25 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
               value={name}
               onChange={e => setName(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Lokasi Kantor</Label>
+            <p className="text-xs text-muted-foreground">
+              Klik pada peta untuk memilih lokasi kantor.
+            </p>
+
+            <OfficeLocationPicker
+              value={officeLocation}
+              onChange={setOfficeLocation}
+              height={360}
+            />
+
+            {officeLocation && (
+              <p className="text-xs text-muted-foreground">
+                Dipilih: <span className="font-mono">{officeLocation.lat.toFixed(6)}, {officeLocation.lng.toFixed(6)}</span>
+              </p>
+            )}
           </div>
 
           <Button className="w-full" onClick={handleCreate} disabled={loading}>

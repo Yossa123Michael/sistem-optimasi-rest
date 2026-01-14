@@ -25,6 +25,8 @@ export interface Company {
 
   // NEW: lokasi kantor dipilih oleh owner
   officeLocation?: { lat: number; lng: number }
+
+  archived?: boolean
 }
 
 export interface Package {
