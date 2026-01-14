@@ -371,7 +371,6 @@ export default function InputDataView({
             ...p, 
             ...payload,
             id: packageId,
-            createdAt: p.createdAt || now,
           }
         } else {
           // CREATE new package
@@ -392,7 +391,6 @@ export default function InputDataView({
             ...p, 
             ...payload,
             id: packageId,
-            courierId: null, // consistent with Firestore null for unassigned
           }
         }
 
