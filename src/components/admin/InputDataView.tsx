@@ -1,223 +1,682 @@
-import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useMemo, useState } from 'react'
+import { Company, Courier, Package } from '@/lib/types'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { User, Package, Courier } from '@/lib/types'
-import { generateId, generateTrackingNumber } from '@/lib/auth'
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  addDoc,
+  deleteDoc,
+  doc,
+  updateDoc,
+  setDoc,
+} from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 interface InputDataViewProps {
-  user: User
+  company: Company
+  couriers: Courier[]
+  packages: Package[]
+  onSetCouriers: (couriers: Courier[]) => void
+  onSetPackages: (packages: Package[]) => void
+  onBackToOverview: () => void
 }
 
-export default function InputDataView({ user }: InputDataViewProps) {
-  const [packageName, setPackageName] = useState('')
-  const [recipientName, setRecipientName] = useState('')
-  const [recipientPhone, setRecipientPhone] = useState('')
-  const [latitude, setLatitude] = useState('')
-  const [longitude, setLongitude] = useState('')
-  const [weight, setWeight] = useState('')
-  const [locationDetail, setLocationDetail] = useState('')
-  const [errors, setErrors] = useState<Set<string>>(new Set())
-  
-  const [packages, setPackages] = useKV<Package[]>('packages', [])
-  const [couriers] = useKV<Courier[]>('couriers', [])
+type Step = 1 | 2
 
-  const companyPackages = packages?.filter(p => p.companyId === user.companyId) || []
-  const companyCouriers = couriers?.filter(c => c.companyId === user.companyId) || []
-  const activeCouriers = companyCouriers.filter(c => c.active)
+function toNumber(v: any) {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const newErrors = new Set<string>()
-    
-    if (!packageName.trim()) newErrors.add('packageName')
-    if (!recipientName.trim()) newErrors.add('recipientName')
-    if (!recipientPhone.trim()) newErrors.add('recipientPhone')
-    if (!latitude.trim()) newErrors.add('latitude')
-    if (!longitude.trim()) newErrors.add('longitude')
-    if (!weight.trim()) newErrors.add('weight')
-    if (!locationDetail.trim()) newErrors.add('locationDetail')
+function randomUpperAlnum(len: number) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let out = ''
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)]
+  return out
+}
 
-    if (newErrors.size > 0) {
-      setErrors(newErrors)
-      toast.error('Data belum lengkap')
+function genTrackingNumber() {
+  return `KEL4-${randomUpperAlnum(10)}`
+}
+
+export default function InputDataView({
+  company,
+  couriers,
+  packages,
+  onSetCouriers,
+  onSetPackages,
+  onBackToOverview,
+}: InputDataViewProps) {
+  const [step, setStep] = useState<Step>(1)
+
+  const companyCouriers = useMemo(
+    () => couriers.filter(c => c.companyId === company.id),
+    [couriers, company.id],
+  )
+  const companyPackages = useMemo(
+    () => packages.filter(p => p.companyId === company.id),
+    [packages, company.id],
+  )
+
+  const [localCouriers, setLocalCouriers] = useState<Courier[]>(companyCouriers)
+  const [localPackages, setLocalPackages] = useState<Package[]>(companyPackages)
+
+  const [saving, setSaving] = useState(false)
+  const [assigning, setAssigning] = useState(false)
+
+  useEffect(() => {
+    setLocalCouriers(companyCouriers)
+  }, [companyCouriers])
+
+  useEffect(() => {
+    setLocalPackages(companyPackages)
+  }, [companyPackages])
+
+  const totalCourierCapacity = useMemo(
+    () => localCouriers.reduce((sum, c) => sum + (toNumber(c.capacity) || 0), 0),
+    [localCouriers],
+  )
+
+  const totalPackageWeight = useMemo(
+    () => localPackages.reduce((sum, p) => sum + (toNumber(p.weight) || 0), 0),
+    [localPackages],
+  )
+
+  // ===== STEP 1: Kurir (nama readonly, edit kapasitas) =====
+  const handleCourierCapacityChange = (id: string, value: string) => {
+    setLocalCouriers(prev =>
+      prev.map(c => (c.id === id ? { ...c, capacity: toNumber(value) } : c)),
+    )
+  }
+
+  const handleSaveCouriersAndNext = async () => {
+    if (!localCouriers.length) {
+      toast.error('Belum ada kurir. Owner harus approve user sebagai kurir terlebih dahulu.')
+      return
+    }
+    const invalid = localCouriers.some(c => toNumber(c.capacity) <= 0)
+    if (invalid) {
+      toast.error('Kapasitas semua kurir harus lebih dari 0 kg')
       return
     }
 
-    const newPackage: Package = {
-      id: generateId(),
-      name: packageName,
-      recipientName,
-      recipientPhone,
-      latitude: parseFloat(latitude),
-      longitude: parseFloat(longitude),
-      weight: parseFloat(weight),
-      locationDetail,
-      trackingNumber: generateTrackingNumber(),
-      companyId: user.companyId!,
+    try {
+      await Promise.all(
+        localCouriers.map(c =>
+          updateDoc(doc(db, 'couriers', c.id), { capacity: toNumber(c.capacity) || 0 }),
+        ),
+      )
+
+      onSetCouriers(prev => {
+        const other = prev.filter(c => c.companyId !== company.id)
+        return [...other, ...localCouriers]
+      })
+
+      toast.success('Kapasitas kurir disimpan')
+      setStep(2)
+    } catch (err) {
+      console.error(err)
+      toast.error('Gagal menyimpan data kurir')
+    }
+  }
+
+  // ===== STEP 2: Paket (tambah paket manual) =====
+  const handleAddPackageRow = () => {
+    const now = new Date().toISOString()
+    const p: Package = {
+      id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: `Paket ${localPackages.length + 1}`,
+      recipientName: '',
+      recipientPhone: '',
+      latitude: 0,
+      longitude: 0,
+      weight: 1,
+      trackingNumber: genTrackingNumber(),
+      companyId: company.id,
+      courierId: undefined,
       status: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now,
+      updatedAt: now,
+      deliveredAt: undefined,
+      locationDetail: '',
+    }
+    ;(p as any).recipientEmail = ''
+    setLocalPackages(prev => [...prev, p])
+  }
+
+  const handlePackageChange = (id: string, field: string, value: string) => {
+    setLocalPackages(prev =>
+      prev.map(p => {
+        if (p.id !== id) return p
+        const next: any = { ...p, updatedAt: new Date().toISOString() }
+
+        if (field === 'weight' || field === 'latitude' || field === 'longitude') {
+          next[field] = toNumber(value)
+        } else {
+          next[field] = value
+        }
+
+        return next
+      }),
+    )
+  }
+
+  const handleRemovePackage = (id: string) => {
+    setLocalPackages(prev => prev.filter(p => p.id !== id))
+  }
+
+  // ===== Assign packages to ACTIVE couriers (round-robin) =====
+  const assignPendingToActiveCouriers = async () => {
+    setAssigning(true)
+    try {
+      const cSnap = await getDocs(
+        query(
+          collection(db, 'couriers'),
+          where('companyId', '==', company.id),
+          where('active', '==', true),
+        ),
+      )
+      const activeCouriers = cSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Courier))
+
+      if (activeCouriers.length === 0) {
+        toast.error('Tidak ada kurir aktif. Aktifkan kurir terlebih dahulu.')
+        return { assigned: 0 }
+      }
+
+      const pSnap = await getDocs(
+        query(
+          collection(db, 'packages'),
+          where('companyId', '==', company.id),
+          where('status', '==', 'pending'),
+        ),
+      )
+      const pendingPkgs = pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
+      const unassigned = pendingPkgs.filter(p => !p.courierId)
+
+      if (unassigned.length === 0) return { assigned: 0 }
+
+      const now = new Date().toISOString()
+
+      // Assign packages to couriers
+      try {
+        await Promise.all(
+          unassigned.map((pkg, idx) => {
+            const courier = activeCouriers[idx % activeCouriers.length]
+            return updateDoc(doc(db, 'packages', pkg.id), {
+              courierId: courier.id,
+              status: 'in-transit',
+              updatedAt: now,
+            })
+          }),
+        )
+        console.log(`Assigned ${unassigned.length} packages to active couriers`)
+      } catch (assignErr) {
+        console.error('Failed to assign packages to couriers:', assignErr)
+        throw new Error('Gagal menugaskan paket ke kurir')
+      }
+
+      // Update public tracking
+      try {
+        await Promise.all(
+          unassigned.map(pkg => {
+            if (!pkg.trackingNumber) return Promise.resolve()
+            return setDoc(
+              doc(db, 'publicTracking', pkg.trackingNumber),
+              {
+                trackingNumber: pkg.trackingNumber,
+                companyId: pkg.companyId,
+                status: 'in-transit',
+                updatedAt: now,
+              },
+              { merge: true },
+            )
+          }),
+        )
+      } catch (trackErr) {
+        console.error('Failed to update tracking after assignment:', trackErr)
+        // Don't fail the whole operation for tracking updates
+      }
+
+      // refresh state packages for admin UI
+      try {
+        const refreshed = await getDocs(
+          query(collection(db, 'packages'), where('companyId', '==', company.id)),
+        )
+        const loaded = refreshed.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
+
+        onSetPackages(prev => {
+          const other = prev.filter(pp => pp.companyId !== company.id)
+          return [...other, ...loaded]
+        })
+        setLocalPackages(loaded.filter(p => p.companyId === company.id))
+        console.log('Refreshed package state after assignment')
+      } catch (refreshErr) {
+        console.error('Failed to refresh packages after assignment:', refreshErr)
+        // Continue even if refresh fails - assignment succeeded
+      }
+
+      return { assigned: unassigned.length }
+    } catch (err) {
+      console.error('assignPendingToActiveCouriers error:', err)
+      if (err instanceof Error && err.message.startsWith('Gagal')) {
+        throw err
+      }
+      throw new Error('Gagal melakukan auto-assignment')
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  const handleSavePackages = async () => {
+    if (!localPackages.length) {
+      toast.error('Tambahkan minimal 1 paket')
+      return
     }
 
-    setPackages((current) => [...(current || []), newPackage])
-    
-    toast.success(`Paket berhasil ditambahkan! Nomor resi: ${newPackage.trackingNumber}`)
-    
-    setPackageName('')
-    setRecipientName('')
-    setRecipientPhone('')
-    setLatitude('')
-    setLongitude('')
-    setWeight('')
-    setLocationDetail('')
-    setErrors(new Set())
+    const invalid = localPackages.some(p => {
+      const email = String((p as any).recipientEmail || '').trim()
+
+      if (!String(p.name || '').trim()) return true
+      if (!String(p.recipientName || '').trim()) return true
+      if (!String(p.recipientPhone || '').trim()) return true
+      if (!email) return true
+      if (!String(p.locationDetail || '').trim()) return true
+      if (toNumber(p.weight) <= 0) return true
+      if (toNumber(p.latitude) === 0 || toNumber(p.longitude) === 0) return true
+      if (!String(p.trackingNumber || '').trim()) return true
+
+      return false
+    })
+
+    if (invalid) {
+      toast.error('Lengkapi semua paket: nama paket, nama penerima, no HP, email, lokasi, lat, lng, berat.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      // UPSERT STRATEGY: fetch existing packages to compare
+      const snap = await getDocs(
+        query(collection(db, 'packages'), where('companyId', '==', company.id)),
+      )
+      const existingPackages = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
+      
+      // Create a Set of existing package IDs for O(1) lookups
+      const existingPackageIds = new Set(existingPackages.map(ep => ep.id))
+      
+      const now = new Date().toISOString()
+      const savedPackages: Package[] = []
+      
+      // Track which existing package IDs are still present in localPackages
+      const localPackageIds = new Set(
+        localPackages
+          .filter(p => p.id && existingPackageIds.has(p.id))
+          .map(p => p.id)
+      )
+      
+      // Delete packages that were removed from the UI
+      const packagesToDelete = existingPackages.filter(ep => !localPackageIds.has(ep.id))
+      for (const pkg of packagesToDelete) {
+        try {
+          await deleteDoc(doc(db, 'packages', pkg.id))
+          console.log(`Deleted package: ${pkg.id}`)
+        } catch (delErr) {
+          console.error(`Failed to delete package ${pkg.id}:`, delErr)
+          throw new Error(`Gagal menghapus paket ${pkg.name}`)
+        }
+      }
+
+      // Process each local package (create new or update existing)
+      for (const p of localPackages) {
+        const isExisting = Boolean(p.id) && existingPackageIds.has(p.id)
+        
+        // Prepare payload without undefined values (Firestore rejects undefined)
+        const payload: any = {
+          companyId: company.id,
+          name: String(p.name || '').trim(),
+          recipientName: String(p.recipientName || '').trim(),
+          recipientPhone: String(p.recipientPhone || '').trim(),
+          recipientEmail: String((p as any).recipientEmail || '').trim(),
+          locationDetail: String(p.locationDetail || '').trim(),
+          latitude: toNumber(p.latitude),
+          longitude: toNumber(p.longitude),
+          weight: toNumber(p.weight),
+          trackingNumber: String(p.trackingNumber || '').trim(),
+          courierId: p.courierId ?? null, // preserve existing assignment or null
+          status: p.status || 'pending',
+          updatedAt: now,
+        }
+        
+        let packageId: string
+        let packageDoc: Package
+
+        if (isExisting) {
+          // UPDATE existing package
+          packageId = p.id
+          try {
+            await updateDoc(doc(db, 'packages', packageId), payload)
+            console.log(`Updated package: ${packageId}`)
+          } catch (updateErr) {
+            console.error(`Failed to update package ${packageId}:`, updateErr)
+            throw new Error(`Gagal memperbarui paket ${p.name}`)
+          }
+          
+          packageDoc = { 
+            ...payload,
+            id: packageId,
+            createdAt: p.createdAt || now,
+            deliveredAt: p.deliveredAt ?? null,
+          } as Package
+        } else {
+          // CREATE new package
+          payload.createdAt = now
+          payload.status = 'pending'
+          payload.courierId = null
+          
+          try {
+            const ref = await addDoc(collection(db, 'packages'), payload)
+            packageId = ref.id
+            console.log(`Created package: ${packageId}`)
+          } catch (addErr) {
+            console.error('Failed to create package:', addErr)
+            throw new Error(`Gagal membuat paket ${p.name}`)
+          }
+          
+          packageDoc = { 
+            ...payload,
+            id: packageId,
+            createdAt: now,
+            deliveredAt: null,
+          } as Package
+        }
+
+        // Update publicTracking
+        try {
+          await setDoc(
+            doc(db, 'publicTracking', payload.trackingNumber),
+            {
+              trackingNumber: payload.trackingNumber,
+              packageId: packageId,
+              companyId: company.id,
+              status: payload.status,
+              lastLocation: payload.locationDetail,
+              updatedAt: now,
+              recipientName: payload.recipientName,
+            },
+            { merge: true },
+          )
+        } catch (trackErr) {
+          console.error(`Failed to update tracking for ${payload.trackingNumber}:`, trackErr)
+          // Don't fail the whole operation for tracking updates
+        }
+
+        savedPackages.push(packageDoc)
+      }
+
+      setLocalPackages(savedPackages)
+      onSetPackages(prev => {
+        const other = prev.filter(pp => pp.companyId !== company.id)
+        return [...other, ...savedPackages]
+      })
+
+      // AUTO ASSIGN after submit
+      const result = await assignPendingToActiveCouriers()
+      if (result.assigned > 0) {
+        toast.success(`Paket disimpan & otomatis ditugaskan (${result.assigned} paket)`)
+      } else {
+        toast.success('Paket disimpan (belum ada paket yang perlu ditugaskan / atau tidak ada kurir aktif)')
+      }
+    } catch (err) {
+      console.error('handleSavePackages error:', err)
+      if (err instanceof Error && err.message.startsWith('Gagal')) {
+        toast.error(err.message)
+      } else {
+        toast.error('Gagal menyimpan data paket. Periksa console untuk detail.')
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="p-4 md:p-8 pt-20 lg:pt-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold mb-2">Input Data Paket</h1>
-          <p className="text-muted-foreground">Tambahkan paket baru untuk pengiriman</p>
+    <div className="p-6 md:p-10">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <button
+              onClick={onBackToOverview}
+              className="text-sm text-muted-foreground hover:underline"
+            >
+              ← Kembali
+            </button>
+            <h1 className="text-2xl font-semibold mt-2">Input Data</h1>
+            <p className="text-sm text-muted-foreground">
+              Step 1: Kurir → Step 2: Paket (Perusahaan:{' '}
+              <span className="font-medium">{company.name}</span>)
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <StepPill active={step === 1} label="Kurir" />
+            <StepPill active={step === 2} label="Paket" />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Jumlah Kurir</p>
-            <p className="text-4xl font-semibold">{companyCouriers.length}</p>
-          </Card>
-          
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Kurir Aktif</p>
-            <p className="text-4xl font-semibold">{activeCouriers.length}</p>
-          </Card>
-          
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Jumlah Paket</p>
-            <p className="text-4xl font-semibold">{companyPackages.length}</p>
-          </Card>
-        </div>
-
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-6">Data Paket</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
+        {step === 1 ? (
+          <Card className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="packageName">Nama Paket *</Label>
-                <Input
-                  id="packageName"
-                  value={packageName}
-                  onChange={(e) => {
-                    setPackageName(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('packageName'); return next })
-                  }}
-                  className={errors.has('packageName') ? 'border-destructive' : ''}
-                  placeholder="Contoh: Elektronik"
-                />
+                <Label>Masukan jumlah kurir</Label>
+                <Input value={String(localCouriers.length)} disabled />
+                <p className="text-xs text-muted-foreground">
+                  Kurir otomatis dari user yang sudah diterima sebagai kurir (tidak bisa ditambah dari sini).
+                </p>
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="recipientName">Nama Penerima *</Label>
-                <Input
-                  id="recipientName"
-                  value={recipientName}
-                  onChange={(e) => {
-                    setRecipientName(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('recipientName'); return next })
-                  }}
-                  className={errors.has('recipientName') ? 'border-destructive' : ''}
-                  placeholder="Nama lengkap penerima"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="recipientPhone">No. Telepon Penerima *</Label>
-                <Input
-                  id="recipientPhone"
-                  value={recipientPhone}
-                  onChange={(e) => {
-                    setRecipientPhone(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('recipientPhone'); return next })
-                  }}
-                  className={errors.has('recipientPhone') ? 'border-destructive' : ''}
-                  placeholder="08xxxxxxxxxx"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="weight">Berat (kg) *</Label>
-                <Input
-                  id="weight"
-                  type="number"
-                  step="0.1"
-                  value={weight}
-                  onChange={(e) => {
-                    setWeight(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('weight'); return next })
-                  }}
-                  className={errors.has('weight') ? 'border-destructive' : ''}
-                  placeholder="0.0"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="latitude">Latitude *</Label>
-                <Input
-                  id="latitude"
-                  type="number"
-                  step="any"
-                  value={latitude}
-                  onChange={(e) => {
-                    setLatitude(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('latitude'); return next })
-                  }}
-                  className={errors.has('latitude') ? 'border-destructive' : ''}
-                  placeholder="-6.2088"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="longitude">Longitude *</Label>
-                <Input
-                  id="longitude"
-                  type="number"
-                  step="any"
-                  value={longitude}
-                  onChange={(e) => {
-                    setLongitude(e.target.value)
-                    setErrors(prev => { const next = new Set(prev); next.delete('longitude'); return next })
-                  }}
-                  className={errors.has('longitude') ? 'border-destructive' : ''}
-                  placeholder="106.8456"
-                />
+                <Label>Total kapasitas kurir (kg)</Label>
+                <Input value={String(totalCourierCapacity)} disabled />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="locationDetail">Detail Lokasi *</Label>
-              <Input
-                id="locationDetail"
-                value={locationDetail}
-                onChange={(e) => {
-                  setLocationDetail(e.target.value)
-                  setErrors(prev => { const next = new Set(prev); next.delete('locationDetail'); return next })
-                }}
-                className={errors.has('locationDetail') ? 'border-destructive' : ''}
-                placeholder="Alamat lengkap penerima"
-              />
+            {localCouriers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Belum ada kurir. Owner harus approve user sebagai kurir terlebih dahulu.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {localCouriers.map(c => (
+                  <div
+                    key={c.id}
+                    className="grid grid-cols-1 md:grid-cols-[2fr,1fr] gap-3 items-end border rounded-lg p-3"
+                  >
+                    <div>
+                      <Label className="text-xs">Nama Kurir</Label>
+                      <Input value={c.name} disabled />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Kapasitas (kg)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={c.capacity}
+                        onChange={e => handleCourierCapacityChange(c.id, e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t">
+              <Button onClick={handleSaveCouriersAndNext} disabled={!localCouriers.length}>
+                Simpan & Lanjut
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Data Paket</h2>
+                <p className="text-xs text-muted-foreground">
+                  Field: nama paket, nama penerima, no HP, email, lokasi detail, lat, lng, berat. Resi otomatis.
+                </p>
+              </div>
+
+              <Button type="button" variant="outline" onClick={handleAddPackageRow} disabled={saving || assigning}>
+                + Tambah Paket
+              </Button>
             </div>
 
-            <Button type="submit" size="lg" className="w-full md:w-auto">
-              Simpan Paket
-            </Button>
-          </form>
-        </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Total berat paket (kg)</Label>
+                <Input value={String(totalPackageWeight)} disabled />
+              </div>
+            </div>
+
+            {localPackages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Belum ada paket. Klik “+ Tambah Paket”.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {localPackages.map((p, idx) => (
+                  <div key={p.id} className="border rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Paket #{idx + 1}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => handleRemovePackage(p.id)}
+                        disabled={saving || assigning}
+                      >
+                        Hapus
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Nama Paket</Label>
+                        <Input
+                          value={p.name}
+                          onChange={e => handlePackageChange(p.id, 'name', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Nama Penerima</Label>
+                        <Input
+                          value={p.recipientName}
+                          onChange={e => handlePackageChange(p.id, 'recipientName', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">No. HP</Label>
+                        <Input
+                          value={p.recipientPhone}
+                          onChange={e => handlePackageChange(p.id, 'recipientPhone', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Email</Label>
+                        <Input
+                          value={String((p as any).recipientEmail || '')}
+                          onChange={e => handlePackageChange(p.id, 'recipientEmail', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Lokasi Detail</Label>
+                        <Input
+                          value={p.locationDetail}
+                          onChange={e => handlePackageChange(p.id, 'locationDetail', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Berat (kg)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={p.weight}
+                          onChange={e => handlePackageChange(p.id, 'weight', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Lat</Label>
+                        <Input
+                          type="number"
+                          value={p.latitude}
+                          onChange={e => handlePackageChange(p.id, 'latitude', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Lng</Label>
+                        <Input
+                          type="number"
+                          value={p.longitude}
+                          onChange={e => handlePackageChange(p.id, 'longitude', e.target.value)}
+                          disabled={saving || assigning}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">No. Resi (otomatis)</Label>
+                      <Input value={p.trackingNumber} disabled />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="outline" onClick={() => setStep(1)} disabled={saving || assigning}>
+                ‹ Kembali
+              </Button>
+
+              <Button
+                onClick={handleSavePackages}
+                disabled={!localPackages.length || saving || assigning}
+              >
+                {saving || assigning ? 'Memproses...' : 'Submit'}
+              </Button>
+            </div>
+          </Card>
+        )}
       </div>
+    </div>
+  )
+}
+
+function StepPill({ active, label }: { active: boolean; label: string }) {
+  return (
+    <div
+      className={`px-3 py-1 rounded-full text-xs border ${
+        active ? 'bg-secondary text-foreground' : 'text-muted-foreground'
+      }`}
+    >
+      {label}
     </div>
   )
 }

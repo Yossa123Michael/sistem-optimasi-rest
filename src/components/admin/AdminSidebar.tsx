@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { List } from '@phosphor-icons/react'
-import { User, Company, Package, Courier } from '@/lib/types'
+import { User } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { toast } from 'sonner'
@@ -32,6 +32,9 @@ interface AdminSidebarProps {
   onViewChange: (view: AdminView) => void
   onLogout: () => void
   onBackToHome?: () => void
+  isOwner: boolean
+  onLeaveCompany?: () => void
+  onDeleteCompany?: () => void
 }
 
 export default function AdminSidebar({
@@ -140,7 +143,7 @@ export default function AdminSidebar({
   ]
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-card border-r">
+    <div className="flex flex-col h-screen bg-card border-r">
       <div className="p-6 border-b flex flex-col items-center">
         <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Photo</p>
@@ -232,16 +235,23 @@ export default function AdminSidebar({
         {onBackToHome && companyExists && (
           <Button
             variant="ghost"
-            className="w-full justify-center text-foreground"
-            onClick={onBackToHome}
+            className="w-full justify-center"
+            onClick={() => {
+              onBackToHome()
+              if (isMobile) setOpen(false)
+            }}
           >
             Ke layar utama
           </Button>
         )}
+
         <Button
           variant="ghost"
           className="w-full justify-center text-destructive hover:text-destructive/80"
-          onClick={onLogout}
+          onClick={() => {
+            onLogout()
+            if (isMobile) setOpen(false)
+          }}
         >
           Sign Out
         </Button>
@@ -254,13 +264,13 @@ export default function AdminSidebar({
       <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg">RouteOptima</h2>
-          <Sheet>
+          <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
-                <List size={24} />
+              <Button variant="ghost" size="icon">
+                <List className="h-6 w-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-48">
+            <SheetContent side="left" className="p-0 w-64">
               <SidebarContent />
             </SheetContent>
           </Sheet>

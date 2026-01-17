@@ -1,58 +1,57 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User } from '@/lib/types'
-import { generateId, validateEmail, hashPassword } from '@/lib/auth'
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
+import { auth, db } from '@/lib/firebase'
+import { doc, setDoc } from 'firebase/firestore'
 
 interface RegisterScreenProps {
-  onRegisterSuccess: (user: User) => void
+  onRegisterSuccess: () => void
   onLogin: () => void
 }
 
 export default function RegisterScreen({ onRegisterSuccess, onLogin }: RegisterScreenProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [users, setUsers] = useKV<User[]>('users', [])
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!email) {
-      toast.error('Masukan email')
-      return
-    }
+    if (!email) return toast.error('Masukan email')
+    if (!password) return toast.error('Masukan password')
 
-    if (!password) {
-      toast.error('Masukan password')
-      return
-    }
+    try {
+      setLoading(true)
+      const cred = await createUserWithEmailAndPassword(auth, email, password)
 
-    if (!validateEmail(email)) {
-      toast.error('Format email tidak valid')
-      return
-    }
+      const displayName = email.split('@')[0]
+      await updateProfile(cred.user, { displayName })
 
-    const existingUser = users?.find(u => u.email === email)
-    if (existingUser) {
-      toast.error('Email sudah terdaftar')
-      return
-    }
+      // buat doc user di Firestore
+      await setDoc(
+        doc(db, 'users', cred.user.uid),
+        {
+          id: cred.user.uid,
+          email,
+          name: displayName,
+          companies: [],
+        },
+        { merge: true },
+      )
 
-    const newUser: User = {
-      id: generateId(),
-      email,
-      password: hashPassword(password),
-      name: email.split('@')[0]
+      toast.success('Registrasi berhasil')
+      onRegisterSuccess()
+    } catch (err: any) {
+      console.error('Register error', err)
+      toast.error(err?.message || 'Registrasi gagal')
+    } finally {
+      setLoading(false)
     }
-
-    setUsers((currentUsers) => [...(currentUsers || []), newUser])
-    toast.success('Registrasi berhasil')
-    onRegisterSuccess(newUser)
   }
 
   return (
@@ -75,10 +74,10 @@ export default function RegisterScreen({ onRegisterSuccess, onLogin }: RegisterS
                 type="email"
                 placeholder="your@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -86,21 +85,18 @@ export default function RegisterScreen({ onRegisterSuccess, onLogin }: RegisterS
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
               />
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Daftar
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? 'Loading...' : 'Daftar'}
             </Button>
           </form>
 
           <div className="mt-6 flex items-center justify-center gap-2 text-sm">
             <span className="text-muted-foreground">Sudah punya akun?</span>
-            <button
-              onClick={onLogin}
-              className="text-primary hover:underline font-medium"
-            >
+            <button onClick={onLogin} className="text-primary hover:underline font-medium" type="button">
               Login
             </button>
           </div>

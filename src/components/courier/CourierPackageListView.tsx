@@ -1,49 +1,65 @@
-import { useKV } from '@github/spark/hooks'
+import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useState } from 'react'
-import { User, Package, Courier } from '@/lib/types'
-import MapView from '@/components/maps/MapView'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { User, Package } from '@/lib/types'
 
 interface CourierPackageListViewProps {
   user: User
+  packages: Package[]
+  myRoute: string[]
+  total: number
+  completed: number
+  remaining: number
 }
 
-export default function CourierPackageListView({ user }: CourierPackageListViewProps) {
+export default function CourierPackageListView({
+  packages,
+  myRoute,
+  total,
+  completed,
+  remaining,
+}: CourierPackageListViewProps) {
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null)
-  const [packages] = useKV<Package[]>('packages', [])
-  const [couriers] = useKV<Courier[]>('couriers', [])
 
-  const courier = couriers?.find(c => c.userId === user.id)
-  const courierPackages = packages?.filter(p => p.courierId === courier?.id) || []
-  const totalToday = courierPackages.length
-  const remaining = courierPackages.filter(p => p.status !== 'delivered').length
-  const completed = courierPackages.filter(p => p.status === 'delivered').length
+  const courierPackages =
+    myRoute && myRoute.length
+      ? (myRoute
+          .map(id => packages.find(p => p.id === id))
+          .filter(Boolean) as Package[])
+      : packages
 
   return (
     <div className="p-4 md:p-8 pt-20 lg:pt-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold mb-2">List Paket</h1>
-          <p className="text-muted-foreground">Daftar paket pengiriman hari ini</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Paket Hari Ini</p>
-            <p className="text-4xl font-semibold">{totalToday}</p>
-          </Card>
-          
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Paket Tersisa</p>
-            <p className="text-4xl font-semibold">{remaining}</p>
-          </Card>
-          
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Paket Terselesaikan</p>
-            <p className="text-4xl font-semibold">{completed}</p>
-          </Card>
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold mb-1">List Paket</h1>
+            <p className="text-muted-foreground">
+              Daftar paket pengiriman hari ini
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-right">
+            <div>
+              <p className="text-xs text-muted-foreground">Paket hari ini</p>
+              <p className="text-2xl font-semibold">{total}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Paket Tersisa</p>
+              <p className="text-2xl font-semibold">{remaining}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Paket Terselesaikan
+              </p>
+              <p className="text-2xl font-semibold">{completed}</p>
+            </div>
+          </div>
         </div>
 
         <Card className="p-6">
@@ -54,7 +70,7 @@ export default function CourierPackageListView({ user }: CourierPackageListViewP
                 Belum ada paket ditugaskan
               </p>
             ) : (
-              courierPackages.map((pkg) => (
+              courierPackages.map(pkg => (
                 <button
                   key={pkg.id}
                   onClick={() => setSelectedPackage(pkg)}
@@ -63,7 +79,9 @@ export default function CourierPackageListView({ user }: CourierPackageListViewP
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{pkg.name}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{pkg.locationDetail}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {pkg.locationDetail}
+                      </p>
                     </div>
                     <Badge
                       variant={pkg.status === 'delivered' ? 'default' : 'outline'}
@@ -80,7 +98,10 @@ export default function CourierPackageListView({ user }: CourierPackageListViewP
       </div>
 
       {selectedPackage && (
-        <Dialog open={!!selectedPackage} onOpenChange={() => setSelectedPackage(null)}>
+        <Dialog
+          open={!!selectedPackage}
+          onOpenChange={() => setSelectedPackage(null)}
+        >
           <DialogContent className="max-w-3xl">
             <DialogHeader>
               <DialogTitle>Detail Paket</DialogTitle>
@@ -89,34 +110,38 @@ export default function CourierPackageListView({ user }: CourierPackageListViewP
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm text-muted-foreground mb-1">Nama Paket</p>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Nama Paket
+                    </p>
                     <p className="font-medium">{selectedPackage.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground mb-1">Nama Penerima</p>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Nama Penerima
+                    </p>
                     <p className="font-medium">{selectedPackage.recipientName}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">No. HP</p>
-                    <p className="font-medium font-mono">{selectedPackage.recipientPhone}</p>
+                    <p className="font-medium font-mono">
+                      {selectedPackage.recipientPhone}
+                    </p>
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Lokasi Detail</p>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Lokasi Detail
+                  </p>
                   <p className="font-medium">{selectedPackage.locationDetail}</p>
                 </div>
               </div>
-              <MapView
-                center={[selectedPackage.latitude, selectedPackage.longitude]}
-                markers={[
-                  {
-                    position: [selectedPackage.latitude, selectedPackage.longitude],
-                    label: selectedPackage.name,
-                    color: '#10B981'
-                  }
-                ]}
-                className="h-[400px] w-full rounded-lg overflow-hidden"
-              />
+
+              <div className="h-[400px] w-full rounded-lg overflow-hidden border flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Peta lokasi paket ({selectedPackage.latitude},{' '}
+                  {selectedPackage.longitude})
+                </p>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

@@ -5,16 +5,17 @@ import SplashScreen from './components/auth/SplashScreen'
 import LoginScreen from './components/auth/LoginScreen'
 import RegisterScreen from './components/auth/RegisterScreen'
 import ForgotPasswordScreen from './components/auth/ForgotPasswordScreen'
-import RoleSelectionScreen from './components/auth/RoleSelectionScreen'
-import CompanySelectionScreen from './components/company/CompanySelectionScreen'
+
 import HomeDashboard from './components/HomeDashboard'
-import CreateCompanyScreen from './components/company/CreateCompanyScreen'
-import JoinCompanyScreen from './components/company/JoinCompanyScreen'
-import CompanyListScreen from './components/company/CompanyListScreen'
 import AdminDashboard from './components/admin/AdminDashboard'
 import CourierDashboard from './components/courier/CourierDashboard'
 import CustomerDashboard from './components/customer/CustomerDashboard'
 import TrackPackageScreen from './components/tracking/TrackPackageScreen'
+
+import CreateCompanyScreen from './components/company/CreateCompanyScreen'
+import JoinCompanyScreen from './components/company/JoinCompanyScreen'
+import CompanyListScreen from './components/company/CompanyListScreen'
+
 import { Toaster } from './components/ui/sonner'
 import { toast } from 'sonner'
 
@@ -37,7 +38,7 @@ type AppScreen =
   | 'customer-dashboard'
   | 'track-package'
 
-function App() {
+export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('splash')
   const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
   const [users, setUsers] = useKV<User[]>('users', [])
@@ -407,6 +408,5 @@ function App() {
       <Toaster position="top-right" />
     </>
   )
-}
 
-export default App
+}

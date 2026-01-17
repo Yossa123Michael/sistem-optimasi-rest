@@ -1,166 +1,120 @@
-import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Package as PackageIcon, ArrowLeft, Check } from '@phosphor-icons/react'
+import { ArrowLeft } from '@phosphor-icons/react'
+import { auth, db } from '@/lib/firebase'
+import { collection, doc, getDoc, getDocs, query, where, onSnapshot } from 'firebase/firestore'
 import { toast } from 'sonner'
-import { Package } from '@/lib/types'
-import MapView from '@/components/maps/MapView'
+import TrackingMap from './TrackingMap'
 
 interface TrackPackageScreenProps {
   onBack: () => void
 }
 
 export default function TrackPackageScreen({ onBack }: TrackPackageScreenProps) {
-  const [trackingNumber, setTrackingNumber] = useState('')
-  const [foundPackage, setFoundPackage] = useState<Package | null>(null)
-  const [packages] = useKV<Package[]>('packages', [])
+  console.log('TrackPackageScreen build signature: onSnapshot-imported')
+  const [code, setCode] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<any | null>(null)
 
-  const handleTrack = () => {
-    if (!trackingNumber.trim()) {
-      toast.error('Masukan nomor resi')
-      return
+  // simpan unsubscribe listener realtime
+  const unsubRef = useRef<null | (() => void)>(null)
+
+  // cleanup saat unmount
+  useEffect(() => {
+    return () => {
+      if (unsubRef.current) {
+        unsubRef.current()
+        unsubRef.current = null
+      }
     }
+  }, [])
 
-    const pkg = packages?.find(p => p.trackingNumber === trackingNumber.toUpperCase())
-
-    if (!pkg) {
-      toast.error('Nomor resi salah')
-      return
+  const stopListener = () => {
+    if (unsubRef.current) {
+      unsubRef.current()
+      unsubRef.current = null
     }
-
-    const packageDate = new Date(pkg.createdAt)
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-
-    if (packageDate < sixMonthsAgo) {
-      toast.error('Paket hanya bisa di cek 6 bulan')
-      return
-    }
-
-    setFoundPackage(pkg)
   }
 
-  const getStatusTimeline = (pkg: Package) => {
-    const timeline = [
-      { status: 'Paket diterima seller', completed: true, timestamp: pkg.createdAt },
-      { status: 'Paket di warehouse', completed: pkg.status !== 'pending', timestamp: pkg.updatedAt },
-      { status: 'Paket dalam pengiriman', completed: pkg.status === 'in-transit' || pkg.status === 'delivered', timestamp: pkg.updatedAt },
-      { status: 'Paket sampai tujuan', completed: pkg.status === 'delivered', timestamp: pkg.deliveredAt || '' }
-    ]
-    return timeline
+  const handleSearch = async () => {
+    const resi = code.trim()
+    if (!resi) return toast.error('Masukkan kode / resi')
+
+    try {
+      setLoading(true)
+      setResult(null)
+
+      // stop listener lama lalu start listener baru
+      stopListener()
+
+      const ref = doc(db, 'publicTracking', resi)
+
+      unsubRef.current = onSnapshot(
+        ref,
+        snap => {
+          if (!snap.exists()) {
+            setResult(null)
+            toast.error('Paket tidak ditemukan')
+            stopListener()
+            return
+          }
+          setResult({ id: snap.id, ...(snap.data() as any) })
+        },
+        err => {
+          console.error(err)
+          toast.error(`Tracking realtime error: ${err?.code || err?.message || String(err)}`)
+        },
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
-  if (foundPackage) {
-    const timeline = getStatusTimeline(foundPackage)
-
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-secondary/50 p-4 md:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <Button onClick={() => setFoundPackage(null)} variant="ghost" className="mb-4">
-            <ArrowLeft size={20} className="mr-2" />
-            Kembali
-          </Button>
-
-          <Card className="shadow-xl">
-            <CardHeader>
-              <CardTitle className="text-2xl">Status Pengiriman</CardTitle>
-              <p className="text-muted-foreground font-mono">{foundPackage.trackingNumber}</p>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                {timeline.map((item, index) => (
-                  <div key={index} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className={`rounded-full p-2 ${item.completed ? 'bg-accent' : 'bg-muted'}`}>
-                        {item.completed && <Check size={20} className="text-accent-foreground" />}
-                        {!item.completed && <div className="w-5 h-5" />}
-                      </div>
-                      {index < timeline.length - 1 && (
-                        <div className={`w-0.5 h-16 ${item.completed ? 'bg-accent' : 'bg-muted'}`} />
-                      )}
-                    </div>
-                    <div className="flex-1 pb-8">
-                      <p className={`font-medium ${item.completed ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {item.status}
-                      </p>
-                      {item.timestamp && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {new Date(item.timestamp).toLocaleString('id-ID')}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <h3 className="font-semibold mb-4">Lokasi Paket</h3>
-                <MapView
-                  center={[foundPackage.latitude, foundPackage.longitude]}
-                  markers={[
-                    {
-                      position: [foundPackage.latitude, foundPackage.longitude],
-                      label: foundPackage.name,
-                      color: '#10B981'
-                    }
-                  ]}
-                  className="h-[400px] w-full rounded-lg overflow-hidden"
-                />
-              </div>
-
-              <Button onClick={() => setFoundPackage(null)} className="w-full">
-                Cek Paket Lain
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
+  const handleBack = () => {
+    stopListener()
+    onBack()
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary/50 p-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center pb-4">
-          <div className="flex justify-center mb-4">
-            <div className="bg-accent rounded-2xl p-4">
-              <PackageIcon size={48} weight="duotone" className="text-accent-foreground" />
-            </div>
-          </div>
-          <CardTitle className="text-3xl font-semibold">Cek Paket</CardTitle>
-          <p className="text-sm text-muted-foreground mt-2">
-            Paket hanya bisa di cek 6 bulan
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <Button variant="ghost" size="sm" className="w-fit mb-4" onClick={handleBack}>
+            <ArrowLeft className="mr-2" />
+            Kembali
+          </Button>
+          <CardTitle className="text-2xl">Cek Paket</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="tracking">Nomor Resi</Label>
-              <Input
-                id="tracking"
-                placeholder="Masukkan nomor resi"
-                value={trackingNumber}
-                onChange={(e) => setTrackingNumber(e.target.value.toUpperCase())}
-                className="font-mono"
-              />
+        <CardContent className="space-y-4">
+          <Input
+            placeholder="Masukkan resi / tracking"
+            value={code}
+            onChange={e => setCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+          />
+          <Button className="w-full" onClick={handleSearch} disabled={loading}>
+            {loading ? 'Memulai realtime...' : 'Cari (Realtime)'}
+          </Button>
+
+          {result && (
+            <div className="mt-4 text-sm space-y-2">
+              <div className="space-y-1">
+                <p><b>Resi:</b> {result.trackingNumber || result.id}</p>
+                <p><b>Status:</b> {result.status || '-'}</p>
+                <p><b>Posisi Kurir:</b> {result.lastLocation || '-'}</p>
+                <p><b>Update terakhir:</b> {result.updatedAt || '-'}</p>
+              </div>
+
+              {/* Jika map leaflet sudah ada */}
+              {/* {typeof result.lastLat === 'number' && typeof result.lastLng === 'number' && (
+                <TrackingMap lat={result.lastLat} lng={result.lastLng} label={result.lastLocation || 'Posisi kurir'} />
+              )} */}
             </div>
-
-            <Button onClick={handleTrack} className="w-full" size="lg">
-              Cek Status
-            </Button>
-          </div>
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={onBack}
-              className="text-primary hover:underline font-medium text-sm"
-            >Kembali ke Home</button>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

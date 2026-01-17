@@ -1,51 +1,45 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { User, Company } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User, Company } from '@/lib/types'
-import { generateId, generateCode } from '@/lib/auth'
+import { db } from '@/lib/firebase'
+import { addDoc, collection, doc, setDoc } from 'firebase/firestore'
+import OfficeLocationPicker from '@/components/maps/OfficeLocationPicker'
+
+type UserPatch = Pick<User, 'companyId' | 'role' | 'companies'>
 
 interface CreateCompanyScreenProps {
   user: User
   onBack: () => void
-  onCompanyCreated: (companyId: string) => void
+  onCompanyCreated: (patch: UserPatch) => void
 }
 
-export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: CreateCompanyScreenProps) {
-  const [companyName, setCompanyName] = useState('')
-  const [companies, setCompanies] = useKV<Company[]>('companies', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [users, setUsers] = useKV<User[]>('users', [])
+function genCode(len = 8) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let out = ''
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)]
+  return out
+}
 
-  const handleCreateCompany = async () => {
-    if (!companyName.trim()) {
-      toast.error('Masukan nama perusahaan')
-      return
-    }
+export default function CreateCompanyScreen({
+  user,
+  onBack,
+  onCompanyCreated,
+}: CreateCompanyScreenProps) {
+  const [name, setName] = useState('')
+  const [loading, setLoading] = useState(false)
 
-    console.log('Creating company:', companyName)
+  const [officeLocation, setOfficeLocation] = useState<{ lat: number; lng: number } | undefined>(
+    undefined,
+  )
 
-    const newCompany: Company = {
-      id: generateId(),
-      name: companyName.trim(),
-      code: generateCode(),
-      ownerId: user.id,
-      createdAt: new Date().toISOString()
-    }
-
-    console.log('New company object:', newCompany)
-
-    const newMembership = {
-      companyId: newCompany.id,
-      role: 'admin' as const,
-      joinedAt: new Date().toISOString()
-    }
-
-    console.log('New membership:', newMembership)
+  const handleCreate = async () => {
+    if (!name.trim()) return toast.error('Nama perusahaan wajib diisi')
+    if (!officeLocation) return toast.error('Silakan pilih lokasi kantor di peta')
 
     try {
       // Step 1: Get all existing data
@@ -124,32 +118,47 @@ export default function CreateCompanyScreen({ user, onBack, onCompanyCreated }: 
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-fit mb-4"
-            onClick={onBack}
-          >
+          <Button variant="ghost" size="sm" className="w-fit mb-4" onClick={onBack}>
             <ArrowLeft className="mr-2" />
             Kembali
           </Button>
-          <CardTitle className="text-2xl">Buat Perusahaan Baru</CardTitle>
+          <CardTitle className="text-2xl">Buat Perusahaan</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="company-name">Nama Perusahaan</Label>
             <Input
               id="company-name"
-              placeholder="Masukkan nama perusahaan"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateCompany()}
+              placeholder="Contoh: PT Maju Jaya"
+              value={name}
+              onChange={e => setName(e.target.value)}
             />
           </div>
-          <Button onClick={handleCreateCompany} className="w-full">
-            Buat Perusahaan
+
+          <div className="space-y-2">
+            <Label>Lokasi Kantor</Label>
+            <p className="text-xs text-muted-foreground">
+              Klik pada peta untuk memilih lokasi kantor.
+            </p>
+
+            <OfficeLocationPicker
+              value={officeLocation}
+              onChange={setOfficeLocation}
+              height={360}
+            />
+
+            {officeLocation && (
+              <p className="text-xs text-muted-foreground">
+                Dipilih: <span className="font-mono">{officeLocation.lat.toFixed(6)}, {officeLocation.lng.toFixed(6)}</span>
+              </p>
+            )}
+          </div>
+
+          <Button className="w-full" onClick={handleCreate} disabled={loading}>
+            {loading ? 'Membuat...' : 'Buat'}
           </Button>
         </CardContent>
       </Card>

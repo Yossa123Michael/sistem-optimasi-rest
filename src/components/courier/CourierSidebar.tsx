@@ -1,13 +1,12 @@
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { List } from '@phosphor-icons/react'
-import { User, Company } from '@/lib/types'
+import { User } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useKV } from '@github/spark/hooks'
 import { toast } from 'sonner'
 
-type CourierView = 'home' | 'package-list' | 'recommendation' | 'update'
+type CourierView = 'home' | 'recommendation' | 'update' | 'history'
 
 interface CourierSidebarProps {
   user: User
@@ -15,6 +14,9 @@ interface CourierSidebarProps {
   onViewChange: (view: CourierView) => void
   onLogout: () => void
   onBackToHome?: () => void
+
+  // NEW
+  onLeaveCompany?: () => void
 }
 
 export default function CourierSidebar({
@@ -76,7 +78,7 @@ export default function CourierSidebar({
   ]
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-card border-r">
+    <div className="flex flex-col h-screen bg-card border-r">
       <div className="p-6 border-b flex flex-col items-center">
         <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
           <p className="text-sm text-muted-foreground">Photo</p>
@@ -156,16 +158,23 @@ export default function CourierSidebar({
         {onBackToHome && companyExists && (
           <Button
             variant="ghost"
-            className="w-full justify-center text-foreground"
-            onClick={onBackToHome}
+            className="w-full justify-center"
+            onClick={() => {
+              onBackToHome()
+              if (isMobile) setOpen(false)
+            }}
           >
             Ke layar utama
           </Button>
         )}
+
         <Button
           variant="ghost"
           className="w-full justify-center text-destructive hover:text-destructive/80"
-          onClick={onLogout}
+          onClick={() => {
+            onLogout()
+            if (isMobile) setOpen(false)
+          }}
         >
           Sign Out
         </Button>
@@ -178,13 +187,13 @@ export default function CourierSidebar({
       <div className="fixed top-0 left-0 right-0 z-50 bg-card border-b p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg">RouteOptima</h2>
-          <Sheet>
+          <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
-                <List size={24} />
+              <Button variant="ghost" size="icon">
+                <List className="h-6 w-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-48">
+            <SheetContent side="left" className="p-0 w-64">
               <SidebarContent />
             </SheetContent>
           </Sheet>
@@ -194,7 +203,7 @@ export default function CourierSidebar({
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-48 z-40">
+    <aside className="hidden lg:flex w-48 fixed inset-y-0 left-0">
       <SidebarContent />
     </aside>
   )

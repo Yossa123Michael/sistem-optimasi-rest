@@ -1,140 +1,171 @@
 import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { User, Company, UserRole } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { User, Company, UserRole } from '@/lib/types'
-import RoleSelectionScreen from './RoleSelectionScreen'
+import { db } from '@/lib/firebase'
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore'
+
+type UserPatch = Pick<User, 'companyId' | 'role' | 'companies'>
 
 interface JoinCompanyScreenProps {
   user: User
   onBack: () => void
-  onCompanyJoined: (companyId: string, role: UserRole) => void
+  onRequestSent: (patch: UserPatch) => void
 }
 
-export default function JoinCompanyScreen({ user, onBack, onCompanyJoined }: JoinCompanyScreenProps) {
+export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinCompanyScreenProps) {
   const [companyCode, setCompanyCode] = useState('')
-  const [companies] = useKV<Company[]>('companies', [])
-  const [currentUser, setCurrentUser] = useKV<User | null>('current-user', null)
-  const [users, setUsers] = useKV<User[]>('users', [])
-  const [showRoleSelection, setShowRoleSelection] = useState(false)
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [foundCompany, setFoundCompany] = useState<Company | null>(null)
 
-  const handleJoinCompany = () => {
-    if (!companyCode.trim()) {
-      toast.error('Masukan kode perusahaan')
-      return
-    }
+  const findCompany = async () => {
+    if (!companyCode.trim()) return toast.error('Masukkan kode perusahaan')
 
-    const company = (companies || []).find(c => c.code.toUpperCase() === companyCode.toUpperCase())
+    try {
+      setLoading(true)
+      setFoundCompany(null)
 
-    if (!company) {
-      toast.error('Kode salah')
-      return
-    }
-
-    const alreadyJoined = (user.companies || []).some(m => m.companyId === company.id)
-    if (alreadyJoined) {
-      toast.error('Anda sudah bergabung dengan perusahaan ini')
-      return
-    }
-
-    setSelectedCompany(company)
-    setShowRoleSelection(true)
-  }
-
-  const handleRoleSelected = (role: UserRole) => {
-    if (selectedCompany) {
-      const existingCompanyIds = (companies || []).map(c => c.id)
-      
-      const newMembership = {
-        companyId: selectedCompany.id,
-        role: role,
-        joinedAt: new Date().toISOString()
-      }
-
-      setCurrentUser((prev) => {
-        if (!prev) return null
-        const cleanedCompanies = (prev.companies || []).filter(m => 
-          existingCompanyIds.includes(m.companyId)
-        )
-        return {
-          ...prev,
-          companies: [
-            ...cleanedCompanies,
-            newMembership
-          ]
-        }
-      })
-
-      setUsers((currentUsers) => 
-        (currentUsers || []).map((u) => {
-          if (u.id === user.id) {
-            const cleanedCompanies = (u.companies || []).filter(m => 
-              existingCompanyIds.includes(m.companyId)
-            )
-            return { 
-              ...u, 
-              companies: [...cleanedCompanies, newMembership]
-            }
-          }
-          return u
-        })
+      const snap = await getDocs(
+        query(
+          collection(db, 'companies'),
+          where('code', '==', companyCode.trim().toUpperCase()),
+        ),
       )
 
-      toast.success(`Bergabung dengan ${selectedCompany.name} sebagai ${role === 'admin' ? 'Admin' : 'Kurir'}`)
-      onCompanyJoined(selectedCompany.id, role)
+      if (snap.empty) {
+        toast.error('Kode perusahaan tidak ditemukan')
+        return
+      }
+
+      const d = snap.docs[0]
+      setFoundCompany({ id: d.id, ...(d.data() as any) } as Company)
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal mencari perusahaan')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleBackFromRoleSelection = () => {
-    setShowRoleSelection(false)
-    setSelectedCompany(null)
-  }
+  const requestJoinAs = async (role: UserRole) => {
+    if (!foundCompany) return
 
-  if (showRoleSelection && selectedCompany) {
-    return (
-      <RoleSelectionScreen
-        companyName={selectedCompany.name}
-        onBack={handleBackFromRoleSelection}
-        onRoleSelected={handleRoleSelected}
-      />
-    )
+    // kalau sudah approved/bermembership, jangan request lagi
+    const already = (user.companies || []).some(m => m.companyId === foundCompany.id)
+    if (already) return toast.error('Anda sudah bergabung dengan perusahaan ini')
+
+    try {
+      setLoading(true)
+
+      // cegah duplikat request pending
+      const existingReq = await getDocs(
+        query(
+          collection(db, 'employeeRequests'),
+          where('companyId', '==', foundCompany.id),
+          where('userId', '==', user.id),
+          where('status', '==', 'pending'),
+        ),
+      )
+      if (!existingReq.empty) {
+        toast.message('Request Anda masih pending. Tunggu approval owner.')
+        return
+      }
+
+      await addDoc(collection(db, 'employeeRequests'), {
+        companyId: foundCompany.id,
+        userId: user.id,
+        userName: user.name || user.email.split('@')[0],
+        userEmail: user.email,
+        status: 'pending',
+        requestedRole: role,
+        createdAt: new Date().toISOString(),
+      })
+
+      toast.success('Request join berhasil dikirim. Tunggu approval owner.')
+
+      // Tidak mengubah membership user.
+      // Optional: kalau mau update state App untuk tampilkan status "pending",
+      // Anda bisa pakai patch kosong atau menambah field baru di User.
+      onRequestSent({
+        companyId: user.companyId,
+        role: user.role,
+        companies: user.companies || [],
+      })
+    } catch (e: any) {
+      console.error(e)
+      toast.error(`Gagal mengirim request: ${e?.code || e?.message || String(e)}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-fit mb-4"
-            onClick={onBack}
-          >
+          <Button variant="ghost" size="sm" className="w-fit mb-4" onClick={onBack}>
             <ArrowLeft className="mr-2" />
             Kembali
           </Button>
           <CardTitle className="text-2xl">Gabung Perusahaan</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="company-code">Kode Perusahaan</Label>
             <Input
               id="company-code"
               placeholder="Masukkan kode perusahaan"
               value={companyCode}
-              onChange={(e) => setCompanyCode(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoinCompany()}
+              onChange={e => setCompanyCode(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === 'Enter' && findCompany()}
               className="font-mono"
             />
           </div>
-          <Button onClick={handleJoinCompany} className="w-full">
-            Gabung
+
+          <Button onClick={findCompany} className="w-full" disabled={loading}>
+            {loading ? 'Mencari...' : 'Cari'}
           </Button>
+
+          {foundCompany && (
+            <div className="border rounded-lg p-4 space-y-3">
+              <div>
+                <p className="font-medium">{foundCompany.name}</p>
+                <p className="text-xs text-muted-foreground">Kode: {foundCompany.code}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => requestJoinAs('admin')}
+                  disabled={loading}
+                >
+                  Request Admin
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => requestJoinAs('courier')}
+                  disabled={loading}
+                >
+                  Request Kurir
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Setelah request di-approve owner, Anda baru bisa akses perusahaan.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

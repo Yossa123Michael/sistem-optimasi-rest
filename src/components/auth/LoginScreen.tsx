@@ -10,7 +10,7 @@ import { auth, googleProvider } from '@/lib/firebase'
 import { signInWithPopup } from 'firebase/auth'
 
 interface LoginScreenProps {
-  onLoginSuccess: (user: User) => void
+  onLoginSuccess: () => void
   onForgotPassword: () => void
   onRegister: () => void
   onTrackPackage: () => void
@@ -26,7 +26,25 @@ export default function LoginScreen({
   const [password, setPassword] = useState('')
   const [loadingGoogle, setLoadingGoogle] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const ensureUserDoc = async (uid: string, payload: any) => {
+    const userRef = doc(db, 'users', uid)
+    const snap = await getDoc(userRef)
+    if (!snap.exists()) {
+      await setDoc(
+        userRef,
+        {
+          id: uid,
+          companies: [],
+          ...payload,
+        },
+        { merge: true },
+      )
+    } else {
+      await setDoc(userRef, payload, { merge: true })
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     toast.error('Login dengan email/password akan diganti. Gunakan Login dengan Google.')
   }
@@ -80,11 +98,16 @@ export default function LoginScreen({
         <CardHeader className="text-center pb-4">
           <div className="flex justify-center mb-4">
             <div className="bg-primary rounded-2xl p-4">
-              <Package size={48} weight="duotone" className="text-primary-foreground" />
+              <Package
+                size={48}
+                weight="duotone"
+                className="text-primary-foreground"
+              />
             </div>
           </div>
           <CardTitle className="text-3xl font-semibold">Welcome Back</CardTitle>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -150,6 +173,7 @@ export default function LoginScreen({
             <button
               onClick={onForgotPassword}
               className="text-primary hover:underline font-medium"
+              type="button"
             >
               Lupa Password?
             </button>
@@ -159,21 +183,28 @@ export default function LoginScreen({
               <button
                 onClick={onRegister}
                 className="text-primary hover:underline font-medium"
+                type="button"
               >
                 Daftar
               </button>
             </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t">
-            <Button
-              onClick={onTrackPackage}
-              variant="outline"
-              className="w-full"
-              size="lg"
+          <div className="mt-6 pt-6 border-t text-center">
+            <span
+              role="button"
+              tabIndex={0}
+              className="text-primary hover:underline font-medium select-none cursor-pointer"
+              onPointerDown={handleTrackPointerDown}
+              onPointerUp={handleTrackPointerUp}
+              onPointerCancel={() => (pressStartRef.current = null)}
+              onKeyDown={e => {
+                // blok Enter/Space agar tidak auto-activate
+                if (e.key === 'Enter' || e.key === ' ') e.preventDefault()
+              }}
             >
-              Cek Paket
-            </Button>
+              Cek Paket (Guest)
+            </span>
           </div>
         </CardContent>
       </Card>
