@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { User } from '@/lib/types'
 import { db } from '@/lib/firebase'
-import { collection, getDocs, limit, onSnapshot, orderBy, query, where, doc } from 'firebase/firestore'
+import { collection, getDocs, limit, onSnapshot, query, where, doc } from 'firebase/firestore'
 import TrackingMap from '@/components/tracking/TrackingMap'
 
 type OrderDoc = {
@@ -33,13 +33,18 @@ type PublicTrackingDoc = {
   lastLng?: number
 }
 
+function ts(o: any) {
+  const v = o?.updatedAt || o?.createdAt
+  const n = Date.parse(v)
+  return Number.isFinite(n) ? n : 0
+}
+
 export default function CostumerStatusview({ user }: { user: User }) {
   const userName = user.name || user.email.split('@')[0]
   const [latestOrder, setLatestOrder] = useState<OrderDoc | null>(null)
   const [tracking, setTracking] = useState<PublicTrackingDoc | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // unsubscribe realtime tracking saat resi berubah
   const unsubRef = useRef<null | (() => void)>(null)
 
   useEffect(() => {
@@ -55,29 +60,26 @@ export default function CostumerStatusview({ user }: { user: User }) {
         setLoading(true)
         setTracking(null)
 
-        // stop previous tracking listener
         if (unsubRef.current) {
           unsubRef.current()
           unsubRef.current = null
         }
 
-        // latest order
+        // TANPA orderBy -> tidak butuh composite index
         const snap = await getDocs(
           query(
             collection(db, 'orders'),
             where('customerId', '==', user.id),
-            orderBy('createdAt', 'desc'),
-            limit(1),
+            limit(50),
           ),
         )
 
-        const order = snap.docs[0]
-          ? ({ id: snap.docs[0].id, ...(snap.docs[0].data() as any) } as OrderDoc)
-          : null
+        const list = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as OrderDoc))
+        const sorted = [...list].sort((a, b) => ts(b) - ts(a))
+        const order = sorted[0] || null
 
         setLatestOrder(order)
 
-        // attach realtime tracking if trackingNumber exists
         const tn = order?.trackingNumber?.trim()
         if (tn) {
           const ref = doc(db, 'publicTracking', tn)
@@ -105,9 +107,7 @@ export default function CostumerStatusview({ user }: { user: User }) {
   }, [user.id])
 
   const effectiveStatus = useMemo(() => {
-    // prioritas: publicTracking (realtime)
     if (tracking?.status) return tracking.status
-    // fallback: order.status
     return latestOrder?.status || '-'
   }, [tracking?.status, latestOrder?.status])
 
