@@ -5,8 +5,9 @@ import CustomerHomeView from './CustomerHomeView'
 import CustomerHistoryView from './CustomerHistoryView'
 import CustomerOrderView from './CustomerOrderView'
 import CostumerStatusview from './CustomerStatusView'
+import CustomerPaymentHubView from './CustomerPaymentHubView' // NEW
 
-type CustomerView = 'home' | 'pemesanan' | 'status' | 'history'
+type CustomerView = 'home' | 'pemesanan' | 'status' | 'history' | 'payment' // NEW
 
 interface CustomerDashboardProps {
   user: User
@@ -25,6 +26,8 @@ export default function CustomerDashboard({ user, onLogout, onBackToHome }: Cust
         return <CostumerStatusview user={user} />
       case 'history':
         return <CustomerHistoryView user={user} onBack={() => setCurrentView('home')} />
+      case 'payment':
+        return <CustomerPaymentHubView user={user} onBack={() => setCurrentView('home')} />
       case 'home':
       default:
         return (
@@ -33,6 +36,7 @@ export default function CustomerDashboard({ user, onLogout, onBackToHome }: Cust
             onGoOrder={() => setCurrentView('pemesanan')}
             onGoStatus={() => setCurrentView('status')}
             onGoHistory={() => setCurrentView('history')}
+            onGoPayment={() => setCurrentView('payment')}
           />
         )
     }
@@ -42,8 +46,8 @@ export default function CustomerDashboard({ user, onLogout, onBackToHome }: Cust
     <div className="flex min-h-screen bg-background">
       <CustomerSidebar
         user={user}
-        currentView={currentView}
-        onViewChange={setCurrentView}
+        currentView={currentView as any}
+        onViewChange={setCurrentView as any}
         onLogout={onLogout}
         onBackToHome={onBackToHome}
       />

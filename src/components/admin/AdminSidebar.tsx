@@ -48,9 +48,6 @@ export default function AdminSidebar({
   const SidebarContent = () => (
     <div className="flex flex-col h-screen bg-card border-r">
       <div className="p-6 border-b flex flex-col items-center">
-        <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">Photo</p>
-        </div>
         <p className="text-sm text-center text-foreground font-medium">{userName}</p>
 
         {user.companyId ? (

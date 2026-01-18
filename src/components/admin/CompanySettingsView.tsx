@@ -26,8 +26,12 @@ type CompanyDoc = {
   officeLat?: number
   officeLng?: number
   officeAddress?: string
-
   isOpen?: boolean
+
+  // NEW: rekening
+  bankName?: string
+  bankAccountName?: string
+  bankAccountNumber?: string
 }
 
 type Tab = 'settings' | 'employees'
@@ -65,11 +69,19 @@ export default function CompanySettingsView({ user }: { user: User }) {
     lng: 106.8456,
   })
 
+  // NEW: rekening (owner only)
+  const [bankName, setBankName] = useState('')
+  const [bankAccountName, setBankAccountName] = useState('')
+  const [bankAccountNumber, setBankAccountNumber] = useState('')
+
   // employees
   const [employees, setEmployees] = useState<User[]>([])
   const [loadingEmployees, setLoadingEmployees] = useState(false)
 
-  const isOwner = useMemo(() => !!company?.ownerId && company.ownerId === user.id, [company?.ownerId, user.id])
+  const isOwner = useMemo(
+    () => !!company?.ownerId && company.ownerId === user.id,
+    [company?.ownerId, user.id],
+  )
 
   useEffect(() => {
     const load = async () => {
@@ -101,6 +113,11 @@ export default function CompanySettingsView({ user }: { user: User }) {
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
           setOffice({ lat, lng })
         }
+
+        // NEW: rekening load
+        setBankName(String((c as any).bankName || ''))
+        setBankAccountName(String((c as any).bankAccountName || ''))
+        setBankAccountNumber(String((c as any).bankAccountNumber || ''))
       } finally {
         setLoading(false)
       }
@@ -159,6 +176,12 @@ export default function CompanySettingsView({ user }: { user: User }) {
         officeLat: office.lat,
         officeLng: office.lng,
         isOpen: !!isOpen,
+
+        // NEW: rekening (boleh tetap disimpan walau kosong)
+        bankName: bankName.trim(),
+        bankAccountName: bankAccountName.trim(),
+        bankAccountNumber: bankAccountNumber.trim(),
+
         updatedAt: new Date().toISOString(),
       })
       toast.success('Pengaturan perusahaan tersimpan')
@@ -184,7 +207,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
 
       await updateDoc(ref, {
         companies: nextCompanies,
-        companyId: '', // keluarkan dari company aktif
+        companyId: '',
         role: 'customer',
         updatedAt: new Date().toISOString(),
       })
@@ -209,7 +232,6 @@ export default function CompanySettingsView({ user }: { user: User }) {
       const data = snap.data() as any
       const nextCompanies = upsertMembership(data.companies || [], user.companyId, role)
 
-      // kalau employee sedang aktif di company ini, role aktif harus ikut berubah
       const patch: any = {
         companies: nextCompanies,
         updatedAt: new Date().toISOString(),
@@ -246,7 +268,6 @@ export default function CompanySettingsView({ user }: { user: User }) {
               Atur status buka/tutup, tarif, lokasi kantor, dan (owner) kelola karyawan.
             </p>
 
-            {/* NEW: code perusahaan hanya owner */}
             {isOwner && company?.code ? (
               <p className="text-xs text-muted-foreground mt-2">
                 Kode Perusahaan (Owner): <span className="font-mono">{company.code}</span>
@@ -314,6 +335,40 @@ export default function CompanySettingsView({ user }: { user: User }) {
                     <Input value={officeAddress} onChange={e => setOfficeAddress(e.target.value)} />
                   </div>
 
+                  {/* NEW: rekening */}
+                  {isOwner && (
+                    <div className="space-y-4 border-t pt-4">
+                      <h2 className="font-semibold">Rekening Pembayaran (Owner)</h2>
+
+                      <div className="space-y-2">
+                        <Label>Nama Bank</Label>
+                        <Input
+                          value={bankName}
+                          onChange={e => setBankName(e.target.value)}
+                          placeholder="BCA / BRI / Mandiri"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Nama Pemilik Rekening</Label>
+                        <Input
+                          value={bankAccountName}
+                          onChange={e => setBankAccountName(e.target.value)}
+                          placeholder="Nama sesuai rekening"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Nomor Rekening</Label>
+                        <Input
+                          value={bankAccountNumber}
+                          onChange={e => setBankAccountNumber(e.target.value)}
+                          placeholder="1234567890"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <Button onClick={save} disabled={!canSave} className="w-full">
                     {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
                   </Button>
@@ -349,7 +404,10 @@ export default function CompanySettingsView({ user }: { user: User }) {
               ) : (
                 <div className="space-y-3">
                   {employees.map(emp => (
-                    <div key={emp.id} className="border rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div
+                      key={emp.id}
+                      className="border rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                    >
                       <div className="min-w-0">
                         <p className="font-semibold truncate">{emp.name || emp.email}</p>
                         <p className="text-xs text-muted-foreground truncate">{emp.email}</p>

@@ -4,12 +4,19 @@ import { User } from '@/lib/types'
 
 interface Props {
   user: User
-  onGoOrder?: () => void
-  onGoStatus?: () => void
-  onGoHistory?: () => void
+  onGoOrder: () => void
+  onGoStatus: () => void
+  onGoHistory: () => void
+  onGoPayment: () => void // NEW
 }
 
-export default function CustomerHomeView({ user, onGoOrder, onGoStatus, onGoHistory }: Props) {
+export default function CustomerHomeView({
+  user,
+  onGoOrder,
+  onGoStatus,
+  onGoHistory,
+  onGoPayment,
+}: Props) {
   const userName = user.name || user.email.split('@')[0]
 
   return (
@@ -25,7 +32,9 @@ export default function CustomerHomeView({ user, onGoOrder, onGoStatus, onGoHist
             <CardContent className="p-0 space-y-3">
               <h2 className="text-lg font-semibold">Pesan</h2>
               <p className="text-sm text-muted-foreground">Buat pesanan baru</p>
-              <Button className="w-full" onClick={onGoOrder}>Pesan</Button>
+              <Button className="w-full" onClick={onGoOrder}>
+                Pesan
+              </Button>
             </CardContent>
           </Card>
 
@@ -33,15 +42,19 @@ export default function CustomerHomeView({ user, onGoOrder, onGoStatus, onGoHist
             <CardContent className="p-0 space-y-3">
               <h2 className="text-lg font-semibold">Cek Status Paket</h2>
               <p className="text-sm text-muted-foreground">Pantau status pengiriman</p>
-              <Button variant="outline" className="w-full" onClick={onGoStatus}>Status Paket</Button>
+              <Button variant="outline" className="w-full" onClick={onGoStatus}>
+                Status Paket
+              </Button>
             </CardContent>
           </Card>
 
           <Card className="p-6">
             <CardContent className="p-0 space-y-3">
               <h2 className="text-lg font-semibold">Pembayaran</h2>
-              <p className="text-sm text-muted-foreground">Coming soon (opsional)</p>
-              <Button variant="outline" className="w-full" disabled>Pembayaran</Button>
+              <p className="text-sm text-muted-foreground">COD atau transfer (upload bukti)</p>
+              <Button variant="outline" className="w-full" onClick={onGoPayment}>
+                Pembayaran
+              </Button>
             </CardContent>
           </Card>
 
@@ -49,7 +62,9 @@ export default function CustomerHomeView({ user, onGoOrder, onGoStatus, onGoHist
             <CardContent className="p-0 space-y-3">
               <h2 className="text-lg font-semibold">History</h2>
               <p className="text-sm text-muted-foreground">Riwayat pesanan</p>
-              <Button variant="outline" className="w-full" onClick={onGoHistory}>History</Button>
+              <Button variant="outline" className="w-full" onClick={onGoHistory}>
+                History
+              </Button>
             </CardContent>
           </Card>
         </div>

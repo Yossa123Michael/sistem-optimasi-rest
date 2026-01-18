@@ -102,9 +102,6 @@ export default function HomeDashboard({
   const SidebarContent = () => (
     <div className="flex flex-col h-screen bg-card">
       <div className="flex flex-col items-center gap-3 p-6 pt-8 flex-shrink-0">
-        <div className="w-24 h-24 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center bg-background text-muted-foreground/40">
-          <span className="text-sm">Photo</span>
-        </div>
         <div className="text-center">
           <p className="text-base text-primary font-medium">
             {user.name || user.email.split('@')[0]}

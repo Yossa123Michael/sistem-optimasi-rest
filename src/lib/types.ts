@@ -30,6 +30,10 @@ export interface Company {
 
   // NEW: buka/tutup untuk tampil di pencarian order customer
   isOpen?: boolean
+
+    bankName?: string
+  bankAccountName?: string
+  bankAccountNumber?: string
 }
 
 export interface Package {

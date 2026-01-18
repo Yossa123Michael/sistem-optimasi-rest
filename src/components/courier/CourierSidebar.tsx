@@ -33,17 +33,12 @@ export default function CourierSidebar({
   const SidebarContent = () => (
     <div className="flex flex-col h-screen bg-card border-r">
       <div className="p-6 border-b flex flex-col items-center">
-        <div className="w-24 h-24 mb-4 rounded-full border-2 border-border bg-secondary flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">Photo</p>
-        </div>
-        <p className="text-sm text-center text-foreground font-medium">{userName}</p>
-
-        {user.companyId ? (
-          <p className="text-xs text-muted-foreground mt-1">Company ID: {user.companyId}</p>
-        ) : (
-          <p className="text-xs text-destructive mt-1">Belum pilih perusahaan</p>
-        )}
-      </div>
+  <p className="text-sm text-center text-foreground font-medium">{userName}</p>
+  {/* opsional */}
+  {user.companyId && (
+    <p className="text-xs text-muted-foreground mt-1">Company ID: {user.companyId}</p>
+  )}
+</div>
 
       <nav className="flex-1 p-4 space-y-2">
         <Button

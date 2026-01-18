@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
-import { Order, PaymentMethod, PaymentStatus, User } from '@/lib/types'
+import { Company, Order, PaymentMethod, PaymentStatus, User } from '@/lib/types'
 
 export default function CustomerPaymentView({
   user,
@@ -18,6 +18,8 @@ export default function CustomerPaymentView({
   onBack: () => void
 }) {
   const [order, setOrder] = useState<Order | null>(null)
+  const [company, setCompany] = useState<Company | null>(null)
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -33,6 +35,7 @@ export default function CustomerPaymentView({
           setOrder(null)
           return
         }
+
         const data = { id: snap.id, ...(snap.data() as any) } as Order
         if (data.customerId !== user.id) {
           setOrder(null)
@@ -40,8 +43,13 @@ export default function CustomerPaymentView({
           return
         }
         setOrder(data)
+
         setMethod((data.paymentMethod as PaymentMethod) || 'cod')
         setProofUrl(String(data.paymentProofUrl || ''))
+
+        // load company rekening
+        const cSnap = await getDoc(doc(db, 'companies', data.companyId))
+        setCompany(cSnap.exists() ? ({ id: cSnap.id, ...(cSnap.data() as any) } as Company) : null)
       } finally {
         setLoading(false)
       }
@@ -55,7 +63,6 @@ export default function CustomerPaymentView({
     if (!order) return false
     if (saving) return false
     if (method === 'cod') return true
-    // transfer
     return !!proofUrl.trim()
   }, [order, saving, method, proofUrl])
 
@@ -106,7 +113,7 @@ export default function CustomerPaymentView({
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Pembayaran</h1>
-            <p className="text-sm text-muted-foreground">Pilih metode pembayaran dan kirim bukti jika transfer.</p>
+            <p className="text-sm text-muted-foreground">COD atau transfer (upload bukti).</p>
           </div>
           <Button variant="outline" onClick={onBack}>
             Kembali
@@ -122,9 +129,7 @@ export default function CustomerPaymentView({
             ) : (
               <>
                 <div className="border rounded-lg p-4 text-sm space-y-1">
-                  <p><b>Perusahaan:</b> {(order as any).companyName || order.companyId}</p>
                   <p><b>Paket:</b> {order.packageName}</p>
-                  <p><b>Berat:</b> {order.weight} kg</p>
                   <p><b>Total:</b> Rp {total.toFixed(0)}</p>
                   <p>
                     <b>Status Pembayaran:</b>{' '}
@@ -134,36 +139,39 @@ export default function CustomerPaymentView({
 
                 <div className="space-y-2">
                   <Label>Metode Pembayaran</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={method === 'cod' ? 'default' : 'outline'}
-                      onClick={() => setMethod('cod')}
-                    >
+                  <div className="flex gap-2 flex-wrap">
+                    <Button type="button" variant={method === 'cod' ? 'default' : 'outline'} onClick={() => setMethod('cod')}>
                       Bayar di Tempat (COD)
                     </Button>
-                    <Button
-                      type="button"
-                      variant={method === 'transfer' ? 'default' : 'outline'}
-                      onClick={() => setMethod('transfer')}
-                    >
+                    <Button type="button" variant={method === 'transfer' ? 'default' : 'outline'} onClick={() => setMethod('transfer')}>
                       Transfer
                     </Button>
                   </div>
                 </div>
 
                 {method === 'transfer' && (
-                  <div className="space-y-2">
-                    <Label>Link Bukti Transfer</Label>
-                    <Input
-                      placeholder="Tempel link bukti (contoh: https://...jpg)"
-                      value={proofUrl}
-                      onChange={e => setProofUrl(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Untuk upload file langsung ke Firebase Storage, bilang ya — nanti saya buatkan.
-                    </p>
-                  </div>
+                  <>
+                    <div className="border rounded-lg p-4 text-sm space-y-1">
+                      <p className="font-semibold">Rekening Tujuan</p>
+                      <p><b>Bank:</b> {company?.bankName || '-'}</p>
+                      <p><b>Nama:</b> {company?.bankAccountName || '-'}</p>
+                      <p><b>No Rek:</b> {company?.bankAccountNumber || '-'}</p>
+                      {(!company?.bankAccountNumber || !company?.bankName) && (
+                        <p className="text-xs text-destructive">
+                          Rekening belum diatur oleh owner perusahaan.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Link Bukti Transfer</Label>
+                      <Input
+                        placeholder="Tempel link bukti (contoh: https://...jpg)"
+                        value={proofUrl}
+                        onChange={e => setProofUrl(e.target.value)}
+                      />
+                    </div>
+                  </>
                 )}
 
                 <Button disabled={!canSubmit} onClick={submit} className="w-full">
