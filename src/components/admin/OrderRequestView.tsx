@@ -43,17 +43,17 @@ type OrderDoc = {
   createdAt: string
   updatedAt: string
 
-  // NEW (optional kalau ada)
-  distanceKm?: number
-  ratePerKm?: number
   estimatedCost?: number
 
-  paymentMethod?: 'cod' | 'transfer' | null
-  paymentStatus?: 'unpaid' | 'cod' | 'pending_verification' | 'paid' | 'rejected'
+  paymentMethod?: 'bayar_di_kantor' | 'transfer' | null
+  paymentStatus?: 'unpaid' | 'pending_verification' | 'paid' | 'rejected'
   paymentProofUrl?: string | null
+  paymentNotes?: string | null
   paymentCreatedAt?: string
   paymentVerifiedAt?: string
   paymentVerifiedBy?: string
+
+  packageId?: string
 }
 
 function genTrackingNumber(prefix = 'KEL4') {
@@ -80,7 +80,6 @@ export default function OrderRequestsView({ user }: { user: User }) {
         return
       }
 
-      // 1) menunggu approve
       const createdSnap = await getDocs(
         query(
           collection(db, 'orders'),
@@ -90,8 +89,7 @@ export default function OrderRequestsView({ user }: { user: User }) {
       )
       setCreatedOrders(createdSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as OrderDoc)))
 
-      // 2) menunggu verifikasi pembayaran transfer
-      // (order sudah assigned + paymentStatus pending_verification)
+      // payment waiting verification (transfer + bayar di kantor)
       const paySnap = await getDocs(
         query(
           collection(db, 'orders'),
@@ -120,9 +118,11 @@ export default function OrderRequestsView({ user }: { user: User }) {
       const now = new Date().toISOString()
       const trackingNumber = genTrackingNumber()
 
-      // 1) packages (operasional)
       const pkgPayload: any = {
         companyId: o.companyId,
+        orderId: o.id,
+        awaitingPayment: true,
+        courierId: '',
         name: o.packageName,
         recipientName: o.recipientName,
         recipientPhone: o.recipientPhone,
@@ -139,7 +139,6 @@ export default function OrderRequestsView({ user }: { user: User }) {
 
       const pkgRef = await addDoc(collection(db, 'packages'), pkgPayload)
 
-      // 2) publicTracking
       await setDoc(
         doc(db, 'publicTracking', trackingNumber),
         {
@@ -153,19 +152,16 @@ export default function OrderRequestsView({ user }: { user: User }) {
         { merge: true },
       )
 
-      // 3) update order
       await updateDoc(doc(db, 'orders', o.id), {
         status: 'assigned',
         trackingNumber,
-        // payment tetap unpaid sampai customer pilih COD/Transfer
+        packageId: pkgRef.id,
         paymentStatus: o.paymentStatus || 'unpaid',
         paymentMethod: o.paymentMethod || null,
         updatedAt: now,
       })
 
-      await assignPendingPackagesToActiveCouriers(user.companyId)
-
-      toast.success('Order di-approve & paket dibuat')
+      toast.success('Order di-approve. Menunggu pembayaran sebelum dikirim.')
       await load()
     } catch (e) {
       console.error(e)
@@ -192,16 +188,32 @@ export default function OrderRequestsView({ user }: { user: User }) {
     }
   }
 
+  const unlockAndAssign = async (o: OrderDoc) => {
+    if (!user.companyId) return
+    if (!o.packageId) return
+
+    await updateDoc(doc(db, 'packages', o.packageId), {
+      awaitingPayment: false,
+      updatedAt: new Date().toISOString(),
+    })
+
+    await assignPendingPackagesToActiveCouriers(user.companyId)
+  }
+
   const verifyPaid = async (o: OrderDoc) => {
     try {
       setActingId(o.id)
+
       await updateDoc(doc(db, 'orders', o.id), {
         paymentStatus: 'paid',
         paymentVerifiedAt: new Date().toISOString(),
         paymentVerifiedBy: user.id,
         updatedAt: new Date().toISOString(),
       })
-      toast.success('Pembayaran diverifikasi (PAID)')
+
+      await unlockAndAssign(o)
+
+      toast.success('Pembayaran diverifikasi (PAID). Paket siap diantar.')
       await load()
     } catch (e) {
       console.error(e)
@@ -220,7 +232,7 @@ export default function OrderRequestsView({ user }: { user: User }) {
         paymentVerifiedBy: user.id,
         updatedAt: new Date().toISOString(),
       })
-      toast.success('Bukti pembayaran ditolak')
+      toast.success('Pembayaran ditolak')
       await load()
     } catch (e) {
       console.error(e)
@@ -240,24 +252,16 @@ export default function OrderRequestsView({ user }: { user: User }) {
           <div>
             <h1 className="text-3xl font-semibold mb-2">Order Masuk</h1>
             <p className="text-muted-foreground">
-              Kelola approve/reject order dan verifikasi pembayaran transfer.
+              Approve order → customer bayar (bayar di kantor / transfer) → admin verifikasi → baru paket diantar kurir.
             </p>
           </div>
 
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={tab === 'created' ? 'default' : 'outline'}
-              onClick={() => setTab('created')}
-            >
+            <Button type="button" variant={tab === 'created' ? 'default' : 'outline'} onClick={() => setTab('created')}>
               Menunggu Approve ({createdCount})
             </Button>
-            <Button
-              type="button"
-              variant={tab === 'payment' ? 'default' : 'outline'}
-              onClick={() => setTab('payment')}
-            >
-              Verifikasi Transfer ({paymentCount})
+            <Button type="button" variant={tab === 'payment' ? 'default' : 'outline'} onClick={() => setTab('payment')}>
+              Verifikasi Pembayaran ({paymentCount})
             </Button>
           </div>
         </div>
@@ -281,31 +285,13 @@ export default function OrderRequestsView({ user }: { user: User }) {
                       <p className="text-xs text-muted-foreground">
                         Koordinat: {o.latitude}, {o.longitude} • Berat: {o.weight} kg
                       </p>
-                      {(o.customerName || o.customerEmail) && (
-                        <p className="text-xs text-muted-foreground">
-                          Customer: {o.customerName || '-'} • {o.customerEmail || '-'}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        Payment: <span className="font-mono">{o.paymentStatus || 'unpaid'}</span>
-                      </p>
-                      {typeof o.estimatedCost === 'number' && (
-                        <p className="text-xs text-muted-foreground">
-                          Estimasi: Rp {Number(o.estimatedCost).toFixed(0)}
-                        </p>
-                      )}
                     </div>
 
                     <div className="mt-3 flex gap-2">
                       <Button onClick={() => approve(o)} disabled={!!actingId} className="w-full md:w-auto">
                         {actingId === o.id ? 'Memproses...' : 'Approve'}
                       </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => reject(o)}
-                        disabled={!!actingId}
-                        className="w-full md:w-auto"
-                      >
+                      <Button variant="outline" onClick={() => reject(o)} disabled={!!actingId} className="w-full md:w-auto">
                         Reject
                       </Button>
                     </div>
@@ -314,60 +300,66 @@ export default function OrderRequestsView({ user }: { user: User }) {
               </div>
             )
           ) : paymentCount === 0 ? (
-            <p className="text-sm text-muted-foreground">Tidak ada pembayaran transfer yang menunggu verifikasi.</p>
+            <p className="text-sm text-muted-foreground">Tidak ada pembayaran yang menunggu verifikasi.</p>
           ) : (
             <div className="space-y-3">
-              {paymentOrders.map(o => (
-                <div key={o.id} className="border rounded-lg p-4">
-                  <div className="space-y-1">
-                    <p className="font-semibold">{o.packageName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Customer: {o.customerName || '-'} • {o.customerEmail || '-'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Status order: <span className="font-mono">{o.status}</span> • Tracking:{' '}
-                      <span className="font-mono">{o.trackingNumber || '-'}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Payment: <span className="font-mono">{o.paymentStatus}</span> • Method:{' '}
-                      <span className="font-mono">{o.paymentMethod || '-'}</span>
-                    </p>
-                    {typeof o.estimatedCost === 'number' && (
-                      <p className="text-xs text-muted-foreground">
-                        Total: Rp {Number(o.estimatedCost).toFixed(0)}
-                      </p>
-                    )}
-                    {o.paymentProofUrl ? (
-                      <p className="text-xs">
-                        Bukti:{' '}
-                        <a className="underline" href={o.paymentProofUrl} target="_blank" rel="noreferrer">
-                          {o.paymentProofUrl}
-                        </a>
-                      </p>
-                    ) : (
-                      <p className="text-xs text-destructive">Bukti belum ada.</p>
-                    )}
-                  </div>
+              {paymentOrders.map(o => {
+                const isTransfer = o.paymentMethod === 'transfer'
+                const canVerify = !isTransfer || !!o.paymentProofUrl
 
-                  <div className="mt-3 flex gap-2 flex-wrap">
-                    <Button
-                      onClick={() => verifyPaid(o)}
-                      disabled={!!actingId || !o.paymentProofUrl}
-                      className="w-full md:w-auto"
-                    >
-                      {actingId === o.id ? 'Memproses...' : 'Verifikasi (PAID)'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => rejectPayment(o)}
-                      disabled={!!actingId}
-                      className="w-full md:w-auto"
-                    >
-                      Tolak Bukti
-                    </Button>
+                return (
+                  <div key={o.id} className="border rounded-lg p-4">
+                    <div className="space-y-1">
+                      <p className="font-semibold">{o.packageName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Customer: {o.customerName || '-'} • {o.customerEmail || '-'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Method: <span className="font-mono">{o.paymentMethod || '-'}</span> • Status:{' '}
+                        <span className="font-mono">{o.paymentStatus}</span>
+                      </p>
+                      {o.paymentNotes ? (
+                        <p className="text-xs text-muted-foreground">
+                          Catatan: {o.paymentNotes}
+                        </p>
+                      ) : null}
+
+                      {isTransfer ? (
+                        o.paymentProofUrl ? (
+                          <p className="text-xs">
+                            Bukti:{' '}
+                            <a className="underline" href={o.paymentProofUrl} target="_blank" rel="noreferrer">
+                              {o.paymentProofUrl}
+                            </a>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-destructive">Transfer tapi bukti belum ada.</p>
+                        )
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Bayar di kantor: tidak butuh bukti.</p>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex gap-2 flex-wrap">
+                      <Button
+                        onClick={() => verifyPaid(o)}
+                        disabled={!!actingId || !canVerify}
+                        className="w-full md:w-auto"
+                      >
+                        {actingId === o.id ? 'Memproses...' : 'Approve Pembayaran (PAID)'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => rejectPayment(o)}
+                        disabled={!!actingId}
+                        className="w-full md:w-auto"
+                      >
+                        Reject Pembayaran
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </Card>

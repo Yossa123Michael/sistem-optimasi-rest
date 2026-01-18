@@ -63,7 +63,11 @@ export default function CourierHomeView({ user, onGoRecommendation }: CourierHom
           const pSnap = await getDocs(
             query(collection(db, 'packages'), where('companyId', '==', user.companyId), where('courierId', '==', courierData.id)),
           )
-          setPackages(pSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+                    setPackages(
+            pSnap.docs
+              .map(d => ({ id: d.id, ...(d.data() as any) }))
+              .filter((p: any) => p.awaitingPayment !== true),
+          )
         } else {
           setPackages([])
         }

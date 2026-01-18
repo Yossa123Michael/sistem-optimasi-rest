@@ -114,39 +114,39 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
 
   // ===== leave company (admin biasa saja, owner tidak boleh) =====
   const leaveCompany = async () => {
-  if (!user.companyId) return
-  const companyId = user.companyId
+    if (!user.companyId) return
+    const companyId = user.companyId
 
-  try {
-    // 1) companyMembers -> inactive (ignore kalau belum ada)
     try {
-      await updateDoc(doc(db, 'companyMembers', `${companyId}_${user.id}`), {
-        active: false,
-        leftAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-    } catch {}
+      // 1) companyMembers -> inactive (ignore kalau belum ada)
+      try {
+        await updateDoc(doc(db, 'companyMembers', `${companyId}_${user.id}`), {
+          active: false,
+          leftAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      } catch {}
 
-    // 2) hapus membership dari users.companies[] + reset active company
-    const userRef = doc(db, 'users', user.id)
-    const snap = await getDoc(userRef)
-    const data = snap.exists() ? (snap.data() as any) : {}
-    const companiesArr: any[] = Array.isArray(data.companies) ? data.companies : []
-    const nextCompanies = companiesArr.filter(m => m?.companyId !== companyId)
+      // 2) hapus membership dari users.companies[] + reset active company
+      const userRef = doc(db, 'users', user.id)
+      const snap = await getDoc(userRef)
+      const data = snap.exists() ? (snap.data() as any) : {}
+      const companiesArr: any[] = Array.isArray(data.companies) ? data.companies : []
+      const nextCompanies = companiesArr.filter(m => m?.companyId !== companyId)
 
-    await setDoc(
-      userRef,
-      { companies: nextCompanies, companyId: '', role: 'customer' },
-      { merge: true },
-    )
+      await setDoc(
+        userRef,
+        { companies: nextCompanies, companyId: '', role: 'customer' },
+        { merge: true },
+      )
 
-    toast.success('Keluar perusahaan berhasil')
-    onBackToHome?.()
-  } catch (e) {
-    console.error(e)
-    toast.error('Gagal keluar perusahaan')
+      toast.success('Keluar perusahaan berhasil')
+      onBackToHome?.()
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal keluar perusahaan')
+    }
   }
-}
 
   // ===== delete company cascade (owner) =====
   const deleteCompanyCascade = async () => {

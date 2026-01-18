@@ -1,5 +1,8 @@
 export type UserRole = 'admin' | 'courier' | 'customer'
 
+export type PaymentMethod = 'bayar_di_kantor' | 'transfer'
+export type PaymentStatus = 'unpaid' | 'pending_verification' | 'paid' | 'rejected'
+
 export interface UserCompanyMembership {
   companyId: string
   role: UserRole
@@ -22,16 +25,11 @@ export interface Company {
   code: string
   ownerId: string
   createdAt: string
-
-  // lokasi kantor dipilih oleh owner/admin
   officeLocation?: { lat: number; lng: number }
-
   archived?: boolean
-
-  // NEW: buka/tutup untuk tampil di pencarian order customer
   isOpen?: boolean
 
-    bankName?: string
+  bankName?: string
   bankAccountName?: string
   bankAccountNumber?: string
 }
@@ -52,6 +50,9 @@ export interface Package {
   updatedAt: string
   deliveredAt?: string
   locationDetail: string
+
+  orderId?: string
+  awaitingPayment?: boolean
 }
 
 export interface Courier {
@@ -97,16 +98,12 @@ export interface TrackingStatus {
 }
 
 export type OrderStatus =
-  | 'created' // waiting approval
-  | 'assigned' // approved
-  | 'failed' // rejected
-  | 'paid' // legacy (jika masih dipakai)
+  | 'created'
+  | 'assigned'
+  | 'failed'
+  | 'paid'
   | 'in-transit'
   | 'delivered'
-
-// NEW: pembayaran
-export type PaymentMethod = 'cod' | 'transfer'
-export type PaymentStatus = 'unpaid' | 'cod' | 'pending_verification' | 'paid' | 'rejected'
 
 export interface Order {
   id: string
@@ -133,12 +130,10 @@ export interface Order {
   createdAt: string
   updatedAt: string
 
-  // NEW: snapshot harga (dari CustomerOrderView)
   distanceKm?: number
   ratePerKm?: number
   estimatedCost?: number
 
-  // NEW: payment
   paymentMethod?: PaymentMethod | null
   paymentStatus?: PaymentStatus
   paymentProofUrl?: string | null
@@ -146,6 +141,8 @@ export interface Order {
   paymentCreatedAt?: string
   paymentVerifiedAt?: string
   paymentVerifiedBy?: string
+
+  packageId?: string
 }
 
 // NEW: companyMembers (dipakai untuk list karyawan)

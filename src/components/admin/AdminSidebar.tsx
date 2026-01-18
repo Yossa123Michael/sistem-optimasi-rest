@@ -37,6 +37,7 @@ export default function AdminSidebar({
     { id: 'home', label: 'Home' },
     { id: 'input-data', label: 'Input Data' },
     { id: 'orders', label: 'Order Masuk' },
+    { id: 'payments', label: 'Cek Pembayaran' }, // NEW
     { id: 'courier', label: 'Kurir' },
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'company-settings', label: 'Pengaturan Perusahaan' },
@@ -71,7 +72,6 @@ export default function AdminSidebar({
                 }
                 onClick={() => {
                   onViewChange(item.id)
-                  if (isMobile) setOpen(false)
                 }}
                 disabled={item.id !== 'home' && !user.companyId}
               >
@@ -92,7 +92,6 @@ export default function AdminSidebar({
               const ok = confirm('Keluar dari perusahaan ini?')
               if (!ok) return
               onLeaveCompany()
-              if (isMobile) setOpen(false)
             }}
           >
             Keluar Perusahaan
@@ -109,7 +108,6 @@ export default function AdminSidebar({
               )
               if (!ok) return
               onDeleteCompany()
-              if (isMobile) setOpen(false)
             }}
           >
             Hapus Perusahaan
@@ -122,7 +120,6 @@ export default function AdminSidebar({
             className="w-full justify-center"
             onClick={() => {
               onBackToHome()
-              if (isMobile) setOpen(false)
             }}
           >
             Kembali ke Home
@@ -134,7 +131,6 @@ export default function AdminSidebar({
           className="w-full justify-center text-destructive hover:text-destructive/80"
           onClick={() => {
             onLogout()
-            if (isMobile) setOpen(false)
           }}
         >
           Sign Out

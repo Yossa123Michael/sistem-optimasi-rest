@@ -7,6 +7,12 @@ import { collection, getDocs, limit, query, where } from 'firebase/firestore'
 import { Order, User } from '@/lib/types'
 import CustomerPaymentView from './CustomerPaymentView'
 
+function ts(o: any) {
+  const v = o?.updatedAt || o?.createdAt
+  const n = Date.parse(v)
+  return Number.isFinite(n) ? n : 0
+}
+
 export default function CustomerPaymentHubView({
   user,
   onBack,
@@ -28,7 +34,7 @@ export default function CustomerPaymentHubView({
             collection(db, 'orders'),
             where('customerId', '==', user.id),
             where('status', '==', 'assigned'),
-            limit(20),
+            limit(50),
           ),
         )
 
@@ -37,13 +43,19 @@ export default function CustomerPaymentHubView({
           return
         }
 
-        const list = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Order))
+        // ✅ FIX: tutup map dengan benar
+        const list = snap.docs.map(
+          d => ({ id: d.id, ...(d.data() as any) } as Order),
+        )
 
-        // cari yang belum paid
-        const candidate =
-          list.find(o => o.paymentStatus !== 'paid') || list[0]
+        // 1) urutkan terbaru dulu (client-side)
+        const sorted = [...list].sort((a, b) => ts(b) - ts(a))
 
-        setOrderId(candidate.id)
+        // 2) pilih yang belum paid
+        const unpaid = sorted.filter(o => (o.paymentStatus || 'unpaid') !== 'paid')
+
+        const candidate = unpaid[0] || sorted[0] || null
+        setOrderId(candidate ? candidate.id : null)
       } catch (e) {
         console.error(e)
         toast.error('Gagal memuat data pembayaran')
@@ -68,8 +80,11 @@ export default function CustomerPaymentHubView({
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Pembayaran</h1>
-            <p className="text-sm text-muted-foreground">COD atau transfer (upload bukti).</p>
+            <p className="text-sm text-muted-foreground">
+              Bayar di kantor atau transfer (upload bukti).
+            </p>
           </div>
+
           <Button variant="outline" onClick={onBack}>
             Kembali
           </Button>
