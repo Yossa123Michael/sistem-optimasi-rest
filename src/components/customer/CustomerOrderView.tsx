@@ -220,6 +220,10 @@ export default function CustomerOrderView({ user }: { user: User }) {
 
         createdAt: now,
         updatedAt: now,
+
+        paymentStatus: 'unpaid',
+        paymentMethod: null,
+        paymentProofUrl: null,
       })
 
       toast.success('Pesanan berhasil dibuat. Menunggu approve admin.')

@@ -6,7 +6,7 @@ import CourierRecommendationView from './CourierRecommendationView'
 import CourierUpdateView from './CourierUpdateView'
 import CourierHistoryView from './CourierHistoryView'
 import { db } from '@/lib/firebase'
-import { doc, setDoc, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { toast } from 'sonner'
 
 type CourierView = 'home' | 'recommendation' | 'update' | 'history'
@@ -24,30 +24,39 @@ export default function CourierDashboard({ user, onLogout, onBackToHome }: Couri
   const [currentView, setCurrentView] = useState<CourierView>('home')
 
   const leaveCompany = async () => {
-    if (!user.companyId) return
-    const companyId = user.companyId
+  if (!user.companyId) return
+  const companyId = user.companyId
 
+  try {
+    // 1) companyMembers -> inactive
     try {
-      // set member inactive (ignore jika doc belum ada)
-      try {
-        await updateDoc(doc(db, 'companyMembers', `${companyId}_${user.id}`), {
-          active: false,
-          leftAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      } catch (e) {
-        // ignore
-      }
+      await updateDoc(doc(db, 'companyMembers', `${companyId}_${user.id}`), {
+        active: false,
+        leftAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    } catch {}
 
-      await setDoc(doc(db, 'users', user.id), { companyId: '', role: 'customer' }, { merge: true })
+    // 2) hapus membership dari users.companies[]
+    const userRef = doc(db, 'users', user.id)
+    const snap = await getDoc(userRef)
+    const data = snap.exists() ? (snap.data() as any) : {}
+    const companiesArr: any[] = Array.isArray(data.companies) ? data.companies : []
+    const nextCompanies = companiesArr.filter(m => m?.companyId !== companyId)
 
-      toast.success('Keluar perusahaan berhasil')
-      onBackToHome?.()
-    } catch (e) {
-      console.error(e)
-      toast.error('Gagal keluar perusahaan')
-    }
+    await setDoc(
+      userRef,
+      { companies: nextCompanies, companyId: '', role: 'customer' },
+      { merge: true },
+    )
+
+    toast.success('Keluar perusahaan berhasil')
+    onBackToHome?.()
+  } catch (e) {
+    console.error(e)
+    toast.error('Gagal keluar perusahaan')
   }
+}
 
   const renderView = () => {
     switch (currentView) {
