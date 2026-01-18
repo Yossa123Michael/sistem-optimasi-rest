@@ -1,13 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { User, Company, UserRole } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { db } from '@/lib/firebase'
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, setDoc, query, where } from 'firebase/firestore'
 import { toast } from 'sonner'
 
 type UserPatch = Pick<User, 'companyId' | 'role'>
+
+type CompanyMember = {
+  id: string
+  companyId: string
+  userId: string
+  role: UserRole
+  active?: boolean
+}
 
 interface CompanyListScreenProps {
   user: User
@@ -17,34 +25,54 @@ interface CompanyListScreenProps {
 
 export default function CompanyListScreen({ user, onBack, onSelectCompany }: CompanyListScreenProps) {
   const [companies, setCompanies] = useState<Company[]>([])
+  const [memberships, setMemberships] = useState<CompanyMember[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true)
-        const snap = await getDocs(collection(db, 'companies'))
-        setCompanies(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })))
+
+        const [cSnap, mSnap] = await Promise.all([
+          getDocs(collection(db, 'companies')),
+          getDocs(
+            query(
+              collection(db, 'companyMembers'),
+              where('userId', '==', user.id),
+              where('active', '==', true),
+            ),
+          ),
+        ])
+
+        setCompanies(cSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Company)))
+        setMemberships(mSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as CompanyMember)))
+      } catch (e: any) {
+        console.error(e)
+        toast.error(`Gagal memuat perusahaan: ${e?.code || e?.message || String(e)}`)
+        setCompanies([])
+        setMemberships([])
       } finally {
         setLoading(false)
       }
     }
-    load()
-  }, [])
 
-  const userCompanies = (user.companies || [])
-    .map(m => {
-      const c = companies.find(x => x.id === m.companyId)
-      return c ? { ...c, role: m.role as UserRole } : null
-    })
-    .filter(Boolean) as Array<Company & { role: UserRole }>
+    load()
+  }, [user.id])
+
+  const userCompanies = useMemo(() => {
+    const mapCompany = new Map(companies.map(c => [c.id, c]))
+    return memberships
+      .map(m => {
+        const c = mapCompany.get(m.companyId)
+        return c ? ({ ...c, role: m.role } as Company & { role: UserRole }) : null
+      })
+      .filter(Boolean) as Array<Company & { role: UserRole }>
+  }, [companies, memberships])
 
   const choose = async (companyId: string, role: UserRole) => {
     try {
       await setDoc(doc(db, 'users', user.id), { companyId, role }, { merge: true })
       toast.success('Perusahaan dipilih')
-
-      // patch state di App agar langsung berubah
       onSelectCompany({ companyId, role })
     } catch (e: any) {
       console.error(e)

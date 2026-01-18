@@ -4,17 +4,8 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  updateDoc,
-  doc,
-  setDoc,
-} from 'firebase/firestore'
+import { collection, getDocs, query, where, updateDoc, doc, setDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { addMembershipToUserFirestore } from '@/lib/membership'
 
 interface EmployeeRequestsViewProps {
   company: Company
@@ -36,6 +27,7 @@ export default function EmployeeRequestsView({
 
   const [loading, setLoading] = useState(true)
   const [requests, setRequests] = useState<EmployeeRequest[]>([])
+  const [actingId, setActingId] = useState<string | null>(null)
 
   const loadRequests = async () => {
     try {
@@ -64,45 +56,61 @@ export default function EmployeeRequestsView({
   const processed = useMemo(() => requests.filter(r => r.status !== 'pending'), [requests])
 
   const handleReject = async (reqId: string) => {
-    if (!isOwner) return
+    if (!isOwner) return toast.error('Hanya owner yang bisa menolak')
     try {
+      setActingId(reqId)
       await updateDoc(doc(db, 'employeeRequests', reqId), { status: 'rejected' })
       onUpdateStatus(reqId, 'rejected')
       toast.success('Permintaan ditolak')
       loadRequests()
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to reject request', e)
-      toast.error('Gagal menolak permintaan')
+      toast.error(`Gagal menolak: ${e?.code || e?.message || String(e)}`)
+    } finally {
+      setActingId(null)
     }
   }
 
   const handleApprove = async (req: EmployeeRequest, role: Exclude<UserRole, 'customer'>) => {
-    if (!isOwner) return
+    if (!isOwner) return toast.error('Hanya owner yang bisa approve')
 
     try {
+      setActingId(req.id)
       const now = new Date().toISOString()
 
-      // 1) update membership user
-      const membership = { companyId: company.id, role, joinedAt: now } as const
-      await addMembershipToUserFirestore(req.userId, membership)
+      // STEP A: upsert companyMembers (harusnya diizinkan oleh rules Anda)
+      try {
+        await setDoc(
+          doc(db, 'companyMembers', `${company.id}_${req.userId}`),
+          {
+            companyId: company.id,
+            userId: req.userId,
+            role,
+            active: true,
+            joinedAt: now,
+            updatedAt: now,
+            leftAt: null,
+          },
+          { merge: true },
+        )
+      } catch (e: any) {
+        console.error('APPROVE FAILED at companyMembers write', e)
+        toast.error(`Gagal di companyMembers: ${e?.code || e?.message || String(e)}`)
+        return
+      }
 
-      // 2) upsert companyMembers (NEW)
-      await setDoc(
-        doc(db, 'companyMembers', `${company.id}_${req.userId}`),
-        {
-          companyId: company.id,
-          userId: req.userId,
-          role,
-          active: true,
-          joinedAt: now,
-          updatedAt: now,
-          leftAt: null,
-        },
-        { merge: true },
-      )
-
-      // 3) update request status
-      await updateDoc(doc(db, 'employeeRequests', req.id), { status: 'approved' })
+      // STEP B: update request status (harusnya diizinkan juga)
+      try {
+        await updateDoc(doc(db, 'employeeRequests', req.id), {
+          status: 'approved',
+          approvedAt: now,
+          approvedBy: currentUser.id,
+        } as any)
+      } catch (e: any) {
+        console.error('APPROVE FAILED at employeeRequests update', e)
+        toast.error(`Gagal update request: ${e?.code || e?.message || String(e)}`)
+        return
+      }
 
       onApproveAsRole(req, role)
       onUpdateStatus(req.id, 'approved')
@@ -110,8 +118,10 @@ export default function EmployeeRequestsView({
       toast.success(`Permintaan disetujui sebagai ${role}`)
       loadRequests()
     } catch (e: any) {
-      console.error('Failed to approve request', e)
+      console.error('Failed to approve request (unknown)', e)
       toast.error(`Gagal menyetujui: ${e?.code || e?.message || String(e)}`)
+    } finally {
+      setActingId(null)
     }
   }
 
@@ -150,11 +160,13 @@ export default function EmployeeRequestsView({
                         </div>
 
                         <div className="flex gap-2 flex-wrap">
-                          <Button onClick={() => handleApprove(r, 'admin')}>Approve Admin</Button>
-                          <Button variant="outline" onClick={() => handleApprove(r, 'courier')}>
-                            Approve Kurir
+                          <Button disabled={actingId === r.id} onClick={() => handleApprove(r, 'admin')}>
+                            {actingId === r.id ? 'Memproses...' : 'Approve Admin'}
                           </Button>
-                          <Button variant="destructive" onClick={() => handleReject(r.id)}>
+                          <Button disabled={actingId === r.id} variant="outline" onClick={() => handleApprove(r, 'courier')}>
+                            {actingId === r.id ? 'Memproses...' : 'Approve Kurir'}
+                          </Button>
+                          <Button disabled={actingId === r.id} variant="destructive" onClick={() => handleReject(r.id)}>
                             Tolak
                           </Button>
                         </div>
