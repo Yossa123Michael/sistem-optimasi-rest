@@ -78,39 +78,44 @@ export default function EmployeeRequestsView({
       setActingId(req.id)
       const now = new Date().toISOString()
 
-      // STEP A: upsert companyMembers (harusnya diizinkan oleh rules Anda)
-      try {
+      // 1) upsert companyMembers
+      await setDoc(
+        doc(db, 'companyMembers', `${company.id}_${req.userId}`),
+        {
+          companyId: company.id,
+          userId: req.userId,
+          role,
+          active: true,
+          joinedAt: now,
+          updatedAt: now,
+          leftAt: null,
+        },
+        { merge: true },
+      )
+
+      // 2) AUTO: jika disetujui sebagai courier -> buat profil couriers
+      if (role === 'courier') {
         await setDoc(
-          doc(db, 'companyMembers', `${company.id}_${req.userId}`),
+          doc(db, 'couriers', `${company.id}_${req.userId}`),
           {
             companyId: company.id,
             userId: req.userId,
-            role,
-            active: true,
-            joinedAt: now,
+            userName: (req as any).userName || null,
+            userEmail: (req as any).userEmail || null,
+            createdAt: now,
             updatedAt: now,
-            leftAt: null,
+            active: true,
           },
           { merge: true },
         )
-      } catch (e: any) {
-        console.error('APPROVE FAILED at companyMembers write', e)
-        toast.error(`Gagal di companyMembers: ${e?.code || e?.message || String(e)}`)
-        return
       }
 
-      // STEP B: update request status (harusnya diizinkan juga)
-      try {
-        await updateDoc(doc(db, 'employeeRequests', req.id), {
-          status: 'approved',
-          approvedAt: now,
-          approvedBy: currentUser.id,
-        } as any)
-      } catch (e: any) {
-        console.error('APPROVE FAILED at employeeRequests update', e)
-        toast.error(`Gagal update request: ${e?.code || e?.message || String(e)}`)
-        return
-      }
+      // 3) update request status
+      await updateDoc(doc(db, 'employeeRequests', req.id), {
+        status: 'approved',
+        approvedAt: now,
+        approvedBy: currentUser.id,
+      } as any)
 
       onApproveAsRole(req, role)
       onUpdateStatus(req.id, 'approved')
@@ -118,7 +123,7 @@ export default function EmployeeRequestsView({
       toast.success(`Permintaan disetujui sebagai ${role}`)
       loadRequests()
     } catch (e: any) {
-      console.error('Failed to approve request (unknown)', e)
+      console.error('Failed to approve request', e)
       toast.error(`Gagal menyetujui: ${e?.code || e?.message || String(e)}`)
     } finally {
       setActingId(null)
@@ -153,8 +158,8 @@ export default function EmployeeRequestsView({
                       <div key={r.id} className="border rounded-xl p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-medium truncate">{r.userName}</p>
-                            <p className="text-xs text-muted-foreground truncate">{r.userEmail}</p>
+                            <p className="font-medium truncate">{(r as any).userName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{(r as any).userEmail}</p>
                           </div>
                           <Badge variant="secondary">pending</Badge>
                         </div>
@@ -186,8 +191,8 @@ export default function EmployeeRequestsView({
                       <div key={r.id} className="border rounded-xl p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-medium truncate">{r.userName}</p>
-                            <p className="text-xs text-muted-foreground truncate">{r.userEmail}</p>
+                            <p className="font-medium truncate">{(r as any).userName}</p>
+                            <p className="text-xs text-muted-foreground truncate">{(r as any).userEmail}</p>
                           </div>
                           <Badge variant={r.status === 'approved' ? 'default' : 'destructive'}>{r.status}</Badge>
                         </div>

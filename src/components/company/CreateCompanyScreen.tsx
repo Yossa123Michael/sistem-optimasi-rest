@@ -44,25 +44,46 @@ export default function CreateCompanyScreen({
     try {
       setLoading(true)
 
+      const now = new Date().toISOString()
+
       const payload: Omit<Company, 'id'> & any = {
         name: name.trim(),
         code: genCode(),
         ownerId: user.id,
-        createdAt: new Date().toISOString(),
-        officeLocation, // NEW
+        createdAt: now,
+        updatedAt: now,
+        officeLocation,
       }
 
       const ref = await addDoc(collection(db, 'companies'), payload)
 
-      const membership = { companyId: ref.id, role: 'admin' as const, joinedAt: new Date().toISOString() }
+      // user membership (legacy)
+      const membership = { companyId: ref.id, role: 'admin' as const, joinedAt: now }
       const nextCompanies = [...(user.companies || []), membership]
 
+      // ✅ 1) set active company for the owner in users doc (existing behavior)
       await setDoc(
         doc(db, 'users', user.id),
         {
           companyId: ref.id,
           role: 'admin',
           companies: nextCompanies,
+        },
+        { merge: true },
+      )
+
+      // ✅ 2) IMPORTANT: also create companyMembers for owner
+      // so that CompanyList/Selection based on companyMembers can show it.
+      await setDoc(
+        doc(db, 'companyMembers', `${ref.id}_${user.id}`),
+        {
+          companyId: ref.id,
+          userId: user.id,
+          role: 'admin',
+          active: true,
+          joinedAt: now,
+          updatedAt: now,
+          leftAt: null,
         },
         { merge: true },
       )
@@ -106,19 +127,16 @@ export default function CreateCompanyScreen({
 
           <div className="space-y-2">
             <Label>Lokasi Kantor</Label>
-            <p className="text-xs text-muted-foreground">
-              Klik pada peta untuk memilih lokasi kantor.
-            </p>
+            <p className="text-xs text-muted-foreground">Klik pada peta untuk memilih lokasi kantor.</p>
 
-            <OfficeLocationPicker
-              value={officeLocation}
-              onChange={setOfficeLocation}
-              height={360}
-            />
+            <OfficeLocationPicker value={officeLocation} onChange={setOfficeLocation} height={360} />
 
             {officeLocation && (
               <p className="text-xs text-muted-foreground">
-                Dipilih: <span className="font-mono">{officeLocation.lat.toFixed(6)}, {officeLocation.lng.toFixed(6)}</span>
+                Dipilih:{' '}
+                <span className="font-mono">
+                  {officeLocation.lat.toFixed(6)}, {officeLocation.lng.toFixed(6)}
+                </span>
               </p>
             )}
           </div>
