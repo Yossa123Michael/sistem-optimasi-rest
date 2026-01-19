@@ -10,6 +10,20 @@ import { optimizeRoutes } from '@/lib/route-optimizer'
 import { getOsrmRoutePath, LatLng } from '@/lib/osrm'
 import { assignPendingPackagesToActiveCouriers } from '@/lib/assign'
 
+function removeUndefinedDeep<T>(obj: T): T {
+  if (Array.isArray(obj)) {
+    return obj.map(v => removeUndefinedDeep(v)).filter(v => v !== undefined) as any
+  }
+  if (obj && typeof obj === 'object') {
+    const out: any = {}
+    for (const [k, v] of Object.entries(obj as any)) {
+      if (v === undefined) continue
+      out[k] = removeUndefinedDeep(v)
+    }
+    return out
+  }
+  return obj
+}
 
 interface HomeViewProps {
   user: User
@@ -155,7 +169,8 @@ const markers = useMemo(() => {
 
             const points: LatLng[] = [warehouse, ...orderedPkgs.map(p => ({ lat: p.latitude, lng: p.longitude }))]
             const routePath = await getOsrmRoutePath(points, 'driving')
-            return routePath.length ? { ...r, routePath } : r
+
+            return Array.isArray(routePath) && routePath.length ? { ...r, routePath } : r
           } catch {
             return r
           }
@@ -163,16 +178,18 @@ const markers = useMemo(() => {
       )
 
       const payload: RouteOptimDoc = {
-        companyId: user.companyId,
-        generatedAt: new Date().toISOString(),
-        warehouse,
-        routes: enrichedRoutes,
-      }
+  companyId: user.companyId,
+  generatedAt: new Date().toISOString(),
+  warehouse,
+  routes: enrichedRoutes,
+}
 
-      await setDoc(doc(db, 'routeOptimizations', user.companyId), payload, { merge: true })
-      setOptDoc(payload)
+const cleaned = removeUndefinedDeep(payload)
 
-      await assignPendingPackagesToActiveCouriers(user.companyId!)
+await setDoc(doc(db, 'routeOptimizations', user.companyId), cleaned, { merge: true })
+setOptDoc(cleaned)
+
+await assignPendingPackagesToActiveCouriers(user.companyId!)
 
       toast.success('Optimasi berhasil dibuat. Rute berwarna per kurir ditampilkan di peta.')
     } catch (e) {

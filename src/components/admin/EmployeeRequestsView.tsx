@@ -50,6 +50,7 @@ export default function EmployeeRequestsView({
 
   useEffect(() => {
     loadRequests()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company.id])
 
   const pending = useMemo(() => requests.filter(r => r.status === 'pending'), [requests])
@@ -78,7 +79,11 @@ export default function EmployeeRequestsView({
       setActingId(req.id)
       const now = new Date().toISOString()
 
-      // 1) upsert companyMembers
+      const reqUserName = (req as any).userName || ''
+      const reqUserEmail = (req as any).userEmail || ''
+      const displayName = reqUserName || (reqUserEmail ? reqUserEmail.split('@')[0] : 'Kurir')
+
+      // 1) upsert companyMembers (sumber kebenaran membership)
       await setDoc(
         doc(db, 'companyMembers', `${company.id}_${req.userId}`),
         {
@@ -93,18 +98,19 @@ export default function EmployeeRequestsView({
         { merge: true },
       )
 
-      // 2) AUTO: jika disetujui sebagai courier -> buat profil couriers
+      // 2) AUTO: jika role courier, buat courier profile yang BENAR (ID stabil + companyId pasti benar)
       if (role === 'courier') {
         await setDoc(
           doc(db, 'couriers', `${company.id}_${req.userId}`),
           {
             companyId: company.id,
             userId: req.userId,
-            userName: (req as any).userName || null,
-            userEmail: (req as any).userEmail || null,
+            name: displayName,
+            email: reqUserEmail || null,
+            capacity: 40, // default number; bisa Anda ubah nanti dari UI admin
+            active: true,
             createdAt: now,
             updatedAt: now,
-            active: true,
           },
           { merge: true },
         )
