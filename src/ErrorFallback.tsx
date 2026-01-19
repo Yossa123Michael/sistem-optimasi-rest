@@ -4,8 +4,8 @@ import { Button } from "./components/ui/button";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
 export const ErrorFallback = ({ error, resetErrorBoundary }) => {
-  // When encountering an error in the development mode, rethrow it and don't display the boundary.
-  // The parent UI will take care of showing a more helpful dialog.
+  // Kalau ada salah dalam mode pengembangan, show kesalahan tersebut dan jangan tampilkan batasannya.
+  // Antarmuka pengguna (UI) akan menampilkan tampilan dialog yang lebih membantu.
   if (import.meta.env.DEV) throw error;
 
   return (

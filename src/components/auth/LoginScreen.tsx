@@ -91,7 +91,7 @@ export default function LoginScreen({
     }
   }
 
-  // Guest tracking via long-press (more resistant to auto-trigger)
+  // Guest tracking - long press to activate
   const pressStartRef = useRef<number | null>(null)
   const LONG_PRESS_MS = 900
 
@@ -201,7 +201,6 @@ export default function LoginScreen({
               onPointerUp={handleTrackPointerUp}
               onPointerCancel={() => (pressStartRef.current = null)}
               onKeyDown={e => {
-                // blok Enter/Space agar tidak auto-activate
                 if (e.key === 'Enter' || e.key === ' ') e.preventDefault()
               }}
             >

@@ -15,8 +15,8 @@ type RouteOptimDoc = {
     courierId: string
     courierName: string
     packageIds: string[]
-    route: LatLng[] // garis lurus
-    routePath?: LatLng[] // jalur nyata OSRM
+    route: LatLng[] 
+    routePath?: LatLng[] 
     totalDistance: number
   }>
 }

@@ -5,9 +5,9 @@ import CustomerHomeView from './CustomerHomeView'
 import CustomerHistoryView from './CustomerHistoryView'
 import CustomerOrderView from './CustomerOrderView'
 import CostumerStatusview from './CustomerStatusView'
-import CustomerPaymentHubView from './CustomerPaymentHubView' // NEW
+import CustomerPaymentHubView from './CustomerPaymentHubView'
 
-type CustomerView = 'home' | 'pemesanan' | 'status' | 'history' | 'payment' // NEW
+type CustomerView = 'home' | 'pemesanan' | 'status' | 'history' | 'payment'
 
 interface CustomerDashboardProps {
   user: User

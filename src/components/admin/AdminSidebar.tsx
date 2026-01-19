@@ -37,7 +37,7 @@ export default function AdminSidebar({
     { id: 'home', label: 'Home' },
     { id: 'input-data', label: 'Input Data' },
     { id: 'orders', label: 'Order Masuk' },
-    { id: 'payments', label: 'Cek Pembayaran' }, // NEW
+    { id: 'payments', label: 'Cek Pembayaran' }, 
     { id: 'courier', label: 'Kurir' },
     { id: 'monitoring', label: 'Monitoring' },
     { id: 'company-settings', label: 'Pengaturan Perusahaan' },

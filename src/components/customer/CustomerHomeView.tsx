@@ -7,7 +7,7 @@ interface Props {
   onGoOrder: () => void
   onGoStatus: () => void
   onGoHistory: () => void
-  onGoPayment: () => void // NEW
+  onGoPayment: () => void
 }
 
 export default function CustomerHomeView({

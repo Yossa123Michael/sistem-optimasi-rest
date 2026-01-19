@@ -57,11 +57,11 @@ export default function CreateCompanyScreen({
 
       const ref = await addDoc(collection(db, 'companies'), payload)
 
-      // user membership (legacy)
+      // user membership
       const membership = { companyId: ref.id, role: 'admin' as const, joinedAt: now }
       const nextCompanies = [...(user.companies || []), membership]
 
-      // ✅ 1) set active company for the owner in users doc (existing behavior)
+      // 1) set active company untuk owner di users doc
       await setDoc(
         doc(db, 'users', user.id),
         {
@@ -72,8 +72,7 @@ export default function CreateCompanyScreen({
         { merge: true },
       )
 
-      // ✅ 2) IMPORTANT: also create companyMembers for owner
-      // so that CompanyList/Selection based on companyMembers can show it.
+      // 2) Buat juga companyMembers untuk owner, sehingga CompanyList/Selection yang berdasarkan pada companyMembers dapat menampilkannya.
       await setDoc(
         doc(db, 'companyMembers', `${ref.id}_${user.id}`),
         {

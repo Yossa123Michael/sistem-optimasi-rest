@@ -66,7 +66,7 @@ export default function CourierView({ user, onActivate }: CourierViewProps) {
         capacity: parseFloat(capacity),
         active: false,
         companyId: user.companyId,
-        // optional: link ke user pembuat. Silakan sesuaikan logic Anda.
+        // link ke user pembuat
         userId: user.id,
         createdAt: new Date().toISOString(),
       }

@@ -88,7 +88,7 @@ export default function InputDataView({
     [localPackages],
   )
 
-  // ===== STEP 1: Kurir (nama readonly, edit kapasitas) =====
+  // STEP 1: Kurir (nama readonly, edit kapasitas)
   const handleCourierCapacityChange = (id: string, value: string) => {
     setLocalCouriers(prev =>
       prev.map(c => (c.id === id ? { ...c, capacity: toNumber(value) } : c)),
@@ -126,7 +126,7 @@ export default function InputDataView({
     }
   }
 
-  // ===== STEP 2: Paket (tambah paket manual) =====
+  // STEP 2: Paket (tambah paket manual)
   const handleAddPackageRow = () => {
     const now = new Date().toISOString()
     const p: Package = {
@@ -171,7 +171,7 @@ export default function InputDataView({
     setLocalPackages(prev => prev.filter(p => p.id !== id))
   }
 
-  // ===== Assign packages to ACTIVE couriers (round-robin) =====
+  // Assign packages ke ACTIVE couriers
   const assignPendingToActiveCouriers = async () => {
     setAssigning(true)
     try {
@@ -240,7 +240,6 @@ export default function InputDataView({
         )
       } catch (trackErr) {
         console.error('Failed to update tracking after assignment:', trackErr)
-        // Don't fail the whole operation for tracking updates
       }
 
       // refresh state packages for admin UI
@@ -301,26 +300,26 @@ export default function InputDataView({
 
     setSaving(true)
     try {
-      // UPSERT STRATEGY: fetch existing packages to compare
+      // Cek paket yang sudah ada di Firestore
       const snap = await getDocs(
         query(collection(db, 'packages'), where('companyId', '==', company.id)),
       )
       const existingPackages = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Package))
       
-      // Create a Set of existing package IDs for O(1) lookups
+      // Buat set ID paket yang sudah ada
       const existingPackageIds = new Set(existingPackages.map(ep => ep.id))
       
       const now = new Date().toISOString()
       const savedPackages: Package[] = []
       
-      // Track which existing package IDs are still present in localPackages
+      // Buat set ID paket yang masih ada di localPackages
       const localPackageIds = new Set(
         localPackages
           .filter(p => p.id && existingPackageIds.has(p.id))
           .map(p => p.id)
       )
       
-      // Delete packages that were removed from the UI
+      // Hapus paket yang telah dihapus dari UI.
       const packagesToDelete = existingPackages.filter(ep => !localPackageIds.has(ep.id))
       for (const pkg of packagesToDelete) {
         try {
@@ -332,11 +331,11 @@ export default function InputDataView({
         }
       }
 
-      // Process each local package (create new or update existing)
+      // Proses setiap paket lokal (buat baru atau perbarui yang sudah ada)
       for (const p of localPackages) {
         const isExisting = Boolean(p.id) && existingPackageIds.has(p.id)
         
-        // Prepare payload without undefined values (Firestore rejects undefined)
+        // Siapkan payload tanpa nilai yang tidak terdefinisi (Firestore menolak nilai yang tidak ada)
         const payload: any = {
           companyId: company.id,
           name: String(p.name || '').trim(),
@@ -348,7 +347,7 @@ export default function InputDataView({
           longitude: toNumber(p.longitude),
           weight: toNumber(p.weight),
           trackingNumber: String(p.trackingNumber || '').trim(),
-          courierId: p.courierId ?? null, // preserve existing assignment or null
+          courierId: p.courierId ?? null, // pertahankan penugasan yang ada atau null
           status: p.status || 'pending',
           updatedAt: now,
         }
@@ -357,7 +356,7 @@ export default function InputDataView({
         let packageDoc: Package
 
         if (isExisting) {
-          // UPDATE existing package
+          // PERBARUI paket yang sudah ada
           packageId = p.id
           try {
             await updateDoc(doc(db, 'packages', packageId), payload)
@@ -374,7 +373,7 @@ export default function InputDataView({
             deliveredAt: p.deliveredAt ?? null,
           } as Package
         } else {
-          // CREATE new package
+          // BUAT paket baru
           payload.createdAt = now
           payload.status = 'pending'
           payload.courierId = null
@@ -413,7 +412,7 @@ export default function InputDataView({
           )
         } catch (trackErr) {
           console.error(`Failed to update tracking for ${payload.trackingNumber}:`, trackErr)
-          // Don't fail the whole operation for tracking updates
+          // Gagal karena pembaruan tracking
         }
 
         savedPackages.push(packageDoc)
@@ -425,7 +424,7 @@ export default function InputDataView({
         return [...other, ...savedPackages]
       })
 
-      // AUTO ASSIGN after submit
+      // AUTO ASSIGN habis submit
       const result = await assignPendingToActiveCouriers()
       if (result.assigned > 0) {
         toast.success(`Paket disimpan & otomatis ditugaskan (${result.assigned} paket)`)

@@ -89,7 +89,7 @@ export default function OrderRequestsView({ user }: { user: User }) {
       )
       setCreatedOrders(createdSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as OrderDoc)))
 
-      // payment waiting verification (transfer + bayar di kantor)
+      // Menunggu pembayaran untuk diverifikasi
       const paySnap = await getDocs(
         query(
           collection(db, 'orders'),

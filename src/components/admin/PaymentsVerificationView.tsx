@@ -39,7 +39,7 @@ export default function PaymentsVerificationView({ user }: { user: User }) {
     try {
       setLoading(true)
 
-      // Query sederhana agar tidak butuh composite index:
+      // Query agar tidak butuh composite index:
       // Ambil order assigned milik company, lalu filter di client
       const snap = await getDocs(
         query(

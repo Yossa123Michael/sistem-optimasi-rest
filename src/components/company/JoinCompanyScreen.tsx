@@ -94,8 +94,6 @@ export default function JoinCompanyScreen({ user, onBack, onRequestSent }: JoinC
       toast.success('Request join berhasil dikirim. Tunggu approval owner.')
 
       // Tidak mengubah membership user.
-      // Optional: kalau mau update state App untuk tampilkan status "pending",
-      // Anda bisa pakai patch kosong atau menambah field baru di User.
       onRequestSent({
         companyId: user.companyId,
         role: user.role,

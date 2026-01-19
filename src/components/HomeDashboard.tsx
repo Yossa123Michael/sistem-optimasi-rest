@@ -48,7 +48,7 @@ export default function HomeDashboard({
   const [companies, setCompanies] = useState<Company[]>([])
   const [loadingCompanies, setLoadingCompanies] = useState(true)
 
-  // ✅ NEW: memberships from companyMembers
+  // memberships from companyMembers
   const [memberships, setMemberships] = useState<CompanyMember[]>([])
   const [loadingMemberships, setLoadingMemberships] = useState(true)
 
@@ -59,7 +59,7 @@ export default function HomeDashboard({
         const snap = await getDocs(collection(db, 'companies'))
         const all = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Company))
 
-        // Soft delete: hanya tampilkan yang belum diarsipkan
+        // Soft delete
         setCompanies(all.filter(c => !(c as any).archived))
       } finally {
         setLoadingCompanies(false)
@@ -191,7 +191,7 @@ export default function HomeDashboard({
     </div>
   )
 
-  // ===== Main content (sama seperti sebelumnya) =====
+  // ===== Main content =====
   return (
     <div className="min-h-screen bg-background">
       {/* Mobile top bar */}

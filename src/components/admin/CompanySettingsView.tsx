@@ -27,8 +27,6 @@ type CompanyDoc = {
   officeLng?: number
   officeAddress?: string
   isOpen?: boolean
-
-  // NEW: rekening
   bankName?: string
   bankAccountName?: string
   bankAccountNumber?: string
@@ -69,7 +67,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
     lng: 106.8456,
   })
 
-  // NEW: rekening (owner only)
+  //rekening (owner only)
   const [bankName, setBankName] = useState('')
   const [bankAccountName, setBankAccountName] = useState('')
   const [bankAccountNumber, setBankAccountNumber] = useState('')
@@ -114,7 +112,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
           setOffice({ lat, lng })
         }
 
-        // NEW: rekening load
+        // rekening load
         setBankName(String((c as any).bankName || ''))
         setBankAccountName(String((c as any).bankAccountName || ''))
         setBankAccountNumber(String((c as any).bankAccountNumber || ''))
@@ -131,7 +129,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
     try {
       setLoadingEmployees(true)
 
-      // Tampilkan karyawan yang sedang aktif di company ini
+      // Tampilkan karyawan yang sedang aktif
       const snap = await getDocs(
         query(
           collection(db, 'users'),
@@ -142,7 +140,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
       const list = snap.docs
         .map(d => ({ id: d.id, ...(d.data() as any) } as User))
         .filter(u => u.role === 'admin' || u.role === 'courier')
-        // jangan tampilkan owner sebagai "karyawan" (opsional)
+        // jangan tampilkan owner sebagai "karyawan"
         .filter(u => u.id !== company?.ownerId)
 
       setEmployees(list)
@@ -177,7 +175,7 @@ export default function CompanySettingsView({ user }: { user: User }) {
         officeLng: office.lng,
         isOpen: !!isOpen,
 
-        // NEW: rekening (boleh tetap disimpan walau kosong)
+        // rekening (boleh tetap disimpan walau kosong)
         bankName: bankName.trim(),
         bankAccountName: bankAccountName.trim(),
         bankAccountNumber: bankAccountNumber.trim(),

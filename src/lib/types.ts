@@ -145,7 +145,7 @@ export interface Order {
   packageId?: string
 }
 
-// NEW: companyMembers (dipakai untuk list karyawan)
+// CompanyMembers (dipakai untuk list karyawan)
 export interface CompanyMember {
   id: string
   companyId: string

@@ -92,7 +92,6 @@ export default function EmployeesView({ user }: { user: User }) {
   const rows = useMemo(() => {
     return members
       .map(m => ({ member: m, profile: usersMap[m.userId] }))
-      // jangan tampilkan owner sendiri (opsional)
       .filter(x => x.profile?.id !== user.id)
   }, [members, usersMap, user.id])
 
@@ -105,7 +104,7 @@ export default function EmployeesView({ user }: { user: User }) {
         updatedAt: new Date().toISOString(),
       })
 
-      // update users/{uid}: companies[] role + kalau aktif di company ini, update role aktif
+      // update users/{uid}: companies[] role + update role aktif
       const userRef = doc(db, 'users', member.userId)
       const uSnap = await getDoc(userRef)
       if (uSnap.exists()) {
@@ -136,7 +135,7 @@ export default function EmployeesView({ user }: { user: User }) {
         updatedAt: new Date().toISOString(),
       })
 
-      // update user: remove membership + reset aktif kalau sedang di company ini
+      // update user: remove membership + reset aktif
       const userRef = doc(db, 'users', member.userId)
       const uSnap = await getDoc(userRef)
       if (uSnap.exists()) {
@@ -145,7 +144,7 @@ export default function EmployeesView({ user }: { user: User }) {
 
         const patch: any = { companies: nextCompanies, updatedAt: new Date().toISOString() }
 
-        // kalau user sedang aktif di company ini, paksa keluar
+        // kalau user sedang ada di company ini, paksa keluar
         if (uData.companyId === companyId) {
           patch.companyId = ''
           patch.role = 'customer'

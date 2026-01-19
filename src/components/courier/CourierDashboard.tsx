@@ -15,7 +15,7 @@ interface CourierDashboardProps {
   user: User
   onLogout: () => void
   onBackToHome?: () => void
-  // legacy props from old code: keep to avoid App.tsx mismatch
+  // legacy props from old code supaya App.tsx miss
   onUpdatePackageStatus?: any
   allPackages?: any
 }

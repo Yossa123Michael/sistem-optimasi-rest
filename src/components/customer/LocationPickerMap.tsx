@@ -52,7 +52,7 @@ export default function LocationPickerMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // sync when value changed from outside
+  // sync ketika value berubah dari luar
   useEffect(() => {
     if (!mapRef.current || !markerRef.current) return
     markerRef.current.setLatLng([value.lat, value.lng])

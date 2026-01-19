@@ -12,9 +12,9 @@ import LocationPickerMap from './LocationPickerMap'
 type CompanyDoc = {
   id: string
   name: string
-  officeLocation?: { lat: number; lng: number } // schema baru
-  officeLat?: number // fallback schema lama
-  officeLng?: number // fallback schema lama
+  officeLocation?: { lat: number; lng: number }
+  officeLat?: number
+  officeLng?: number
   officeAddress?: string
   ratePerKm?: number
   archived?: boolean
@@ -57,7 +57,7 @@ export default function CustomerOrderView({ user }: { user: User }) {
   const [search, setSearch] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('cheapest')
 
-  // NEW: lokasi user sekarang (share GPS)
+  // lokasi user sekarang (share GPS)
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null)
   const [locLoading, setLocLoading] = useState(false)
 
@@ -198,7 +198,7 @@ export default function CustomerOrderView({ user }: { user: User }) {
         distanceKm,
         estimatedCost,
 
-        // lokasi user saat order (optional, tapi berguna)
+        // lokasi user saat order
         customerLocation: userLoc ? { ...userLoc } : null,
 
         customerId: user.id,

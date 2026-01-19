@@ -15,13 +15,6 @@ export async function leaveCompany(userId: string, companyId: string) {
   // 1) ambil user doc
   const userRef = doc(db, 'users', userId)
 
-  // NOTE: kita tidak pakai transaction biar simpel, tapi aman untuk demo
-  // Hapus membership companyId dari companies[]
-  // dan kosongkan companyId/role jika sedang aktif di company itu.
-  // (Karena Firestore tidak punya arrayRemove untuk object beda, kita rebuild array di client.)
-  // Jadi: panggil ini dari UI yang sudah punya objek user lengkap (lebih gampang),
-  // atau Anda bisa fetch user doc dulu di sini. Agar ringkas, saya buat versi fetch dulu.
-
   const snap = await (await import('firebase/firestore')).getDoc(userRef)
   if (!snap.exists()) throw new Error('User tidak ditemukan')
 
@@ -47,16 +40,10 @@ export async function deleteCompanyCascade(companyId: string) {
     updatedAt: new Date().toISOString(),
   })
 
-  // 1) keluarkan semua user dari perusahaan ini
+  // 2) keluarkan semua user dari perusahaan ini
   const usersSnap = await getDocs(
     query(collection(db, 'users'), where('companyId', '==', companyId)),
   )
-
-  // 2) ambil juga user yang punya membership di companies[] (tapi companyId aktif beda)
-  // Karena Firestore tidak bisa query array of objects dengan mudah,
-  // fallback: scan employees via couriers + employeeRequests.
-  // Untuk demo: minimal reset yang companyId aktif saja sudah cukup.
-  // (Kalau Anda mau total, kita bisa simpan membership doc terpisah di masa depan.)
 
   const batch = writeBatch(db)
 
@@ -64,7 +51,7 @@ export async function deleteCompanyCascade(companyId: string) {
     batch.update(doc(db, 'users', u.id), { companyId: '', role: 'customer' })
   })
 
-  // 3) hapus data operasional (optional tapi sesuai request "otomatis terhapus")
+  // 3) hapus data operasional perusahaan
   // couriers
   const courSnap = await getDocs(query(collection(db, 'couriers'), where('companyId', '==', companyId)))
   courSnap.docs.forEach(d => batch.delete(doc(db, 'couriers', d.id)))
@@ -87,7 +74,6 @@ export async function deleteCompanyCascade(companyId: string) {
   await batch.commit()
 
   // publicTracking: docId trackingNumber -> harus query by companyId
-  // tidak bisa masuk batch di atas jika >500 dokumen.
   const trackSnap = await getDocs(
     query(collection(db, 'publicTracking'), where('companyId', '==', companyId), limit(500)),
   )

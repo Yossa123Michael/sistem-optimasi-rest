@@ -4,7 +4,7 @@ export async function getOsrmRoutePath(points: LatLng[], profile: 'driving' | 'c
   // OSRM butuh minimal 2 titik
   if (points.length < 2) return []
 
-  // OSRM format: lng,lat;lng,lat;...
+  // OSRM format: lng dan lat
   const coords = points.map(p => `${p.lng},${p.lat}`).join(';')
   const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson`
 

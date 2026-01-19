@@ -43,7 +43,7 @@ export default function CustomerPaymentHubView({
           return
         }
 
-        // ✅ FIX: tutup map dengan benar
+        // Tutup map dengan benar
         const list = snap.docs.map(
           d => ({ id: d.id, ...(d.data() as any) } as Order),
         )

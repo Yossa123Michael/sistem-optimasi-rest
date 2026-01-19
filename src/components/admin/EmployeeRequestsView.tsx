@@ -83,7 +83,7 @@ export default function EmployeeRequestsView({
       const reqUserEmail = (req as any).userEmail || ''
       const displayName = reqUserName || (reqUserEmail ? reqUserEmail.split('@')[0] : 'Kurir')
 
-      // 1) upsert companyMembers (sumber kebenaran membership)
+      // 1) upsert companyMembers (source membership)
       await setDoc(
         doc(db, 'companyMembers', `${company.id}_${req.userId}`),
         {
@@ -98,7 +98,7 @@ export default function EmployeeRequestsView({
         { merge: true },
       )
 
-      // 2) AUTO: jika role courier, buat courier profile yang BENAR (ID stabil + companyId pasti benar)
+      // 2) AUTO: jika role courier, buat courier profile yang BENAR (ID stabil + companyId)
       if (role === 'courier') {
         await setDoc(
           doc(db, 'couriers', `${company.id}_${req.userId}`),
@@ -107,7 +107,7 @@ export default function EmployeeRequestsView({
             userId: req.userId,
             name: displayName,
             email: reqUserEmail || null,
-            capacity: 40, // default number; bisa Anda ubah nanti dari UI admin
+            capacity: 40, // default number; bisa diubah nanti dari UI admin
             active: true,
             createdAt: now,
             updatedAt: now,

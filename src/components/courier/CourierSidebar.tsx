@@ -13,8 +13,6 @@ interface CourierSidebarProps {
   onViewChange: (view: CourierView) => void
   onLogout: () => void
   onBackToHome?: () => void
-
-  // NEW
   onLeaveCompany?: () => void
 }
 

@@ -69,8 +69,7 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = useState(false)
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
+  // Internal sidebar
   const [_open, _setOpen] = useState(defaultOpen)
   const open = openProp ?? _open
   const setOpen = useCallback(
@@ -88,12 +87,12 @@ function SidebarProvider({
     [setOpenProp, open]
   )
 
-  // Helper to toggle the sidebar.
+  // Helper toggle sidebar.
   const toggleSidebar = useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
   }, [isMobile, setOpen, setOpenMobile])
 
-  // Adds a keyboard shortcut to toggle the sidebar.
+  // keyboard shortcut toggle sidebar.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -109,8 +108,7 @@ function SidebarProvider({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [toggleSidebar])
 
-  // We add a state so that we can do data-state="expanded" or "collapsed".
-  // This makes it easier to style the sidebar with Tailwind classes.
+  // State untuk data-state="expanded" or "collapsed".
   const state = open ? "expanded" : "collapsed"
 
   const contextValue = useMemo<SidebarContextProps>(
@@ -606,7 +604,7 @@ function SidebarMenuSkeleton({
 }: ComponentProps<"div"> & {
   showIcon?: boolean
 }) {
-  // Random width between 50 to 90%.
+  // Random width 50 - 90%.
   const width = useMemo(() => {
     return `${Math.floor(Math.random() * 40) + 50}%`
   }, [])

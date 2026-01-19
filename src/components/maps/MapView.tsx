@@ -32,7 +32,7 @@ export default function MapView({
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
 
-  // layer groups biar clear aman (tidak ganggu tile layer)
+  // layer groups biar clear aman
   const markerLayerRef = useRef<L.LayerGroup | null>(null)
   const routeLayerRef = useRef<L.LayerGroup | null>(null)
 

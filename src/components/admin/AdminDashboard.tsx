@@ -32,7 +32,7 @@ export type AdminView =
   | 'courier'
   | 'orders'
   | 'company-settings'
-  | 'employees' // NEW
+  | 'employees' 
   | 'courier-activation'
   | 'monitoring'
   | 'requests'
@@ -112,7 +112,7 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView])
 
-  // ===== leave company (admin biasa saja, owner tidak boleh) =====
+  // leave company (admin saja, owner tidak boleh)
   const leaveCompany = async () => {
     if (!user.companyId) return
     const companyId = user.companyId
@@ -148,7 +148,7 @@ export default function AdminDashboard({ user, onLogout, onBackToHome }: AdminDa
     }
   }
 
-  // ===== delete company cascade (owner) =====
+  // delete company cascade (owner)
   const deleteCompanyCascade = async () => {
     if (!user.companyId) return
     const companyId = user.companyId

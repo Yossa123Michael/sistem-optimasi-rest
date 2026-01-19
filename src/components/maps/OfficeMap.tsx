@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css'
 
 type LatLng = { lat: number; lng: number }
 
-const DEFAULT_CENTER: LatLng = { lat: -6.200000, lng: 106.816666 } // Jakarta fallback
+const DEFAULT_CENTER: LatLng = { lat: -6.200000, lng: 106.816666 } // Jakarta
 
 // Fix icon marker agar tidak hilang di Vite
 const markerIcon = new L.Icon({
